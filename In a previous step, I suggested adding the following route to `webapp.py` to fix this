@@ -1,6 +1,0 @@
-@app.route('/bot-control')
-def bot_control(): # Or bot_control_page if you prefer, then url_for('bot_control_page')
-    """Render the bot control page."""
-    theme = request.cookies.get("theme", "darkly")
-    bot_running_status = is_bot_actually_running() 
-    return render_template("bot_control.html", theme=theme, bot_status={'running': bot_running_status})

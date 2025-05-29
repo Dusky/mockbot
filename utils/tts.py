@@ -210,6 +210,8 @@ def initialize_tts():
     import scipy.io.wavfile
 
 def silence_output():
+    # Only silence during model loading/generation to reduce Bark's verbose output
+    # but allow progress bars during initial downloads
     sys.stdout = open(os.devnull, 'w')
     sys.stderr = open(os.devnull, 'w')
 
@@ -230,7 +232,7 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
     # Acquire lock to ensure only one thread generates Bark audio at a time
     with bark_tts_lock:
         logging.info(f"[TTS THREAD] Acquired Bark TTS lock for message_id: {message_id}")
-        silence_output() # Silence output for Bark inside the lock
+        # Note: silence_output() moved to after model loading to allow progress bars
 
         try:
             # Make sure we have the necessary TTS dependencies
@@ -329,6 +331,9 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
                     voice_preset = 'v2/en_speaker_5' # Default preset
                     logging.info(f"Using fallback voice preset: {voice_preset} for channel {channel_name}") # Keep as info
 
+            # Silence output only during generation to reduce Bark's verbose output
+            silence_output()
+            
             # Process text in chunks for better performance
             all_audio_pieces = []
             sentences = sent_tokenize(input_text)

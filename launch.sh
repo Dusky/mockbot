@@ -710,8 +710,8 @@ install_requirements() {
     
     # Configure HF home directory and disable warnings
     export HF_HOME="${PWD}/.hf_cache"
-    export HF_HUB_DISABLE_PROGRESS_BARS=1
     export HF_HUB_DISABLE_IMPLICIT_TOKEN=1
+    # Note: HF_HUB_DISABLE_PROGRESS_BARS removed to show TTS download progress
     
     # Validate requirements file exists
     if [[ ! -f "requirements.txt" ]]; then

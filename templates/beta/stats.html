@@ -90,6 +90,16 @@
                         Model Performance
                     </h2>
                     <div class="panel-controls">
+                        <div class="btn-group btn-group-sm me-2" role="group">
+                            <input type="radio" class="btn-check" name="modelView" id="modelTable" checked>
+                            <label class="btn btn-outline-primary" for="modelTable">
+                                <i class="fas fa-list"></i>
+                            </label>
+                            <input type="radio" class="btn-check" name="modelView" id="modelGrid">
+                            <label class="btn btn-outline-primary" for="modelGrid">
+                                <i class="fas fa-th"></i>
+                            </label>
+                        </div>
                         <select class="form-select form-select-sm" id="modelSortBy" style="width: auto;">
                             <option value="size">Sort by Size</option>
                             <option value="lines">Sort by Lines</option>
@@ -98,7 +108,78 @@
                     </div>
                 </div>
                 <div class="panel-body">
-                    <div class="models-grid" id="modelsGrid">
+                    <!-- Table View (Default) -->
+                    <div class="models-table" id="modelsTable">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Model Name</th>
+                                        <th>Type</th>
+                                        <th>Lines Processed</th>
+                                        <th>Model Size</th>
+                                        <th>Last Updated</th>
+                                        <th>Training Progress</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if models and models is iterable %}
+                                    {% for model in models %}
+                                    <tr data-model="{{ model.name }}">
+                                        <td>
+                                            <strong class="model-name">{{ model.name }}</strong>
+                                        </td>
+                                        <td>
+                                            {% if model.name == 'general_markov' %}
+                                                <span class="badge bg-primary">General Model</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Channel Model</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="model-lines">
+                                            <span class="fw-semibold">{{ "{:,}".format(model.line_count or 0) }}</span>
+                                        </td>
+                                        <td class="model-size">
+                                            <span class="text-primary fw-semibold">{{ model.cache_size_str or '0 B' }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-muted">{{ (model.last_modified|int * 1000)|string if model.last_modified else 'Never' }}</span>
+                                        </td>
+                                        <td>
+                                            <div class="progress" style="width: 120px; height: 8px;">
+                                                <div class="progress-bar" role="progressbar" 
+                                                     style="width: {{ [((model.line_count or 0) / 10000 * 100), 100]|min }}%">
+                                                </div>
+                                            </div>
+                                            <small class="text-muted">{{ [((model.line_count or 0) / 10000 * 100), 100]|min|round(1) }}%</small>
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm">
+                                                <button class="btn btn-outline-warning rebuild-model-btn" data-model="{{ model.name }}" title="Rebuild Model">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
+                                                {% if model.cache_file %}
+                                                <a href="/view-file/cache/{{ model.cache_file }}" class="btn btn-outline-info" target="_blank" title="View Cache File">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                {% endif %}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    {% else %}
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted py-4">No models available</td>
+                                    </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Grid View -->
+                    <div class="models-grid" id="modelsGrid" style="display: none;">
                         {% if models and models is iterable %}
                         {% for model in models %}
                         <div class="model-card" data-model="{{ model.name }}">
@@ -247,47 +328,8 @@
             </div>
         </div>
 
-        <!-- Right Column: Recent Activity & System Info -->
+        <!-- Right Column: System Info & Actions -->
         <div class="col-lg-4">
-            <!-- Recent Activity -->
-            <div class="analytics-panel mb-4">
-                <div class="panel-header">
-                    <h2 class="panel-title">
-                        <i class="fas fa-clock me-2"></i>
-                        Recent Activity
-                    </h2>
-                </div>
-                <div class="panel-body">
-                    <div class="activity-timeline" id="recentActivityTimeline">
-                        {% if recent_tts and recent_tts is iterable %}
-                        {% for tts in recent_tts %}
-                        <div class="timeline-item">
-                            <div class="timeline-marker">
-                                <i class="fas fa-volume-up"></i>
-                            </div>
-                            <div class="timeline-content">
-                                <div class="timeline-header">
-                                    <span class="timeline-title">TTS Generated</span>
-                                    <span class="timeline-time">{{ tts.timestamp }}</span>
-                                </div>
-                                <p class="timeline-text">{{ (tts.message|string)[:60] }}{% if (tts.message|string)|length > 60 %}...{% endif %}</p>
-                                <small class="timeline-meta">Channel: {{ (tts.channel|string) if tts.channel else 'Unknown' }}</small>
-                            </div>
-                        </div>
-                        {% endfor %}
-                        {% else %}
-                        <div class="text-center text-muted py-4">No recent TTS activity</div>
-                        {% endif %}
-                        
-                        {% if not recent_tts %}
-                        <div class="empty-state">
-                            <i class="fas fa-clock text-muted"></i>
-                            <p class="text-muted mb-0">No recent activity</p>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
 
             <!-- System Information -->
             <div class="analytics-panel mb-4">
@@ -303,26 +345,47 @@
                             <div class="info-label">Bot Status</div>
                             <div class="info-value" id="systemBotStatus">
                                 {% if bot_running %}
-                                    <span class="status-badge status-online">Online</span>
+                                    <span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Online</span>
                                 {% else %}
-                                    <span class="status-badge status-offline">Offline</span>
+                                    <span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Offline</span>
                                 {% endif %}
                             </div>
                         </div>
                         
                         <div class="info-item">
                             <div class="info-label">Uptime</div>
-                            <div class="info-value" id="systemUptime">-</div>
+                            <div class="info-value" id="systemUptime">
+                                <span class="text-primary fw-semibold">-</span>
+                            </div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <div class="info-label">Active Channels</div>
+                            <div class="info-value" id="activeChannelsCount">
+                                <span class="text-success fw-semibold">{{ channels|selectattr('currently_connected')|list|length if channels is iterable else 0 }}</span>
+                                <small class="text-muted"> / {{ channels|length if channels is iterable else 0 }}</small>
+                            </div>
                         </div>
                         
                         <div class="info-item">
                             <div class="info-label">Total Cache Size</div>
-                            <div class="info-value" id="totalCacheSize">-</div>
+                            <div class="info-value" id="totalCacheSize">
+                                <span class="text-info fw-semibold">-</span>
+                            </div>
                         </div>
                         
                         <div class="info-item">
                             <div class="info-label">Models Loaded</div>
-                            <div class="info-value">{{ models|length if models is iterable else 0 }}</div>
+                            <div class="info-value">
+                                <span class="text-warning fw-semibold">{{ models|length if models is iterable else 0 }}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <div class="info-label">Database Size</div>
+                            <div class="info-value" id="databaseSize">
+                                <span class="text-secondary fw-semibold">-</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -337,46 +400,49 @@
                     </h2>
                 </div>
                 <div class="panel-body">
-                    <div class="quick-actions-list">
-                        <button class="action-item" id="rebuildAllModelsBtn">
-                            <div class="action-icon">
-                                <i class="fas fa-sync-alt"></i>
-                            </div>
-                            <div class="action-content">
-                                <span class="action-title">Rebuild All Models</span>
-                                <small class="action-desc">Refresh all channel models</small>
+                    <div class="d-grid gap-3">
+                        <button class="btn btn-outline-warning btn-lg" id="rebuildAllModelsBtn">
+                            <i class="fas fa-sync-alt me-2"></i>
+                            <div class="d-flex flex-column">
+                                <span class="fw-semibold">Rebuild All Models</span>
+                                <small class="text-muted">Refresh all channel models</small>
                             </div>
                         </button>
                         
-                        <a href="/beta/settings" class="action-item">
-                            <div class="action-icon">
-                                <i class="fas fa-cog"></i>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <a href="/beta/settings" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-cog d-block mb-1"></i>
+                                    <small>Settings</small>
+                                </a>
                             </div>
-                            <div class="action-content">
-                                <span class="action-title">Manage Settings</span>
-                                <small class="action-desc">Configure channels and bot</small>
+                            <div class="col-6">
+                                <a href="/tts-history" class="btn btn-outline-info btn-sm w-100">
+                                    <i class="fas fa-history d-block mb-1"></i>
+                                    <small>TTS History</small>
+                                </a>
                             </div>
-                        </a>
+                        </div>
                         
-                        <a href="/tts-history" class="action-item">
-                            <div class="action-icon">
-                                <i class="fas fa-history"></i>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <a href="/logs" class="btn btn-outline-secondary btn-sm w-100">
+                                    <i class="fas fa-file-alt d-block mb-1"></i>
+                                    <small>View Logs</small>
+                                </a>
                             </div>
-                            <div class="action-content">
-                                <span class="action-title">TTS History</span>
-                                <small class="action-desc">Browse all TTS files</small>
+                            <div class="col-6">
+                                <button class="btn btn-outline-danger btn-sm w-100" id="clearCacheBtn">
+                                    <i class="fas fa-trash d-block mb-1"></i>
+                                    <small>Clear Cache</small>
+                                </button>
                             </div>
-                        </a>
+                        </div>
                         
-                        <a href="/logs" class="action-item">
-                            <div class="action-icon">
-                                <i class="fas fa-file-alt"></i>
-                            </div>
-                            <div class="action-content">
-                                <span class="action-title">View Logs</span>
-                                <small class="action-desc">Check system logs</small>
-                            </div>
-                        </a>
+                        <button class="btn btn-outline-success" id="exportDataBtn">
+                            <i class="fas fa-download me-2"></i>
+                            Export Statistics
+                        </button>
                     </div>
                 </div>
             </div>

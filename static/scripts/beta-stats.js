@@ -5,14 +5,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function initializeStatsPage() {
     setupModelSorting();
+    setupModelViewToggle();
     setupChannelPerformanceToggle();
     setupQuickActions();
     setupAutoRefresh();
-    loadRecentActivity();
+    loadSystemInfo();
 }
 
 function setupModelSorting() {
-    const sortSelect = document.getElementById('modelSort');
+    const sortSelect = document.getElementById('modelSortBy');
     if (sortSelect) {
         sortSelect.addEventListener('change', function() {
             sortModels(this.value);
@@ -20,8 +21,71 @@ function setupModelSorting() {
     }
 }
 
+function setupModelViewToggle() {
+    const tableViewBtn = document.getElementById('modelTable');
+    const gridViewBtn = document.getElementById('modelGrid');
+    const tableView = document.getElementById('modelsTable');
+    const gridView = document.getElementById('modelsGrid');
+    
+    if (tableViewBtn && gridViewBtn && tableView && gridView) {
+        tableViewBtn.addEventListener('change', function() {
+            if (this.checked) {
+                tableView.style.display = 'block';
+                gridView.style.display = 'none';
+            }
+        });
+        
+        gridViewBtn.addEventListener('change', function() {
+            if (this.checked) {
+                tableView.style.display = 'none';
+                gridView.style.display = 'block';
+            }
+        });
+    }
+}
+
 function sortModels(criteria) {
-    const modelsGrid = document.querySelector('.models-grid');
+    // Sort both table and grid views
+    sortModelTable(criteria);
+    sortModelGrid(criteria);
+}
+
+function sortModelTable(criteria) {
+    const tableBody = document.querySelector('#modelsTable tbody');
+    if (!tableBody) return;
+
+    const rows = Array.from(tableBody.querySelectorAll('tr[data-model]'));
+    
+    rows.sort((a, b) => {
+        let aValue, bValue;
+        
+        switch (criteria) {
+            case 'name':
+                aValue = a.querySelector('.model-name').textContent.toLowerCase();
+                bValue = b.querySelector('.model-name').textContent.toLowerCase();
+                return aValue.localeCompare(bValue);
+            
+            case 'size':
+                aValue = parseModelSize(a.querySelector('.model-size').textContent);
+                bValue = parseModelSize(b.querySelector('.model-size').textContent);
+                return bValue - aValue; // Descending
+            
+            case 'lines':
+                aValue = parseInt(a.querySelector('.model-lines').textContent.replace(/,/g, '')) || 0;
+                bValue = parseInt(b.querySelector('.model-lines').textContent.replace(/,/g, '')) || 0;
+                return bValue - aValue; // Descending
+            
+            default:
+                return 0;
+        }
+    });
+
+    // Re-append sorted rows
+    rows.forEach(row => tableBody.appendChild(row));
+}
+
+function sortModelGrid(criteria) {
+    const modelsGrid = document.querySelector('#modelsGrid');
     if (!modelsGrid) return;
 
     const modelCards = Array.from(modelsGrid.querySelectorAll('.model-card'));
@@ -36,19 +100,18 @@ function sortModels(criteria) {
                 return aValue.localeCompare(bValue);
             
             case 'size':
-                aValue = parseFloat(a.querySelector('.model-size').textContent);
-                bValue = parseFloat(b.querySelector('.model-size').textContent);
+                const aSizeText = a.querySelector('.stat-value').textContent;
+                const bSizeText = b.querySelector('.stat-value').textContent;
+                aValue = parseModelSize(aSizeText);
+                bValue = parseModelSize(bSizeText);
                 return bValue - aValue; // Descending
             
-            case 'messages':
-                aValue = parseInt(a.querySelector('.model-messages').textContent.replace(/,/g, ''));
-                bValue = parseInt(b.querySelector('.model-messages').textContent.replace(/,/g, ''));
+            case 'lines':
+                const aLinesText = a.querySelector('.stat-value').textContent;
+                const bLinesText = b.querySelector('.stat-value').textContent;
+                aValue = parseInt(aLinesText.replace(/,/g, '')) || 0;
+                bValue = parseInt(bLinesText.replace(/,/g, '')) || 0;
                 return bValue - aValue; // Descending
-            
-            case 'updated':
-                aValue = new Date(a.dataset.updated || 0);
-                bValue = new Date(b.dataset.updated || 0);
-                return bValue - aValue; // Most recent first
             
             default:
                 return 0;
@@ -57,6 +120,24 @@ function sortModels(criteria) {
 
     // Re-append sorted cards
     modelCards.forEach(card => modelsGrid.appendChild(card));
+}
+
+function parseModelSize(sizeText) {
+    // Parse size strings like "1.2 MB", "500 KB", etc.
+    const match = sizeText.match(/([0-9.]+)\s*(B|KB|MB|GB)/i);
+    if (!match) return 0;
+    
+    const value = parseFloat(match[1]);
+    const unit = match[2].toUpperCase();
+    
+    const multipliers = {
+        'B': 1,
+        'KB': 1024,
+        'MB': 1024 * 1024,
+        'GB': 1024 * 1024 * 1024
+    };
+    
+    return value * (multipliers[unit] || 1);
 }
 
 function setupChannelPerformanceToggle() {
@@ -105,7 +186,7 @@ function setupQuickActions() {
     }
 
     // Clear cache
-    const clearCacheBtn = document.querySelector('[data-action="clear-cache"]');
+    const clearCacheBtn = document.getElementById('clearCacheBtn');
     if (clearCacheBtn) {
         clearCacheBtn.addEventListener('click', function() {
             if (confirm('Are you sure you want to clear all cached data?')) {
@@ -115,7 +196,7 @@ function setupQuickActions() {
     }
 
     // Individual model rebuild buttons
-    document.querySelectorAll('[data-action="rebuild-model"]').forEach(btn => {
+    document.querySelectorAll('.rebuild-model-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const modelName = this.dataset.model;
             if (confirm(`Rebuild model for ${modelName}?`)) {
@@ -264,35 +345,57 @@ function updateSummaryCards(summary) {
     }
 }
 
-async function loadRecentActivity() {
+async function loadSystemInfo() {
     try {
-        const response = await fetch('/api/recent-activity');
+        const response = await fetch('/api/system-info');
         if (!response.ok) return;
         
-        const activities = await response.json();
-        updateRecentActivity(activities);
+        const data = await response.json();
+        updateSystemInfo(data);
         
     } catch (error) {
-        console.error('Error loading recent activity:', error);
+        console.error('Error loading system info:', error);
+        // Set default values on error
+        updateSystemInfo({
+            uptime: 'Unknown',
+            cache_size: 'Unknown',
+            database_size: 'Unknown'
+        });
     }
 }
 
-function updateRecentActivity(activities) {
-    const activityList = document.querySelector('.activity-list');
-    if (!activityList || !activities.length) return;
+function updateSystemInfo(data) {
+    const uptimeEl = document.getElementById('systemUptime');
+    const cacheSizeEl = document.getElementById('totalCacheSize');
+    const dbSizeEl = document.getElementById('databaseSize');
     
-    activityList.innerHTML = activities.map(activity => `
-        <div class="activity-item">
-            <div class="activity-icon">
-                <i class="${getActivityIcon(activity.type)}"></i>
-            </div>
-            <div class="activity-content">
-                <div class="activity-title">${activity.title}</div>
-                <div class="activity-description">${activity.description}</div>
-                <div class="activity-time">${formatTimeAgo(activity.timestamp)}</div>
-            </div>
-        </div>
-    `).join('');
+    if (uptimeEl && data.uptime) {
+        uptimeEl.querySelector('span').textContent = formatUptime(data.uptime);
+    }
+    
+    if (cacheSizeEl && data.cache_size) {
+        cacheSizeEl.querySelector('span').textContent = data.cache_size;
+    }
+    
+    if (dbSizeEl && data.database_size) {
+        dbSizeEl.querySelector('span').textContent = data.database_size;
+    }
+}
+
+function formatUptime(seconds) {
+    if (!seconds || isNaN(seconds)) return 'Unknown';
+    
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    
+    if (days > 0) {
+        return `${days}d ${hours}h ${minutes}m`;
+    } else if (hours > 0) {
+        return `${hours}h ${minutes}m`;
+    } else {
+        return `${minutes}m`;
+    }
 }
 
 function getActivityIcon(type) {
@@ -306,13 +409,17 @@ function getActivityIcon(type) {
     return icons[type] || 'fas fa-info-circle';
 }
 
-function formatTimeAgo(timestamp) {
-    const now = new Date();
-    const time = new Date(timestamp);
-    const diffInSeconds = Math.floor((now - time) / 1000);
-    
-    if (diffInSeconds < 60) return 'Just now';
-    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
-    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
-    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+function showToast(message, type = 'info') {
+    // Use the global notification system if available
+    if (window.notificationSystem && typeof window.notificationSystem.showToast === 'function') {
+        window.notificationSystem.showToast(message, type);
+    } else if (typeof window.showToast === 'function') {
+        window.showToast(message, type);
+    } else {
+        // Fallback to console and alert
+        console.log(`Toast (${type}): ${message}`);
+        if (type === 'error') {
+            alert(`Error: ${message}`);
+        }
+    }
 }

@@ -84,6 +84,7 @@ first_run_dance() {
 # Configuration Wizard with Personality and Input Validation
 first_run_wizard() {
     echo -e "${BRAIN} ${YELLOW}Hi! I'm ANSV-Buddy! Let's get you set up!${NC}"
+    echo -e "${CYAN}I'll help you create a settings.conf file with your bot configuration.${NC}\n"
     
     # Get and validate bot name
     while true; do
@@ -115,23 +116,87 @@ first_run_wizard() {
         echo -e "${RED}Invalid channels. Use comma-separated valid usernames.${NC}"
     done
     
-    # Create config with proper sections
-    if ! cat > "$CONFIG_FILE" << EOF
+    # Get command prefix (optional)
+    read -p "$(echo -e "${TOOLS} Command prefix [default: !]: ")" command_prefix
+    command_prefix="${command_prefix:-!}"
+    
+    # Get admin password
+    while true; do
+        read -s -p "$(echo -e "${FIRE} Admin password for web interface [default: admin123]: ")" admin_password
+        echo  # New line after hidden input
+        admin_password="${admin_password:-admin123}"
+        if [[ ${#admin_password} -ge 4 ]]; then
+            break
+        fi
+        echo -e "${RED}Password must be at least 4 characters long.${NC}"
+    done
+    
+    # Ask about TTS
+    read -p "$(echo -e "${MUSIC} Enable TTS functionality? (y/n) [default: n]: ")" enable_tts
+    enable_tts="${enable_tts:-n}"
+    tts_enabled="false"
+    voice_preset="v2/en_speaker_6"
+    if [[ "$enable_tts" =~ ^[Yy] ]]; then
+        tts_enabled="true"
+        read -p "$(echo -e "${MUSIC} Voice preset [default: v2/en_speaker_6]: ")" voice_preset_input
+        voice_preset="${voice_preset_input:-v2/en_speaker_6}"
+    fi
+    
+    # Generate a random secret key for web interface
+    secret_key="$(openssl rand -hex 32 2>/dev/null || echo "change-this-secret-key-$(date +%s)")"
+    
+    echo -e "\n${CYAN}📝 Creating your configuration file...${NC}"
+    
+    # Create comprehensive config file
+    if cat > "$CONFIG_FILE" << EOF
 [auth]
+; Get these from https://dev.twitch.tv/console
 tmi_token = oauth:your_token_here
 client_id = your_client_id_here
 nickname = $bot_name
 owner = $owner
+; Admin password for web interface
+admin_password = $admin_password
 
-[channels]
+[settings]
+; Prefix for bot commands
+command_prefix = $command_prefix
+; Channels to auto-join (comma-separated)
 channels = $channels
+; Enable debug mode for verbose logging (true/false)
+debug_mode = false
+; Users to ignore (comma-separated)
+ignored_users = nightbot,moobot,streamelements,streamlabs
+
+[web]
+; Web interface configuration
+port = 5001
+host = 0.0.0.0
+secret_key = $secret_key
+verbose_logs = false
+
+[tts]
+; TTS settings
+enable_tts = $tts_enabled
+voice_preset = $voice_preset
 EOF
     then
-        echo -e "\n${PARTY} ${GREEN}All set! Let's get this party started!${NC}"
+        echo -e "\n${GREEN}✅ Configuration file created successfully!${NC}"
+        echo -e "${PARTY} ${GREEN}All set! Let's get this party started!${NC}"
+        
+        # Show next steps
+        echo -e "\n${YELLOW}🔑 IMPORTANT NEXT STEPS:${NC}"
+        echo -e "${CYAN}1. Get your Twitch API credentials from: ${BLUE}https://dev.twitch.tv/console${NC}"
+        echo -e "${CYAN}2. Edit settings.conf and replace:${NC}"
+        echo -e "   ${YELLOW}oauth:your_token_here${NC} with your OAuth token"
+        echo -e "   ${YELLOW}your_client_id_here${NC} with your Client ID"
+        echo -e "${CYAN}3. Run the bot again after updating credentials!${NC}\n"
+        
         first_run_dance
+        return 0
     else
         echo -e "${RED}Failed to create configuration file!${NC}"
-        exit 1
+        return 1
     fi
 }
 
@@ -200,7 +265,12 @@ interactive_menu() {
             0) 
                 echo -e "${YELLOW}Enable TTS for clean install? (y/n): ${NC}"
                 read -r tts_choice
-                [ "$tts_choice" = "y" ] && TTS=true
+                if [ "$tts_choice" = "y" ]; then
+                    TTS=true
+                    echo -e "${YELLOW}Force CPU-only PyTorch? (y/n): ${NC}"
+                    read -r cpu_choice
+                    [ "$cpu_choice" = "y" ] && CPU_ONLY=true
+                fi
                 clean_install
                 break
                 ;;
@@ -209,6 +279,9 @@ interactive_menu() {
             3) 
                 WEB=true 
                 TTS=true
+                echo -e "${YELLOW}Force CPU-only PyTorch? (y/n): ${NC}"
+                read -r cpu_choice
+                [ "$cpu_choice" = "y" ] && CPU_ONLY=true
                 check_dependencies
                 install_requirements
                 start_bot
@@ -360,20 +433,14 @@ check_venv() {
 
 check_config() {
     if [[ ! -f "$CONFIG_FILE" ]]; then
-        if [[ ! -f "$EXAMPLE_CONFIG" ]]; then
-            echo -e "${RED}Neither $CONFIG_FILE nor $EXAMPLE_CONFIG found!${NC}"
-            exit 1
-        fi
-        
-        echo -e "${YELLOW}Warning: settings.conf not found${NC}"
-        echo -e "Copying example config... (${BLUE}edit before production!${NC})"
-        
-        if ! cp "$EXAMPLE_CONFIG" "$CONFIG_FILE"; then
-            echo -e "${RED}Failed to copy example config!${NC}"
-            exit 1
-        fi
-        
-        # Set secure permissions
+        # Config file doesn't exist - this is normal for first run
+        # The main function will handle running the first_run_wizard
+        return 0
+    fi
+    
+    # Config file exists, check permissions
+    if [[ "$(stat -f "%A" "$CONFIG_FILE" 2>/dev/null || stat -c "%a" "$CONFIG_FILE" 2>/dev/null)" != "600" ]]; then
+        echo -e "${YELLOW}Warning: Configuration file has loose permissions. Fixing...${NC}"
         chmod 600 "$CONFIG_FILE" || {
             echo -e "${YELLOW}Warning: Could not set secure permissions on config file${NC}"
         }
@@ -448,6 +515,7 @@ parse_arguments() {
     CLEAN=false
     VERBOSE=false
     VOICE_PRESET=""
+    CPU_ONLY=false
     
     while [[ $# -gt 0 ]]; do
         case $1 in
@@ -482,6 +550,7 @@ parse_arguments() {
             --dev) DEV=true ;;
             --web-only) WEB_ONLY=true ;;
             --clean) CLEAN=true ;;
+            --cpu-only) CPU_ONLY=true ;;
             --migrate-db) 
                 if [[ ! -f "$VENV_DIR/bin/activate" ]]; then
                     echo -e "${RED}Virtual environment not found! Run --clean first.${NC}"
@@ -540,6 +609,7 @@ show_help() {
     echo "  --dev       : Start web interface in development mode"
     echo "  --web-only  : Start web interface without bot"
     echo "  --clean     : Perform fresh install"
+    echo "  --cpu-only  : Force CPU-only PyTorch installation (no CUDA)"
     echo "  --migrate-db: Run database migrations manually"
     echo "  --help      : Show this help message"
     echo
@@ -551,6 +621,8 @@ show_help() {
     echo "  ./launch.sh --web --tts      # Bot + Web + TTS"
     echo "  ./launch.sh --tts --verbose # Bot with TTS and detailed logs"
     echo "  ./launch.sh --tts --voice-preset v2/en_speaker_9  # Use specific voice"
+    echo "  ./launch.sh --tts --cpu-only # TTS with CPU-only PyTorch"
+    echo "  ./launch.sh --clean --cpu-only # Clean install with CPU-only PyTorch"
     echo "  ./launch.sh --download-models # Pre-download models"
     echo "  ./launch.sh --migrate-db     # Run database migrations"
     echo "  ./launch.sh --dev            # Dev server with hot reload"
@@ -685,30 +757,38 @@ install_requirements() {
         fi
         
         # Platform-specific PyTorch installation with timeout
-        case "$PLATFORM" in
-            "macos")
-                echo "Ensuring PyTorch for macOS (CPU)..."
-                if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu; then
-                    echo -e "${RED}Failed to install PyTorch for macOS${NC}"
-                    exit 1
-                fi
-                ;;
-            "linux"|"windows")
-                if command -v nvidia-smi &> /dev/null; then
-                    echo "Ensuring PyTorch with CUDA support..."
-                    if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu121; then
-                        echo -e "${RED}Failed to install PyTorch with CUDA${NC}"
-                        exit 1
-                    fi
-                else
-                    echo "Ensuring PyTorch CPU version..."
+        if [[ "${CPU_ONLY:-false}" = true ]]; then
+            echo -e "${YELLOW}🖥️ Installing PyTorch CPU-only version (forced)...${NC}"
+            if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu; then
+                echo -e "${RED}Failed to install PyTorch CPU version${NC}"
+                exit 1
+            fi
+        else
+            case "$PLATFORM" in
+                "macos")
+                    echo "Ensuring PyTorch for macOS (CPU)..."
                     if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu; then
-                        echo -e "${RED}Failed to install PyTorch CPU${NC}"
+                        echo -e "${RED}Failed to install PyTorch for macOS${NC}"
                         exit 1
                     fi
-                fi
-                ;;
-        esac
+                    ;;
+                "linux"|"windows")
+                    if command -v nvidia-smi &> /dev/null; then
+                        echo "Ensuring PyTorch with CUDA support..."
+                        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu121; then
+                            echo -e "${RED}Failed to install PyTorch with CUDA${NC}"
+                            exit 1
+                        fi
+                    else
+                        echo "Ensuring PyTorch CPU version..."
+                        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu; then
+                            echo -e "${RED}Failed to install PyTorch CPU${NC}"
+                            exit 1
+                        fi
+                    fi
+                    ;;
+            esac
+        fi
         
         # Download required NLTK resources with error handling
         echo -e "${CYAN}📦 Downloading NLTK resources for TTS...${NC}"
@@ -964,6 +1044,14 @@ download_voice_presets() {
 
 # Enhanced runtime execution with proper error handling
 main() {
+    # Check for help flag first, before any other processing
+    for arg in "$@"; do
+        if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+            show_help
+            exit 0
+        fi
+    done
+    
     # Set up error handling
     trap 'echo -e "\n${RED}Script interrupted${NC}"; exit 130' INT
     trap 'echo -e "\n${RED}Script terminated${NC}"; exit 143' TERM

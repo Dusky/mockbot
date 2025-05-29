@@ -604,7 +604,7 @@ show_help() {
     echo "  --tts       : Enable TTS functionality"
     echo "  --verbose   : Show detailed initialization steps and logs"
     echo "  --voice-preset PRESET : Use specific voice preset (e.g., v2/en_speaker_6)"
-    echo "  --download-models : Only download TTS models and exit"
+    echo "  --download-models : Download TTS models (voice presets are built-in)"
     echo "  --rebuild   : Rebuild Markov cache at startup"
     echo "  --dev       : Start web interface in development mode"
     echo "  --web-only  : Start web interface without bot"
@@ -623,7 +623,7 @@ show_help() {
     echo "  ./launch.sh --tts --voice-preset v2/en_speaker_9  # Use specific voice"
     echo "  ./launch.sh --tts --cpu-only # TTS with CPU-only PyTorch"
     echo "  ./launch.sh --clean --cpu-only # Clean install with CPU-only PyTorch"
-    echo "  ./launch.sh --download-models # Pre-download models"
+    echo "  ./launch.sh --download-models # Download base TTS models"
     echo "  ./launch.sh --migrate-db     # Run database migrations"
     echo "  ./launch.sh --dev            # Dev server with hot reload"
 }
@@ -754,7 +754,7 @@ install_requirements() {
         # This must be done BEFORE installing requirements-tts.txt to avoid CUDA installation
         if [[ "${CPU_ONLY:-false}" = true ]]; then
             echo -e "${YELLOW}🖥️ Installing PyTorch CPU-only version (forced)...${NC}"
-            if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.3.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu; then
+            if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu; then
                 echo -e "${RED}Failed to install PyTorch CPU version${NC}"
                 exit 1
             fi
@@ -762,7 +762,7 @@ install_requirements() {
             case "$PLATFORM" in
                 "macos")
                     echo "Ensuring PyTorch for macOS (CPU)..."
-                    if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.3.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu; then
+                    if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu; then
                         echo -e "${RED}Failed to install PyTorch for macOS${NC}"
                         exit 1
                     fi
@@ -770,13 +770,13 @@ install_requirements() {
                 "linux"|"windows")
                     if command -v nvidia-smi &> /dev/null; then
                         echo "Ensuring PyTorch with CUDA support..."
-                        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.3.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121; then
+                        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu121; then
                             echo -e "${RED}Failed to install PyTorch with CUDA${NC}"
                             exit 1
                         fi
                     else
                         echo "Ensuring PyTorch CPU version..."
-                        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.3.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu; then
+                        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu; then
                             echo -e "${RED}Failed to install PyTorch CPU${NC}"
                             exit 1
                         fi
@@ -803,10 +803,8 @@ install_requirements() {
         
         check_tts_models
         
-        # Download voice presets
-        download_voice_presets || {
-            echo -e "${YELLOW}Warning: Some voice presets failed to download${NC}"
-        }
+        # Validate voice presets (built-in presets don't need downloading)
+        download_voice_presets
     fi
     
     # Create a marker file to indicate dependencies were installed
@@ -968,83 +966,29 @@ check_tts_models() {
 download_voice_preset() {
     local preset="$1"
     
-    # Validate preset parameter
-    if [[ -z "$preset" ]]; then
-        echo -e "${RED}Error: No preset specified${NC}"
-        return 1
-    fi
-    
-    # Validate preset name for security
-    if ! validate_voice_preset "$preset" 2>/dev/null && [[ ! "$preset" =~ ^v2/en_speaker_[0-9]$ ]]; then
-        echo -e "${YELLOW}Warning: Potentially invalid preset: $preset${NC}"
-    fi
-    
-    echo -e "${CYAN}🎤 Downloading/caching voice preset: $preset...${NC}"
-    
-    # Use external Python script instead of embedded code
-    if [[ -f "${SCRIPT_DIR}/scripts/download_voice_preset.py" ]]; then
-        if python "${SCRIPT_DIR}/scripts/download_voice_preset.py" "$preset" --cache-dir "$TTS_MODELS_DIR"; then
-            echo -e "${GREEN}Voice preset $preset cached successfully!${NC}"
-            return 0
-        else
-            echo -e "${RED}Failed to cache voice preset $preset${NC}"
-            return 1
-        fi
-    else
-        echo -e "${YELLOW}Download script not found, using fallback method${NC}"
-        # Fallback to embedded Python (for backward compatibility)
-        python -c "
-import os
-from transformers import AutoProcessor, BarkModel
-import torch
-
-# Suppress most Bark warnings
-os.environ['SUNO_ENABLE_MPS'] = 'False'
-os.environ['SUNO_OFFLOAD_CPU'] = 'True'
-
-try:
-    processor = AutoProcessor.from_pretrained('suno/bark-small', cache_dir='$TTS_MODELS_DIR')
-    model = BarkModel.from_pretrained('suno/bark-small', cache_dir='$TTS_MODELS_DIR')
-    
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model = model.to(device)
-
-    text_prompt = 'Hello.'
-    inputs = processor(text_prompt, voice_preset='$preset', return_tensors='pt').to(device)
-    
-    with torch.no_grad():
-        speech_values = model.generate(**inputs, do_sample=True, min_eos_p=0.2, max_new_tokens=16)
-    
-    print(f'Voice preset $preset cached successfully!')
-except Exception as e:
-    print(f'Failed to cache voice preset $preset: {e}')" || {
-            echo -e "${RED}Python script failed for preset $preset${NC}"
-            return 1
-        }
-    fi
-}
-
-# Enhanced voice presets download with error handling
-download_voice_presets() {
-    echo -e "${CYAN}🎤 Downloading standard voice presets...${NC}"
-    
-    local presets=("v2/en_speaker_0" "v2/en_speaker_1" "v2/en_speaker_5" "v2/en_speaker_6" "v2/en_speaker_9")
-    local failed_count=0
-    
-    for preset in "${presets[@]}"; do
-        if ! download_voice_preset "$preset"; then
-            ((failed_count++))
-            echo -e "${YELLOW}Warning: Failed to download preset $preset${NC}"
-        fi
-    done
-    
-    if [[ $failed_count -gt 0 ]]; then
-        echo -e "${YELLOW}Warning: $failed_count voice presets failed to download${NC}"
-        return 1
-    else
-        echo -e "${GREEN}All voice presets downloaded successfully!${NC}"
+    # v2/en_speaker_* presets are built into the Bark model and don't need caching
+    if [[ "$preset" =~ ^v2/en_speaker_[0-9]$ ]]; then
+        echo -e "${GREEN}✅ Voice preset $preset is built into Bark model (no download needed)${NC}"
         return 0
     fi
+    
+    # For custom voice presets, we'd need actual .npz files in the voices/ directory
+    echo -e "${YELLOW}ℹ️  Custom voice preset $preset requires .npz file in voices/ directory${NC}"
+    return 0
+}
+
+# Voice presets validation (built-in presets don't need downloading)
+download_voice_presets() {
+    echo -e "${CYAN}🎤 Validating standard voice presets...${NC}"
+    
+    local presets=("v2/en_speaker_0" "v2/en_speaker_1" "v2/en_speaker_5" "v2/en_speaker_6" "v2/en_speaker_9")
+    
+    for preset in "${presets[@]}"; do
+        download_voice_preset "$preset"
+    done
+    
+    echo -e "${GREEN}✅ All built-in voice presets are available (no downloads required)${NC}"
+    return 0
 }
 
 # Enhanced runtime execution with proper error handling

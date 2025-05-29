@@ -341,8 +341,12 @@ class Bot(commands.Bot):
             }
         conn.close()
 
-    async def check_and_join_channels(self):
-        """Join all channels marked for joining in the database."""
+    async def check_and_join_channels(self, silent=False):
+        """Join all channels marked for joining in the database.
+        
+        Args:
+            silent (bool): If True, suppresses routine logging for periodic checks
+        """
         try:
             # Get channels from database
             conn = sqlite3.connect(self.db_file)
@@ -351,16 +355,19 @@ class Bot(commands.Bot):
             channels_to_join = [row[0] for row in c.fetchall()]
             conn.close()
             
-            print(f"{YELLOW}Found {len(channels_to_join)} channels to join from database{RESET}")
+            if not silent:
+                print(f"{YELLOW}Found {len(channels_to_join)} channels to join from database{RESET}")
             
             # If no channels found in database, check config file
             if not channels_to_join and "settings" in config and "channels" in config["settings"]:
                 config_channels = config["settings"]["channels"].split(",")
                 channels_to_join = [ch.strip() for ch in config_channels if ch.strip()]
-                print(f"{YELLOW}No channels in database, using {len(channels_to_join)} from config file{RESET}")
+                if not silent:
+                    print(f"{YELLOW}No channels in database, using {len(channels_to_join)} from config file{RESET}")
             
             join_success = 0
             join_failure = 0
+            new_joins = 0
             
             # Join each channel with improved error handling
             for channel in channels_to_join:
@@ -370,7 +377,8 @@ class Bot(commands.Bot):
                     
                     # Skip if already joined
                     if channel_name in self._joined_channels:
-                        print(f"{GREEN}Already joined channel: {channel_name}{RESET}")
+                        if not silent:
+                            print(f"{GREEN}Already joined channel: {channel_name}{RESET}")
                         join_success += 1
                         continue
                     
@@ -380,6 +388,7 @@ class Bot(commands.Bot):
                     
                     if success:
                         join_success += 1
+                        new_joins += 1
                     else:
                         join_failure += 1
                         
@@ -387,14 +396,14 @@ class Bot(commands.Bot):
                     join_failure += 1
                     print(f"{RED}Error joining channel {channel}: {str(e)}{RESET}")
             
-            # Summary
-            print(f"{GREEN}Channel joining complete: {join_success} succeeded, {join_failure} failed{RESET}")
+            # Summary - only show if there's activity or not silent
+            if not silent or new_joins > 0 or join_failure > 0:
+                print(f"{GREEN}Channel joining complete: {join_success} succeeded, {join_failure} failed{RESET}")
+                # Final verification - only show if there's activity or not silent
+                print(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
             
         except Exception as e:
             print(f"{RED}Error in check_and_join_channels: {str(e)}{RESET}")
-            
-        # Final verification
-        print(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
     
     async def setup_periodic_channel_check(self, interval=300):  # 5 minutes
         """Set up a periodic task to check for new channels."""

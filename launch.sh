@@ -160,21 +160,23 @@ check_security() {
     fi
 }
 
-# Fun Status Dashboard
+# Enhanced Status Dashboard with User Interaction
 show_status() {
     echo -e "\n${CYAN}=== System Status Dashboard ==="
     echo -e "${ROCKET} Bot Running:    $(ps aux | grep [a]nsv.py | wc -l)"
     echo -e "${GLOBE} Web Interface:  $(netstat -tuln | grep ':5001' | wc -l)"
     echo -e "${MUSIC} TTS Enabled:    ${TTS:-false}"
-    echo -e "${MUSIC} Voice Models:   $(find "$HF_HOME/hub" -type d -name "snapshots" 2>/dev/null | wc -l)"
+    echo -e "${MUSIC} Voice Models:   $(find "${HF_HOME:-$PWD/.hf_cache}/hub" -type d -name "snapshots" 2>/dev/null | wc -l)"
     echo -e "${MUSIC} Voice Presets:  $(find "$TTS_VOICES_DIR" -name "*.npz" 2>/dev/null | wc -l)"
     echo -e "${BRAIN} Models Loaded:  $(ls cache/*.json 2>/dev/null | wc -l)"
-    echo -e "${ROBOT} Messages in DB: $(sqlite3 messages.db "SELECT COUNT(*) FROM messages" 2>/dev/null)"
-    echo -e "${TOOLS} Python Version: $(python3.11 --version 2>&1 | cut -d' ' -f2)"
-    echo -e "${ALIEN} Disk Usage:     $(du -sh . | cut -f1)"
-    echo -e "${PARTY} Last Modified:  $(stat -f "%Sm" -t "%Y-%m-%d %H:%M" ansv.py)"
-    echo -e "${FIRE} Active Users:   $(who | wc -l | tr -d ' ')"
-    echo -e "==============================${NC}\n"
+    echo -e "${ROBOT} Messages in DB: $(sqlite3 messages.db "SELECT COUNT(*) FROM messages" 2>/dev/null || echo "N/A")"
+    echo -e "${TOOLS} Python Version: $(python3.11 --version 2>&1 | cut -d' ' -f2 2>/dev/null || echo "Not found")"
+    echo -e "${ALIEN} Disk Usage:     $(du -sh . 2>/dev/null | cut -f1 || echo "N/A")"
+    echo -e "${PARTY} Last Modified:  $(stat -f "%Sm" -t "%Y-%m-%d %H:%M" ansv.py 2>/dev/null || stat -c "%y" ansv.py 2>/dev/null | cut -d' ' -f1-2 || echo "N/A")"
+    echo -e "${FIRE} Active Users:   $(who 2>/dev/null | wc -l | tr -d ' ' || echo "N/A")"
+    echo -e "==============================${NC}"
+    echo -e "\n${YELLOW}Press any key to return to menu...${NC}"
+    read -n 1 -s
 }
 
 # Enhanced Menu System with Emojis

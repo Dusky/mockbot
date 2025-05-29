@@ -151,10 +151,10 @@ def get_bark_model_cached(channel_name, db_file_path):
         c = conn.cursor()
         c.execute("SELECT bark_model FROM channel_configs WHERE channel_name = ?", (channel_name,))
         result = c.fetchone()
-        return result[0] if result else 'bark-small'
+        return result[0] if result else 'regular'
     except Exception as e:
         logging.error(f"Error getting bark model for channel {channel_name}: {e}")
-        return 'bark-small'
+        return 'regular'
     finally:
         conn.close()
 
@@ -239,10 +239,20 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
             
             # Default to bark-small if no model specified
             if not bark_model:
-                bark_model = "bark-small"
+                bark_model = "regular"  # Use friendly name as default
             
-            logging.info(f"Using Bark model: {bark_model} for channel {channel_name}") # Keep as info
-            model_path = f"suno/{bark_model}"
+            # Map friendly names to actual Hugging Face model names
+            model_mapping = {
+                "regular": "bark-small",
+                "small": "bark-small", 
+                "large": "bark"
+            }
+            
+            # Get actual model name, fallback to bark-small if unknown
+            actual_model = model_mapping.get(bark_model, "bark-small")
+            
+            logging.info(f"Using Bark model: {bark_model} -> suno/{actual_model} for channel {channel_name}")
+            model_path = f"suno/{actual_model}"
             
             # PERFORMANCE: Use cached model loading
             device_type_str = "cuda" if torch.cuda.is_available() else "cpu"

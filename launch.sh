@@ -754,7 +754,7 @@ install_requirements() {
         # This must be done BEFORE installing requirements-tts.txt to avoid CUDA installation
         if [[ "${CPU_ONLY:-false}" = true ]]; then
             echo -e "${YELLOW}🖥️ Installing PyTorch CPU-only version (forced)...${NC}"
-            if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.2.2 torchaudio==2.2.2 --index-url https://download.pytorch.org/whl/cpu; then
+            if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.3.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu; then
                 echo -e "${RED}Failed to install PyTorch CPU version${NC}"
                 exit 1
             fi
@@ -762,7 +762,7 @@ install_requirements() {
             case "$PLATFORM" in
                 "macos")
                     echo "Ensuring PyTorch for macOS (CPU)..."
-                    if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.2.2 torchaudio==2.2.2 --index-url https://download.pytorch.org/whl/cpu; then
+                    if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.3.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu; then
                         echo -e "${RED}Failed to install PyTorch for macOS${NC}"
                         exit 1
                     fi
@@ -770,13 +770,13 @@ install_requirements() {
                 "linux"|"windows")
                     if command -v nvidia-smi &> /dev/null; then
                         echo "Ensuring PyTorch with CUDA support..."
-                        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.2.2 torchaudio==2.2.2 --index-url https://download.pytorch.org/whl/cu121; then
+                        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.3.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121; then
                             echo -e "${RED}Failed to install PyTorch with CUDA${NC}"
                             exit 1
                         fi
                     else
                         echo "Ensuring PyTorch CPU version..."
-                        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.2.2 torchaudio==2.2.2 --index-url https://download.pytorch.org/whl/cpu; then
+                        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.3.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cpu; then
                             echo -e "${RED}Failed to install PyTorch CPU${NC}"
                             exit 1
                         fi

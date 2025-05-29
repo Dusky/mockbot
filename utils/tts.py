@@ -102,7 +102,7 @@ class TTSModelCache:
                     logging.error(f"TTS: PyTorch compatibility error - {ae}")
                     logging.error("TTS: This suggests a version mismatch between PyTorch and transformers")
                     logging.error(f"TTS: Current PyTorch version: {torch.__version__}")
-                    logging.error("TTS: Try upgrading PyTorch to 2.2+ or downgrading transformers")
+                    logging.error("TTS: Try upgrading PyTorch to 2.3.0+ or downgrading transformers")
                 else:
                     logging.error(f"TTS: AttributeError loading model {model_path}: {ae}")
                 return None

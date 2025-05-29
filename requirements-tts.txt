@@ -3,8 +3,8 @@ accelerate>=0.29.3
 transformers>=4.40.0
 huggingface-hub>=0.30.0,<1.0
 safetensors>=0.4.3
-torch>=2.2.0 # General requirement, launch.sh may install a specific build
-torchaudio>=2.2.0 # General requirement, launch.sh may install a specific build
+torch>=2.3.0 # General requirement, launch.sh may install a specific build
+torchaudio>=2.3.0 # General requirement, launch.sh may install a specific build
 soundfile>=0.12.1
 # NLTK is also in core requirements.txt, listed here for clarity if Bark needs it directly.
 nltk>=3.8.1

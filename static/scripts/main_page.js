@@ -138,7 +138,8 @@ function checkBotStatus() {
 
 // Enhanced channel display function
 function loadChannels() {
-    const channelsList = document.getElementById('channelsList');
+    const channelsTableBody = document.getElementById('channelsTableBody');
+    const channelsList = document.getElementById('channelsList'); // Backward compatibility
     const spinner = document.getElementById('channelLoadingSpinner');
     const channelCountElement = document.getElementById('channelCount');
     
@@ -152,7 +153,7 @@ function loadChannels() {
         });
     }
     
-    if (!channelsList && !channelCountElement) return;
+    if (!channelsTableBody && !channelsList && !channelCountElement) return;
     
     if (spinner) spinner.style.display = 'block';
     
@@ -175,26 +176,83 @@ function loadChannels() {
                 channelCountElement.textContent = connectedCount.toString();
             }
             
-            // Update channels list if it exists
-            if (channelsList) {
+            // Sort channels: connected first, then alphabetically
+            data.sort((a, b) => {
+                if (a.currently_connected !== b.currently_connected) {
+                    // True (connected) should come before false (not connected)
+                    return (b.currently_connected ? 1 : 0) - (a.currently_connected ? 1 : 0);
+                }
+                // Ensure names exist before comparing
+                const nameA = a.name || '';
+                const nameB = b.name || '';
+                return nameA.localeCompare(nameB);
+            });
+            
+            // Update channels table if it exists
+            if (channelsTableBody) {
+                if (data.length === 0) {
+                    channelsTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No channels configured</td></tr>';
+                    return;
+                }
+                
+                channelsTableBody.innerHTML = '';
+                
+                data.forEach(channel => {
+                    const row = document.createElement('tr');
+                    
+                    // Channel name column
+                    const nameCell = document.createElement('td');
+                    nameCell.innerHTML = `
+                        <div class="d-flex align-items-center">
+                            <span class="status-indicator status-${channel.currently_connected ? 'online' : 'offline'} me-2"></span>
+                            <strong>#${channel.name}</strong>
+                        </div>
+                    `;
+                    
+                    // Status column
+                    const statusCell = document.createElement('td');
+                    statusCell.className = 'text-center';
+                    statusCell.innerHTML = `
+                        <span class="badge bg-${channel.currently_connected ? 'success' : 'secondary'}">
+                            ${channel.currently_connected ? 'Connected' : 'Offline'}
+                        </span>
+                    `;
+                    
+                    // TTS column
+                    const ttsCell = document.createElement('td');
+                    ttsCell.className = 'text-center';
+                    if (channel.tts_enabled) {
+                        ttsCell.innerHTML = '<i class="fas fa-volume-up text-info" title="TTS Enabled"></i>';
+                    } else {
+                        ttsCell.innerHTML = '<i class="fas fa-volume-mute text-muted" title="TTS Disabled"></i>';
+                    }
+                    
+                    // Actions column
+                    const actionsCell = document.createElement('td');
+                    actionsCell.className = 'text-center';
+                    actionsCell.innerHTML = `
+                        <a href="/channel/${channel.name}" class="btn btn-sm btn-outline-primary" title="View Channel">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                    `;
+                    
+                    row.appendChild(nameCell);
+                    row.appendChild(statusCell);
+                    row.appendChild(ttsCell);
+                    row.appendChild(actionsCell);
+                    
+                    channelsTableBody.appendChild(row);
+                });
+            }
+            
+            // Update legacy channels list if it exists (backward compatibility)
+            else if (channelsList) {
                 if (data.length === 0) {
                     channelsList.innerHTML = '<div class="text-center text-muted">No channels configured</div>';
                     return;
                 }
                 
                 channelsList.innerHTML = '';
-                
-                // Sort channels: connected first, then alphabetically
-                data.sort((a, b) => {
-                    if (a.currently_connected !== b.currently_connected) {
-                        // True (connected) should come before false (not connected)
-                        return (b.currently_connected ? 1 : 0) - (a.currently_connected ? 1 : 0);
-                    }
-                    // Ensure names exist before comparing
-                    const nameA = a.name || '';
-                    const nameB = b.name || '';
-                    return nameA.localeCompare(nameB);
-                });
                 
                 data.forEach(channel => {
                     const item = document.createElement('div');
@@ -236,7 +294,9 @@ function loadChannels() {
             console.error('Error loading channels:', error);
             if (spinner) spinner.style.display = 'none';
             
-            if (channelsList) {
+            if (channelsTableBody) {
+                channelsTableBody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading channels</td></tr>';
+            } else if (channelsList) {
                 channelsList.innerHTML = '<div class="text-center text-danger">Error loading channels</div>';
             }
         });

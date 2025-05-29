@@ -68,8 +68,24 @@
                                 <span class="stats-label">channels</span>
                             </div>
                             <div id="channelLoadingSpinner" class="spinner-border text-success spinner-sm" role="status"></div>
-                            <div id="channelsList" class="channels-list mt-3">
-                                <div class="text-muted">Loading channels...</div>
+                            <div class="channels-table-container mt-3">
+                                <div class="table-responsive">
+                                    <table class="table table-hover table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Channel</th>
+                                                <th class="text-center">Status</th>
+                                                <th class="text-center">TTS</th>
+                                                <th class="text-center">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="channelsTableBody">
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted">Loading channels...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -177,10 +193,46 @@
     </div>
 </div>
 
-<!--
-Removed redundant JavaScript block.
-Functionality is handled by static/scripts/main_page.js,
-which is included in base.html.
-Styles moved to static/css/custom.css
--->
+{% endblock %}
+
+{% block scripts %}
+<!-- Bot Control Functions -->
+<script src="{{ url_for('static', filename='scripts/bot_control.js') }}"></script>
+<script src="{{ url_for('static', filename='scripts/bot_status.js') }}"></script>
+<script src="{{ url_for('static', filename='scripts/main_page.js') }}"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize bot controller
+    if (window.BotController) {
+        window.BotController.init();
+    }
+    
+    // Initialize bot status checker
+    if (window.BotStatus) {
+        window.BotStatus.init();
+    }
+    
+    // Load channels and other main page functionality
+    if (typeof loadChannels === 'function') {
+        loadChannels();
+    }
+});
+
+// Add reconnectBot function that was referenced but missing
+function reconnectBot() {
+    if (window.BotController && typeof window.BotController.reconnect === 'function') {
+        window.BotController.reconnect();
+    } else {
+        // Fallback: stop then start
+        if (window.BotController) {
+            window.BotController.stopBot().then(() => {
+                setTimeout(() => {
+                    window.BotController.startBot();
+                }, 2000);
+            });
+        }
+    }
+}
+</script>
 {% endblock %}

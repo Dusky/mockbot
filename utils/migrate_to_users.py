@@ -24,8 +24,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def get_current_admin_password():
-    """Get the current admin password from settings.conf or default."""
+    """Get the current admin password from settings.conf or settings.example.conf or default."""
     try:
+        # Try settings.conf first
         if os.path.exists('settings.conf'):
             admin_config = ConfigParser()
             admin_config.read('settings.conf')
@@ -33,7 +34,19 @@ def get_current_admin_password():
             if 'auth' in admin_config and 'admin_password' in admin_config['auth']:
                 return admin_config['auth'].get('admin_password')
         
+        # Try settings.example.conf as fallback
+        if os.path.exists('settings.example.conf'):
+            admin_config = ConfigParser()
+            admin_config.read('settings.example.conf')
+            
+            if 'auth' in admin_config and 'admin_password' in admin_config['auth']:
+                example_password = admin_config['auth'].get('admin_password')
+                if example_password and example_password != 'your_admin_password_here':
+                    logger.info("Using admin password from settings.example.conf")
+                    return example_password
+        
         # Default fallback
+        logger.info("Using default admin password")
         return 'admin123'
     except Exception as e:
         logger.warning(f"Could not read admin password from config: {e}")
@@ -56,7 +69,7 @@ def create_backup(db_path: str):
         logger.error(f"Failed to create database backup: {e}")
         raise
 
-def migrate_to_user_system(db_path: str = 'ansv.db'):
+def migrate_to_user_system(db_path: str = 'messages.db'):
     """Main migration function."""
     logger.info("🚀 Starting migration to user management system...")
     
@@ -183,7 +196,7 @@ def update_settings_config():
     except Exception as e:
         logger.warning(f"Could not update settings config: {e}")
 
-def verify_migration(db_path: str = 'ansv.db'):
+def verify_migration(db_path: str = 'messages.db'):
     """Verify that the migration was successful."""
     logger.info("🔍 Verifying migration...")
     
@@ -240,7 +253,7 @@ if __name__ == '__main__':
     import argparse
     
     parser = argparse.ArgumentParser(description='Migrate ANSV Bot to user management system')
-    parser.add_argument('--db', default='ansv.db', help='Database file path')
+    parser.add_argument('--db', default='messages.db', help='Database file path')
     parser.add_argument('--verify-only', action='store_true', help='Only verify existing migration')
     
     args = parser.parse_args()

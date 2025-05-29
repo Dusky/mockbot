@@ -782,12 +782,18 @@ run_database_migrations() {
         return 1
     }
     
+    # Determine which database file to use (check what ansv.py uses)
+    local db_file="messages.db"
+    if [[ -f "ansv_bot.db" ]] && [[ ! -f "messages.db" ]]; then
+        db_file="ansv_bot.db"
+    fi
+    
     # Check if we need to migrate to user system
-    if [[ ! -f "ansv.db" ]] || ! python -c "
+    if [[ ! -f "$db_file" ]] || ! python -c "
 import sqlite3
 import sys
 try:
-    conn = sqlite3.connect('ansv.db')
+    conn = sqlite3.connect('$db_file')
     cursor = conn.cursor()
     cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='users'\")
     result = cursor.fetchone()
@@ -799,7 +805,7 @@ except:
         echo -e "${YELLOW}User management system not found. Running migration...${NC}"
         
         # Run user migration
-        if ! python utils/migrate_to_users.py --db ansv.db; then
+        if ! python utils/migrate_to_users.py --db "$db_file"; then
             echo -e "${RED}Failed to migrate user system${NC}"
             return 1
         fi
@@ -810,7 +816,7 @@ except:
     fi
     
     # Verify migration was successful
-    if ! python utils/migrate_to_users.py --verify-only --db ansv.db; then
+    if ! python utils/migrate_to_users.py --verify-only --db "$db_file"; then
         echo -e "${RED}Migration verification failed${NC}"
         return 1
     fi

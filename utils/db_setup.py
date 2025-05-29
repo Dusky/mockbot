@@ -71,8 +71,10 @@ def ensure_db_setup(db_file):
                         ignored_users TEXT,
                         use_general_model BOOLEAN NOT NULL DEFAULT 1,
                         lines_between_messages INTEGER DEFAULT 100,
-                        time_between_messages INTEGER DEFAULT 0
-                        -- Note: 'voice_preset' column will be checked and added below if missing
+                        time_between_messages INTEGER DEFAULT 0,
+                        voice_preset TEXT DEFAULT 'v2/en_speaker_5',
+                        bark_model TEXT DEFAULT 'regular',
+                        currently_connected BOOLEAN DEFAULT 0
                     )''')
 
         # Create 'user_colors' table
@@ -165,6 +167,9 @@ def ensure_db_setup(db_file):
         if 'bark_model' not in channel_config_columns:
             c.execute('ALTER TABLE channel_configs ADD COLUMN bark_model TEXT DEFAULT \'regular\'')
             logging.info("Column 'bark_model' added to 'channel_configs'.")
+        if 'currently_connected' not in channel_config_columns:
+            c.execute('ALTER TABLE channel_configs ADD COLUMN currently_connected BOOLEAN DEFAULT 0')
+            logging.info("Column 'currently_connected' added to 'channel_configs'.")
 
         # PERFORMANCE OPTIMIZATION: Add indexes for frequently queried columns
         # These indexes will significantly improve query performance

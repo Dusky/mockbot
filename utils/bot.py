@@ -432,8 +432,8 @@ class Bot(commands.Bot):
                 c.execute('''
                     INSERT INTO channel_configs 
                     (channel_name, tts_enabled, voice_enabled, join_channel, owner, 
-                     trusted_users, ignored_users, use_general_model, lines_between_messages, time_between_messages)
-                    VALUES (?, 0, 1, 1, ?, '', '', 1, 50, 15)
+                     trusted_users, ignored_users, use_general_model, lines_between_messages, time_between_messages, currently_connected)
+                    VALUES (?, 0, 1, 1, ?, '', '', 1, 50, 15, 0)
                 ''', (clean_channel, clean_channel))
         
         conn.commit()
@@ -961,8 +961,8 @@ class Bot(commands.Bot):
                             c.execute('''
                                 INSERT INTO channel_configs 
                                 (channel_name, tts_enabled, voice_enabled, join_channel, owner, 
-                                trusted_users, ignored_users, use_general_model, lines_between_messages, time_between_messages)
-                                VALUES (?, 0, 1, 1, ?, '', '', 1, 50, 15)
+                                trusted_users, ignored_users, use_general_model, lines_between_messages, time_between_messages, currently_connected)
+                                VALUES (?, 0, 1, 1, ?, '', '', 1, 50, 15, 0)
                             ''', (clean_name, clean_name))
                         else:
                             # Update existing entry to make sure join_channel is enabled
@@ -1770,8 +1770,8 @@ def insert_initial_channels_to_db(db_file, channels):
 
     for channel in channels:
         c.execute('''
-            INSERT INTO channel_configs (channel_name, tts_enabled, voice_enabled, join_channel, owner, trusted_users, ignored_users, use_general_model, lines_between_messages, time_between_messages)
-            SELECT ?, 0, 0, 1, ?, '', '', 1, 100, 0
+            INSERT INTO channel_configs (channel_name, tts_enabled, voice_enabled, join_channel, owner, trusted_users, ignored_users, use_general_model, lines_between_messages, time_between_messages, currently_connected)
+            SELECT ?, 0, 0, 1, ?, '', '', 1, 100, 0, 0
             WHERE NOT EXISTS(SELECT 1 FROM channel_configs WHERE channel_name = ?)
         ''', (channel, channel, channel))  
     

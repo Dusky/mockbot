@@ -750,13 +750,8 @@ install_requirements() {
             exit 1
         }
         
-        echo -e "${CYAN}Installing TTS dependencies from requirements-tts.txt...${NC}"
-        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install -r requirements-tts.txt --no-cache-dir; then
-            echo -e "${RED}Failed to install TTS requirements${NC}"
-            exit 1
-        fi
-        
-        # Platform-specific PyTorch installation with timeout
+        # First, install PyTorch with correct version based on CPU_ONLY flag
+        # This must be done BEFORE installing requirements-tts.txt to avoid CUDA installation
         if [[ "${CPU_ONLY:-false}" = true ]]; then
             echo -e "${YELLOW}🖥️ Installing PyTorch CPU-only version (forced)...${NC}"
             if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install torch==2.1.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cpu; then
@@ -788,6 +783,16 @@ install_requirements() {
                     fi
                     ;;
             esac
+        fi
+        
+        # Verify PyTorch installation
+        echo -e "${GREEN}✅ PyTorch installed. Checking version and device support...${NC}"
+        python -c "import torch; print(f'PyTorch version: {torch.__version__}'); print(f'CUDA available: {torch.cuda.is_available()}'); print(f'Device: {\"CUDA\" if torch.cuda.is_available() else \"CPU\"}')" || echo -e "${YELLOW}Warning: Could not verify PyTorch installation${NC}"
+        
+        echo -e "${CYAN}Installing remaining TTS dependencies from requirements-tts.txt...${NC}"
+        if ! run_with_timeout "${NETWORK_TIMEOUT}s" pip install -r requirements-tts.txt --no-cache-dir; then
+            echo -e "${RED}Failed to install TTS requirements${NC}"
+            exit 1
         fi
         
         # Download required NLTK resources with error handling

@@ -87,3 +87,7 @@ messages.db.backup.20250529_101255
 messages.db.backup.20250529_101351
 messages.db.backup.20250529_101756
 messages.db.backup.20250529_101854
+messages.db-wal
+messages.db-wal
+messages.db-shm
+messages.db-wal

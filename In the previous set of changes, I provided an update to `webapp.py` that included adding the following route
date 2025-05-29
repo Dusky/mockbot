@@ -1,6 +1,0 @@
-@app.route('/stats')
-def stats():
-    """Render the statistics page."""
-    theme = request.cookies.get("theme", "darkly")
-    # You might want to pass some initial data to the stats page here
-    return render_template("stats.html", theme=theme)

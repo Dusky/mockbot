@@ -20,11 +20,27 @@ project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
 from utils.user_db import UserDatabase
+from utils.security import PasswordValidator, UsernameValidator
 
 def generate_secure_password(length=16):
-    """Generate a secure random password."""
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
+    """Generate a secure random password that meets security requirements."""
+    # Ensure we have all required character types
+    password = []
+    
+    # Add at least one of each required type
+    password.append(secrets.choice(string.ascii_uppercase))  # Uppercase
+    password.append(secrets.choice(string.ascii_lowercase))  # Lowercase
+    password.append(secrets.choice(string.digits))          # Number
+    password.append(secrets.choice("!@#$%^&*()"))           # Special char
+    
+    # Fill the rest with random characters
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*()"
+    for _ in range(length - 4):
+        password.append(secrets.choice(alphabet))
+    
+    # Shuffle to avoid predictable patterns
+    secrets.SystemRandom().shuffle(password)
+    return ''.join(password)
 
 def create_emergency_admin():
     """Create an emergency admin user with secure prompts."""
@@ -74,12 +90,12 @@ def create_emergency_admin():
         if not username:
             username = "admin"
         
-        if len(username) < 3:
-            print("❌ Username must be at least 3 characters long.")
-            continue
-        
-        if not username.replace('_', '').replace('-', '').isalnum():
-            print("❌ Username can only contain letters, numbers, hyphens, and underscores.")
+        # Enhanced username validation
+        is_valid, errors = UsernameValidator.validate_username(username)
+        if not is_valid:
+            print("❌ Username validation failed:")
+            for error in errors:
+                print(f"   - {error}")
             continue
         
         break
@@ -100,8 +116,13 @@ def create_emergency_admin():
         # Manual password entry
         while True:
             password = getpass.getpass("Enter admin password: ")
-            if len(password) < 8:
-                print("❌ Password must be at least 8 characters long.")
+            
+            # Enhanced password validation
+            is_valid, errors = PasswordValidator.validate_password(password, username)
+            if not is_valid:
+                print("❌ Password validation failed:")
+                for error in errors:
+                    print(f"   - {error}")
                 continue
             
             password_confirm = getpass.getpass("Confirm admin password: ")

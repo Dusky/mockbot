@@ -277,6 +277,7 @@
         
         <!-- Login Form -->
         <form method="POST" class="login-form" id="loginForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="form-floating">
                 <input type="text" 
                        class="form-control" 

@@ -27,6 +27,11 @@ from utils.auth import (
     login_user, logout_user, is_authenticated, get_current_user,
     auth_context_processor, Permissions, Roles
 )
+from utils.security import (
+    SecurityConfig, RateLimiter, PasswordValidator, UsernameValidator,
+    CSRFProtection, SessionSecurity, rate_limiter, require_rate_limit,
+    require_csrf_token, secure_headers, enforce_https, session_security_middleware
+)
 
 # Initialize application components
 app = Flask(__name__)
@@ -35,6 +40,12 @@ app.config['JSON_SORT_KEYS'] = False
 # SECURITY: Generate a secret key for session management
 # In production, this should be set via environment variable
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
+
+# Security configuration
+app.config['SESSION_COOKIE_SECURE'] = not app.debug  # HTTPS only in production
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent XSS
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=SecurityConfig.SESSION_TIMEOUT_MINUTES)
 
 socketio = SocketIO(app) # Initialize SocketIO with the Flask app
 
@@ -60,6 +71,36 @@ def strftime_filter(datetime_obj, fmt='%Y-%m-%d %H:%M'):
     return datetime_obj.strftime(fmt)
 
 app.jinja_env.filters['strftime'] = strftime_filter
+
+# Security middleware setup
+@app.before_request
+def security_middleware():
+    """Apply security middleware to all requests"""
+    # HTTPS enforcement in production
+    if not app.debug:
+        https_redirect = enforce_https()
+        if https_redirect:
+            return https_redirect
+    
+    # Session security checks
+    session_security_middleware()
+    
+    # Rate limiting for all requests (skip for static files)
+    if not request.endpoint or not request.endpoint.startswith('static'):
+        if not rate_limiter.check_request_rate_limit():
+            app.logger.warning(f"Request rate limit exceeded for IP: {rate_limiter._get_client_ip()}")
+            abort(429)
+
+@app.after_request
+def apply_security_headers(response):
+    """Apply security headers to all responses"""
+    return secure_headers(response)
+
+# Add CSRF token to template context
+@app.context_processor
+def inject_csrf_token():
+    """Make CSRF token available in all templates"""
+    return {'csrf_token': CSRFProtection.generate_csrf_token()}
 
 # Initialize user database and authentication system
 user_db = UserDatabase('users.db')  # Users are stored in users.db, not messages.db
@@ -433,6 +474,8 @@ def send_markov_message(channel_name):
 
 # Authentication routes
 @app.route('/login', methods=['GET', 'POST'])
+@require_rate_limit
+@require_csrf_token
 def login():
     """Login page and authentication handler with multi-user support."""
     # If already authenticated, redirect to beta dashboard
@@ -440,11 +483,20 @@ def login():
         return redirect('/beta')
     
     if request.method == 'POST':
+        # Check rate limiting for login attempts
+        client_ip = rate_limiter._get_client_ip()
+        if not rate_limiter.check_login_rate_limit(client_ip):
+            app.logger.warning(f"Login rate limit exceeded for IP: {client_ip}")
+            return render_template('login.html', error='Too many login attempts. Please try again later.'), 429
+        
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
         remember_me = request.form.get('remember_me') == 'on'
         
-        # Input validation
+        # Record login attempt for rate limiting
+        rate_limiter.record_login_attempt(client_ip)
+        
+        # Enhanced input validation
         if not username and not password:
             # Fallback for old single-password mode (for migration compatibility)
             password = request.form.get('password', '').strip()
@@ -452,16 +504,22 @@ def login():
                 username = 'admin'  # Default admin username
         
         if not username:
-            app.logger.warning(f"Empty username login attempt from {request.remote_addr}")
-            return render_template('login.html', error='Username is required')
+            app.logger.warning(f"Empty username login attempt from {client_ip}")
+            return render_template('login.html', error='Username is required', csrf_token=CSRFProtection.generate_csrf_token())
             
         if not password:
-            app.logger.warning(f"Empty password login attempt from {request.remote_addr}")
-            return render_template('login.html', error='Password is required')
+            app.logger.warning(f"Empty password login attempt from {client_ip}")
+            return render_template('login.html', error='Password is required', csrf_token=CSRFProtection.generate_csrf_token())
         
-        if len(password) > 1000:  # Prevent extremely long passwords
-            app.logger.warning(f"Oversized login attempt from {request.remote_addr}")
-            return render_template('login.html', error='Invalid credentials')
+        # Enhanced security validation
+        if len(username) > SecurityConfig.MAX_USERNAME_LENGTH or len(password) > 1000:
+            app.logger.warning(f"Oversized login attempt from {client_ip}")
+            return render_template('login.html', error='Invalid credentials', csrf_token=CSRFProtection.generate_csrf_token())
+        
+        # Validate username format (basic security check)
+        if not SecurityConfig.ALLOWED_USERNAME_CHARS.match(username):
+            app.logger.warning(f"Invalid username format login attempt from {client_ip}: {username}")
+            return render_template('login.html', error='Invalid credentials', csrf_token=CSRFProtection.generate_csrf_token())
         
         # Authenticate using new user system
         success, error_message, user_data = login_user(
@@ -473,6 +531,11 @@ def login():
         )
         
         if success:
+            # Regenerate session ID for security
+            SessionSecurity.regenerate_session_id()
+            
+            app.logger.info(f"Successful login for user {user_data['username']} from {client_ip}")
+            
             # Handle special redirect logic for streamers
             if user_data and user_data.get('role_name') == 'streamer':
                 # Update streamer permissions
@@ -488,22 +551,23 @@ def login():
                     return redirect(f'/beta/channel/{channel_name}')
                 else:
                     app.logger.error(f"No channels assigned to streamer {user_data['username']}")
-                    return render_template('login.html', error='No channel assigned. Please contact admin.')
+                    return render_template('login.html', error='No channel assigned. Please contact admin.', csrf_token=CSRFProtection.generate_csrf_token())
             
             # For non-streamers: redirect to the page they were trying to access, or beta dashboard
             next_page = request.args.get('next', '/beta')
             
-            # Security: Validate redirect URL to prevent open redirects
-            if next_page and not next_page.startswith('/'):
+            # Enhanced security: Validate redirect URL to prevent open redirects
+            if next_page and (not next_page.startswith('/') or '..' in next_page):
                 next_page = '/beta'
             
             return redirect(next_page)
         else:
-            # Failed login
-            return render_template('login.html', error=error_message or 'Invalid credentials')
+            # Failed login - log security event
+            app.logger.warning(f"Failed login attempt for user {username} from {client_ip}")
+            return render_template('login.html', error=error_message or 'Invalid credentials', csrf_token=CSRFProtection.generate_csrf_token())
     
-    # GET request - show login form
-    return render_template('login.html')
+    # GET request - show login form with CSRF token
+    return render_template('login.html', csrf_token=CSRFProtection.generate_csrf_token())
 
 @app.route('/logout')
 def logout():

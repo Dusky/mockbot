@@ -23,12 +23,6 @@
                                 <i class="fab fa-twitch me-1"></i>
                                 Open on Twitch
                             </a>
-                            <button type="button" class="btn btn-sm btn-outline-primary" 
-                                    onclick="openTTSPopup('{{ channel.name }}')" 
-                                    title="Open TTS popup for stream capture">
-                                <i class="fas fa-external-link-alt me-1"></i>
-                                TTS Popup
-                            </button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="location.reload()">
                                 <i class="fas fa-sync-alt me-1"></i>
                                 Refresh
@@ -158,9 +152,20 @@
                                 <span id="charCount">0/500</span>
                             </div>
                         </div>
-                        <button class="btn btn-success w-100 btn-control" id="generateTtsBtn">
-                            <i class="fas fa-volume-up me-2"></i>Generate TTS
-                        </button>
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <button class="btn btn-success d-flex align-items-center w-100 justify-content-center btn-control" id="generateTtsBtn">
+                                    <i class="fas fa-volume-up me-2"></i>Generate TTS
+                                </button>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <button class="btn btn-secondary d-flex align-items-center w-100 justify-content-center btn-control" 
+                                        onclick="openTTSPopup('{{ channel.name }}')" 
+                                        title="Open TTS popup window for stream capture">
+                                    <i class="fas fa-external-link-alt me-2"></i>TTS Popup
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -502,41 +507,6 @@ window.channelData = {
     bot_running: {{ channel.bot_running|tojson }}
 };
 
-// TTS Popup window management
-let ttsPopupWindow = null;
-
-function openTTSPopup(channelName) {
-    const popupUrl = `/tts-popup/${channelName}`;
-    const popupOptions = 'width=350,height=400,scrollbars=no,resizable=yes,status=no,toolbar=no,menubar=no';
-    
-    // Close existing popup if open
-    if (ttsPopupWindow && !ttsPopupWindow.closed) {
-        ttsPopupWindow.close();
-    }
-    
-    // Open new popup
-    ttsPopupWindow = window.open(popupUrl, `tts-popup-${channelName}`, popupOptions);
-    
-    if (!ttsPopupWindow) {
-        // Show notification if available, otherwise alert
-        if (window.notificationSystem && typeof window.notificationSystem.showToast === 'function') {
-            window.notificationSystem.showToast('Popup blocked! Please allow popups for this site.', 'warning');
-        } else {
-            alert('Popup blocked! Please allow popups for this site.');
-        }
-    } else {
-        // Focus the popup
-        ttsPopupWindow.focus();
-        console.log('TTS popup opened for channel:', channelName);
-    }
-}
-
-// Close popup when main window closes
-window.addEventListener('beforeunload', () => {
-    if (ttsPopupWindow && !ttsPopupWindow.closed) {
-        ttsPopupWindow.close();
-    }
-});
 </script>
 <script src="{{ url_for('static', filename='scripts/channel_page.js') }}"></script>
 {% endblock %}

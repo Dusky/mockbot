@@ -122,7 +122,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     const cellTime = row.insertCell();
                     try {
-                        cellTime.textContent = new Date(item.timestamp).toLocaleString();
+                        if (window.timezoneUtils) {
+                            cellTime.textContent = window.timezoneUtils.toLocalTime(item.timestamp);
+                        } else {
+                            cellTime.textContent = new Date(item.timestamp).toLocaleString();
+                        }
                     } catch (e) {
                         cellTime.textContent = item.timestamp; 
                         console.warn("Could not parse timestamp:", item.timestamp, e);

@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeTTSHistory();
     initializeStats();
     initializeQuickSettings();
+    initializeTTSAutoplay();
+    initializeTooltips();
     
     console.log('[Beta Channel] Initialization complete for channel:', window.channelData.name);
 });
@@ -27,6 +29,8 @@ let chatMessages = [];
 let ttsHistory = [];
 let autoScroll = true;
 let currentlyPlayingId = null;
+let ttsAutoplayEnabled = false;
+let autoTTSPlayer = null;
 
 // ====================================================================
 // Channel Page Initialization
@@ -87,6 +91,14 @@ function initializeControls() {
     const ttsDelayToggle = document.getElementById('ttsDelayToggle');
     if (ttsDelayToggle) {
         ttsDelayToggle.addEventListener('change', handleTTSDelayToggle);
+    }
+    
+    // Use General Model Toggle
+    const useGeneralModelToggle = document.getElementById('useGeneralModelToggle');
+    if (useGeneralModelToggle) {
+        useGeneralModelToggle.addEventListener('change', handleUseGeneralModelToggle);
+        // Show warning if channel has low message count
+        checkMessageCountWarning();
     }
     
     // Initialize Model Selector
@@ -226,6 +238,48 @@ async function handleTTSDelayToggle() {
     }
 }
 
+async function handleUseGeneralModelToggle() {
+    const toggle = document.getElementById('useGeneralModelToggle');
+    const enabled = toggle.checked;
+    const channelName = window.channelData.name;
+    
+    try {
+        const response = await betaUtils.apiRequest(`/update-channel-settings`, {
+            method: 'POST',
+            body: JSON.stringify({ 
+                channel_name: channelName,
+                use_general_model: enabled
+            })
+        });
+        
+        showToast(`${enabled ? 'General' : 'Channel-specific'} model enabled for #${channelName}`, 'success');
+        
+        // Update channel data
+        window.channelData.use_general_model = enabled;
+        
+        // Update warning visibility
+        checkMessageCountWarning();
+        
+    } catch (error) {
+        console.error('[Beta Channel] Error toggling general model:', error);
+        toggle.checked = !enabled; // Revert
+        showToast('Failed to toggle model setting', 'error');
+    }
+}
+
+function checkMessageCountWarning() {
+    const toggle = document.getElementById('useGeneralModelToggle');
+    const warning = document.getElementById('modelWarning');
+    
+    if (!toggle || !warning) return;
+    
+    // Show warning if general model is disabled (channel model selected) and channel has < 1000 messages
+    const channelMessages = window.channelData.messages_sent || 0;
+    const shouldShowWarning = !toggle.checked && channelMessages < 1000;
+    
+    warning.style.display = shouldShowWarning ? 'block' : 'none';
+}
+
 async function generateMessage(sendToChat = false) {
     const channelName = window.channelData.name;
     const btn = sendToChat ? document.getElementById('generateSendBtn') : document.getElementById('generateMessageBtn');
@@ -237,9 +291,10 @@ async function generateMessage(sendToChat = false) {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
     
     try {
-        // Get current model selection
-        const modelSelector = document.getElementById('modelSelector');
-        const modelType = modelSelector ? modelSelector.value : (window.channelData.use_general_model ? 'general' : 'channel');
+        // Get current model selection from toggle
+        const useGeneralToggle = document.getElementById('useGeneralModelToggle');
+        const useGeneral = useGeneralToggle ? useGeneralToggle.checked : window.channelData.use_general_model;
+        const modelType = useGeneral ? 'general' : 'channel';
         
         const response = await betaUtils.apiRequest(`/api/channel/${channelName}/generate`, {
             method: 'POST',
@@ -423,20 +478,14 @@ function updateChatDisplay(messages) {
 }
 
 function createChatMessage(message) {
-    const timestamp = new Date(message.timestamp).toLocaleTimeString();
+    const timestamp = new Date(message.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
     const username = message.username || 'Anonymous';
-    const avatarLetter = username.charAt(0).toUpperCase();
     
     return `
-        <div class="chat-message">
-            <div class="chat-avatar">${avatarLetter}</div>
-            <div class="chat-content">
-                <div class="chat-header">
-                    <span class="chat-username">${betaUtils.escapeHtml(username)}</span>
-                    <span class="chat-timestamp">${timestamp}</span>
-                </div>
-                <p class="chat-text">${betaUtils.escapeHtml(message.message)}</p>
-            </div>
+        <div class="chat-line">
+            <span class="chat-time">${timestamp}</span>
+            <span class="chat-user">${betaUtils.escapeHtml(username)}:</span>
+            <span class="chat-msg">${betaUtils.escapeHtml(message.message)}</span>
         </div>
     `;
 }
@@ -1255,7 +1304,236 @@ function resetModelSwitchButton() {
     }
 }
 
+// ====================================================================
+// TTS Autoplay
+// ====================================================================
+
+function initializeTTSAutoplay() {
+    console.log('[Beta Channel] Initializing TTS autoplay...');
+    
+    // Initialize autoplay toggle
+    const autoplayToggle = document.getElementById('ttsAutoplayToggle');
+    if (autoplayToggle) {
+        autoplayToggle.addEventListener('change', handleTTSAutoplayToggle);
+        ttsAutoplayEnabled = autoplayToggle.checked;
+        updateAutoplayStatus();
+    }
+    
+    // Initialize auto TTS player
+    autoTTSPlayer = document.getElementById('autoTTSPlayer');
+    if (autoTTSPlayer) {
+        autoTTSPlayer.addEventListener('ended', handleAutoTTSEnded);
+        autoTTSPlayer.addEventListener('error', handleAutoTTSError);
+    }
+    
+    // Initialize stop button
+    const stopAutoTTSBtn = document.getElementById('stopAutoTTSBtn');
+    if (stopAutoTTSBtn) {
+        stopAutoTTSBtn.addEventListener('click', stopAutoTTS);
+    }
+    
+    // Connect to WebSocket for real-time TTS notifications
+    initializeTTSWebSocket();
+    
+    console.log('[Beta Channel] TTS autoplay initialized');
+}
+
+function handleTTSAutoplayToggle() {
+    const toggle = document.getElementById('ttsAutoplayToggle');
+    ttsAutoplayEnabled = toggle.checked;
+    
+    console.log(`[Beta Channel] TTS autoplay ${ttsAutoplayEnabled ? 'enabled' : 'disabled'}`);
+    
+    if (!ttsAutoplayEnabled) {
+        stopAutoTTS();
+    }
+    
+    updateAutoplayStatus();
+    showToast(`TTS autoplay ${ttsAutoplayEnabled ? 'enabled' : 'disabled'}`, 'info');
+}
+
+function updateAutoplayStatus() {
+    // Update autoplay toggle appearance only
+    const toggle = document.getElementById('ttsAutoplayToggle');
+    if (toggle) {
+        toggle.checked = ttsAutoplayEnabled;
+    }
+}
+
+function initializeTTSWebSocket() {
+    if (typeof io === 'undefined') {
+        console.warn('[Beta Channel] Socket.IO not available for TTS autoplay');
+        return;
+    }
+    
+    const channelName = window.channelData.name;
+    
+    // Connect to the Socket.IO server
+    const socket = io();
+    
+    // Join the channel room for notifications
+    socket.emit('join', `channel_${channelName}`);
+    
+    // Listen for new TTS notifications
+    socket.on('new_tts_entry', (data) => {
+        console.log('[Beta Channel] Received new TTS notification:', data);
+        
+        if (ttsAutoplayEnabled && data.id && data.channel === channelName) {
+            // Fetch the TTS entry details and play it
+            playNewTTS(data.id);
+        }
+    });
+    
+    socket.on('connect', () => {
+        console.log('[Beta Channel] Connected to TTS WebSocket');
+    });
+    
+    socket.on('disconnect', () => {
+        console.log('[Beta Channel] Disconnected from TTS WebSocket');
+    });
+    
+    console.log('[Beta Channel] TTS WebSocket initialized for channel:', channelName);
+}
+
+async function playNewTTS(ttsId) {
+    if (!ttsAutoplayEnabled || !autoTTSPlayer) return;
+    
+    console.log(`[Beta Channel] Playing new TTS: ${ttsId}`);
+    
+    try {
+        // Fetch TTS details
+        const channelName = window.channelData.name;
+        const response = await betaUtils.apiRequest(`/api/tts-logs?channel_filter=${encodeURIComponent(channelName)}&per_page=1&page=1&sort_by=timestamp&sort_order=desc&id=${ttsId}`);
+        
+        if (response.logs && response.logs.length > 0) {
+            const ttsEntry = response.logs[0];
+            
+            if (ttsEntry.file_path) {
+                // Update auto player UI
+                updateAutoPlayerUI(ttsEntry);
+                
+                // Play the audio
+                const audioUrl = `/static/${ttsEntry.file_path}`;
+                autoTTSPlayer.src = audioUrl;
+                
+                try {
+                    await autoTTSPlayer.play();
+                    console.log(`[Beta Channel] Auto-playing TTS: ${ttsEntry.message.substring(0, 50)}...`);
+                } catch (playError) {
+                    console.error('[Beta Channel] Auto TTS playback failed:', playError);
+                    showToast('TTS autoplay failed - check browser permissions', 'warning');
+                }
+            }
+        }
+        
+    } catch (error) {
+        console.error('[Beta Channel] Error fetching new TTS for autoplay:', error);
+    }
+}
+
+function updateAutoPlayerUI(ttsEntry) {
+    const messageEl = document.getElementById('autoTTSMessage');
+    const timeEl = document.getElementById('autoTTSTime');
+    const progressEl = document.getElementById('autoTTSProgress');
+    const playerContainer = document.getElementById('autoTTSPlayerContainer');
+    
+    if (messageEl) {
+        messageEl.textContent = ttsEntry.message;
+    }
+    
+    if (timeEl) {
+        const timestamp = new Date(ttsEntry.timestamp).toLocaleTimeString();
+        timeEl.textContent = timestamp;
+    }
+    
+    if (progressEl) {
+        progressEl.style.width = '0%';
+        progressEl.setAttribute('aria-valuenow', '0');
+    }
+    
+    if (playerContainer) {
+        playerContainer.style.display = 'block';
+    }
+    
+    // Update progress during playback
+    if (autoTTSPlayer) {
+        const updateProgress = () => {
+            if (autoTTSPlayer.duration && progressEl) {
+                const progress = (autoTTSPlayer.currentTime / autoTTSPlayer.duration) * 100;
+                progressEl.style.width = progress + '%';
+                progressEl.setAttribute('aria-valuenow', Math.round(progress));
+            }
+        };
+        
+        autoTTSPlayer.addEventListener('timeupdate', updateProgress);
+        autoTTSPlayer.addEventListener('loadedmetadata', updateProgress);
+    }
+}
+
+function stopAutoTTS() {
+    if (autoTTSPlayer) {
+        autoTTSPlayer.pause();
+        autoTTSPlayer.src = '';
+    }
+    
+    const playerContainer = document.getElementById('autoTTSPlayerContainer');
+    if (playerContainer) {
+        playerContainer.style.display = 'none';
+    }
+    
+    console.log('[Beta Channel] Auto TTS stopped');
+}
+
+function handleAutoTTSEnded() {
+    console.log('[Beta Channel] Auto TTS playback ended');
+    
+    // Hide player after a short delay
+    setTimeout(() => {
+        const playerContainer = document.getElementById('autoTTSPlayerContainer');
+        if (playerContainer) {
+            playerContainer.style.display = 'none';
+        }
+    }, 2000);
+}
+
+function handleAutoTTSError(event) {
+    console.error('[Beta Channel] Auto TTS playback error:', event);
+    showToast('TTS autoplay error', 'warning');
+    
+    // Hide player on error
+    const playerContainer = document.getElementById('autoTTSPlayerContainer');
+    if (playerContainer) {
+        playerContainer.style.display = 'none';
+    }
+}
+
+// ====================================================================
+// Tooltips
+// ====================================================================
+
+function initializeTooltips() {
+    if (typeof tippy === 'undefined') {
+        console.warn('[Beta Channel] Tippy.js not available for tooltips');
+        return;
+    }
+    
+    // Initialize all tooltips with data-tippy-content attribute
+    tippy('[data-tippy-content]', {
+        theme: document.documentElement.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light',
+        placement: 'top',
+        delay: [500, 0],
+        duration: [200, 150],
+        arrow: true,
+        maxWidth: 300,
+        interactive: false,
+        hideOnClick: true
+    });
+    
+    console.log('[Beta Channel] Tooltips initialized');
+}
+
 // Make functions available globally for inline onclick handlers
 window.removeTrustedUser = removeTrustedUser;
 window.loadChatMessages = loadChatMessages;
 window.loadTTSHistory = loadTTSHistory;
+window.stopAutoTTS = stopAutoTTS;

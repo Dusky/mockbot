@@ -147,6 +147,7 @@ class UserDatabase:
                 )
             """)
             
+            
             conn.commit()
             logger.info("User database tables initialized successfully")
             

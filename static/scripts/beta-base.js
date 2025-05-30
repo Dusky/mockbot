@@ -249,6 +249,12 @@ function initializeToasts() {
 // ====================================================================
 
 function formatTimestamp(timestamp) {
+    // Use timezone utility if available for relative time
+    if (window.timezoneUtils) {
+        return window.timezoneUtils.toRelativeTime(timestamp);
+    }
+    
+    // Fallback to original logic
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now - date;

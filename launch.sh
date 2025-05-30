@@ -851,6 +851,12 @@ clean_install() {
 }
 
 run_database_migrations() {
+    # Check if migrations already run in this session
+    if [[ "${MIGRATIONS_COMPLETED:-false}" = true ]]; then
+        echo -e "${GREEN}✅ Database migrations already completed in this session${NC}"
+        return 0
+    fi
+    
     echo -e "${CYAN}🗄️ Running database migrations...${NC}"
     
     # Ensure we're in the virtual environment
@@ -872,7 +878,14 @@ run_database_migrations() {
     fi
     
     # Check if we need to migrate to user system
-    if [[ ! -f "$db_file" ]] || ! python -c "
+    # First check if database file exists
+    if [[ ! -f "$db_file" ]]; then
+        echo -e "${YELLOW}Database file not found. Running migration...${NC}"
+        needs_migration=true
+    else
+        # Check if users table exists using python from venv
+        echo -e "${CYAN}Checking for existing user management system...${NC}"
+        python_check_result=$(python -c "
 import sqlite3
 import sys
 try:
@@ -881,10 +894,27 @@ try:
     cursor.execute(\"SELECT name FROM sqlite_master WHERE type='table' AND name='users'\")
     result = cursor.fetchone()
     conn.close()
-    sys.exit(0 if result else 1)
-except:
-    sys.exit(1)
-" 2>/dev/null; then
+    if result:
+        print('USERS_TABLE_EXISTS')
+        sys.exit(0)  # Users table exists
+    else:
+        print('USERS_TABLE_NOT_FOUND')
+        sys.exit(1)  # Users table does not exist
+except Exception as e:
+    print(f'PYTHON_CHECK_ERROR: {e}')
+    sys.exit(1)  # Error occurred
+" 2>&1)
+        python_exit_code=$?
+        
+        if [[ $python_exit_code -eq 0 && "$python_check_result" == *"USERS_TABLE_EXISTS"* ]]; then
+            needs_migration=false
+        else
+            echo -e "${YELLOW}Python check result: $python_check_result (exit code: $python_exit_code)${NC}"
+            needs_migration=true
+        fi
+    fi
+    
+    if [[ "$needs_migration" = true ]]; then
         echo -e "${YELLOW}User management system not found. Running migration...${NC}"
         
         # Run user migration
@@ -905,6 +935,7 @@ except:
     fi
     
     echo -e "${GREEN}✅ Database migrations completed successfully${NC}"
+    export MIGRATIONS_COMPLETED=true
     return 0
 }
 

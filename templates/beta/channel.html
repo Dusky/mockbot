@@ -30,76 +30,104 @@
             <button class="btn btn-outline-primary" onclick="history.back()">
                 <i class="fas fa-arrow-left me-2"></i>Back
             </button>
-            <button class="btn btn-outline-success" onclick="openTTSPopup('{{ channel.name }}')" title="Open TTS popup for stream capture">
-                <i class="fas fa-external-link-alt me-2"></i>TTS Popup
-            </button>
+            {% if current_user and current_user.role_name in ['admin', 'super_admin'] %}
             <a href="/channel/{{ channel.name }}" class="btn btn-outline-secondary">
                 <i class="fas fa-cog me-2"></i>Legacy View
             </a>
+            {% endif %}
         </div>
     </div>
 
-    <!-- Quick Controls Row -->
+    <!-- Quick Controls Toolbar -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="quick-controls-panel">
-                <div class="control-group">
-                    <div class="control-item">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="ttsToggle" 
-                                   {% if channel.tts_enabled %}checked{% endif %}>
-                            <label class="form-check-label" for="ttsToggle">
-                                <i class="fas fa-volume-up me-1"></i>
-                                TTS Enabled
+            <div class="quick-controls-toolbar">
+                <!-- Essential Toggles -->
+                <div class="controls-group">
+                    <div class="form-check form-switch control-toggle" 
+                         data-tippy-content="Enable or disable bot joining this channel on startup">
+                        <input class="form-check-input" type="checkbox" id="joinChannelToggle" 
+                               {% if channel.join_channel %}checked{% endif %}>
+                        <label class="form-check-label" for="joinChannelToggle">
+                            <i class="fas fa-sign-in-alt"></i>
+                            <span class="control-label">Join Channel</span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-check form-switch control-toggle"
+                         data-tippy-content="Enable bot to automatically respond to chat messages using Markov model">
+                        <input class="form-check-input" type="checkbox" id="autoReplyToggle" 
+                               {% if channel.voice_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="autoReplyToggle">
+                            <i class="fas fa-microphone"></i>
+                            <span class="control-label">Auto Reply</span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-check form-switch control-toggle"
+                         data-tippy-content="Enable text-to-speech generation for chat messages">
+                        <input class="form-check-input" type="checkbox" id="ttsToggle" 
+                               {% if channel.tts_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="ttsToggle">
+                            <i class="fas fa-volume-up"></i>
+                            <span class="control-label">TTS</span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-check form-switch control-toggle"
+                         data-tippy-content="Automatically play new TTS generations in real-time">
+                        <input class="form-check-input" type="checkbox" id="ttsAutoplayToggle">
+                        <label class="form-check-label" for="ttsAutoplayToggle">
+                            <i class="fas fa-play"></i>
+                            <span class="control-label">Auto-Play</span>
+                        </label>
+                    </div>
+                    
+                    <div class="control-toggle-wrapper">
+                        <div class="form-check form-switch control-toggle"
+                             data-tippy-content="Choose between general model (trained on all channels) or channel-specific model">
+                            <input class="form-check-input" type="checkbox" id="useGeneralModelToggle" 
+                                   {% if channel.use_general_model %}checked{% endif %}>
+                            <label class="form-check-label" for="useGeneralModelToggle">
+                                <i class="fas fa-globe"></i>
+                                <span class="control-label">General Model</span>
                             </label>
+                        </div>
+                        <!-- Warning for low message count -->
+                        <div class="model-warning" id="modelWarning" style="display: none;">
+                            <small class="text-warning">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                <1k msgs
+                            </small>
                         </div>
                     </div>
                     
-                    <div class="control-item">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="autoReplyToggle" 
-                                   {% if channel.voice_enabled %}checked{% endif %}>
-                            <label class="form-check-label" for="autoReplyToggle">
-                                <i class="fas fa-microphone me-1"></i>
-                                Voice/Bot Speaking
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="control-item">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="joinChannelToggle" 
-                                   {% if channel.join_channel %}checked{% endif %}>
-                            <label class="form-check-label" for="joinChannelToggle">
-                                <i class="fas fa-sign-in-alt me-1"></i>
-                                Bot Join Channel
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="control-item">
-                        <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="ttsDelayToggle" 
-                                   {% if channel.tts_delay_enabled %}checked{% endif %}>
-                            <label class="form-check-label" for="ttsDelayToggle">
-                                <i class="fas fa-clock me-1"></i>
-                                TTS Delay Mode
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="control-item">
-                        <button class="btn btn-primary" id="generateMessageBtn">
-                            <i class="fas fa-dice me-2"></i>Generate Message
-                        </button>
-                    </div>
-                    
-                    <div class="control-item">
-                        <button class="btn btn-success" id="generateSendBtn">
-                            <i class="fas fa-paper-plane me-2"></i>Generate & Send
-                        </button>
+                    <div class="form-check form-switch control-toggle"
+                         data-tippy-content="Delay sending bot messages to chat until TTS generation is complete, so both happen simultaneously">
+                        <input class="form-check-input" type="checkbox" id="ttsDelayToggle" 
+                               {% if channel.tts_delay_enabled %}checked{% endif %}>
+                        <label class="form-check-label" for="ttsDelayToggle">
+                            <i class="fas fa-clock"></i>
+                            <span class="control-label">TTS Delay</span>
+                        </label>
                     </div>
                 </div>
+
+                <!-- Action Buttons -->
+                <div class="controls-group">
+                    <button class="btn btn-sm btn-outline-primary quick-action-btn" id="generateMessageBtn"
+                            data-tippy-content="Generate a message using the Markov model for preview">
+                        <i class="fas fa-dice"></i>
+                        <span class="btn-label">Generate</span>
+                    </button>
+                    
+                    <button class="btn btn-sm btn-primary quick-action-btn" id="generateSendBtn"
+                            data-tippy-content="Generate and immediately send a message to chat">
+                        <i class="fas fa-paper-plane"></i>
+                        <span class="btn-label">Send</span>
+                    </button>
+                </div>
+
             </div>
         </div>
     </div>
@@ -263,6 +291,55 @@
                             <i class="fas fa-volume-up me-2"></i>Generate TTS
                         </button>
                     </div>
+                    
+                    <!-- Auto TTS Player Container -->
+                    <div class="auto-tts-player mt-3" id="autoTTSPlayerContainer" style="display: none;">
+                        <div class="player-header">
+                            <small class="text-success">
+                                <i class="fas fa-play-circle me-1"></i>
+                                Auto-Playing New TTS
+                            </small>
+                            <button class="btn btn-sm btn-outline-secondary" id="stopAutoTTSBtn">
+                                <i class="fas fa-stop"></i>
+                            </button>
+                        </div>
+                        <div class="player-content">
+                            <div class="tts-message mb-2" id="autoTTSMessage">
+                                Loading...
+                            </div>
+                            <div class="player-controls">
+                                <small class="text-muted me-2" id="autoTTSTime">--:--</small>
+                                <div class="progress flex-grow-1">
+                                    <div class="progress-bar bg-success" id="autoTTSProgress" 
+                                         role="progressbar" style="width: 0%" 
+                                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Manual TTS Player (existing) -->
+                    <div class="mt-3" id="autoTtsPlayer" style="display: none;">
+                        <div class="tts-player-header d-flex justify-content-between align-items-center mb-2">
+                            <small class="text-muted">Now Playing:</small>
+                            <button class="btn btn-sm btn-outline-secondary" id="stopTtsBtn">
+                                <i class="fas fa-stop"></i>
+                            </button>
+                        </div>
+                        <div class="tts-player-content">
+                            <div class="tts-message small text-truncate mb-1" id="currentTtsMessage">
+                                Loading...
+                            </div>
+                            <div class="tts-controls d-flex align-items-center">
+                                <small class="text-muted me-2" id="currentTtsTime">--:--</small>
+                                <div class="progress flex-grow-1 me-2" style="height: 4px;">
+                                    <div class="progress-bar" id="ttsProgressBar" style="width: 0%"></div>
+                                </div>
+                                <small class="text-muted" id="currentTtsDuration">--:--</small>
+                            </div>
+                        </div>
+                        <audio id="autoTtsAudio" preload="none"></audio>
+                    </div>
                 </div>
             </div>
 
@@ -383,8 +460,9 @@
     </div>
 </div>
 
-<!-- Audio Player (Hidden) -->
+<!-- Audio Players (Hidden) -->
 <audio id="ttsAudioPlayer" style="display: none;"></audio>
+<audio id="autoTTSPlayer" style="display: none;"></audio>
 {% endblock %}
 
 {% block scripts %}
@@ -397,33 +475,11 @@ window.channelData = {
     tts_delay_enabled: {{ channel.tts_delay_enabled|tojson }},
     join_channel: {{ channel.join_channel|tojson }},
     currently_connected: {{ channel.currently_connected|tojson }},
-    bot_running: {{ channel.bot_running|tojson }}
+    bot_running: {{ channel.bot_running|tojson }},
+    use_general_model: {{ channel.use_general_model|tojson }},
+    messages_sent: {{ channel.messages_sent|tojson }}
 };
 
-// TTS Popup window management
-let ttsPopupWindow = null;
-
-function openTTSPopup(channelName) {
-    const popupUrl = `/tts-popup/${channelName}`;
-    const popupOptions = 'width=350,height=400,scrollbars=no,resizable=yes,status=no,toolbar=no,menubar=no';
-    
-    // Close existing popup if open
-    if (ttsPopupWindow && !ttsPopupWindow.closed) {
-        ttsPopupWindow.close();
-    }
-    
-    // Open new popup
-    ttsPopupWindow = window.open(popupUrl, `tts-popup-${channelName}`, popupOptions);
-    
-    if (!ttsPopupWindow) {
-        // Show notification if available, otherwise alert
-        if (window.betaUtils && typeof window.betaUtils.showToast === 'function') {
-            window.betaUtils.showToast('Popup blocked! Please allow popups for this site.', 'warning');
-        } else {
-            alert('Popup blocked! Please allow popups for this site to use the TTS popup window.');
-        }
-    }
-}
 </script>
 <script src="{{ url_for('static', filename='scripts/beta-channel.js') }}"></script>
 {% endblock %}

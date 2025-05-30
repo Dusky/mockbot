@@ -77,7 +77,11 @@ def require_permission(permission: str):
         def decorated_function(*args, **kwargs):
             if not is_authenticated():
                 if request.is_json:
-                    return jsonify({'error': 'Authentication required'}), 401
+                    return jsonify({'error': 'Authentication required', 'redirect': '/login'}), 401
+                # Store the intended destination
+                next_url = request.url if request.method == 'GET' else request.referrer
+                if next_url and next_url != request.url_root:
+                    return redirect(url_for('login', next=next_url))
                 return redirect(url_for('login'))
             
             if not has_permission(permission):
@@ -101,7 +105,11 @@ def require_role(role_name: str):
             user = get_current_user()
             if not user:
                 if request.is_json:
-                    return jsonify({'error': 'Authentication required'}), 401
+                    return jsonify({'error': 'Authentication required', 'redirect': '/login'}), 401
+                # Store the intended destination
+                next_url = request.url if request.method == 'GET' else request.referrer
+                if next_url and next_url != request.url_root:
+                    return redirect(url_for('login', next=next_url))
                 return redirect(url_for('login'))
             
             if user['role_name'] != role_name and user['role_name'] != 'super_admin':
@@ -256,6 +264,16 @@ def require_channel_access(channel_param: str = 'channel', action: str = 'view')
         def decorated_function(*args, **kwargs):
             # Get channel name from request parameters, args, form data, or JSON
             from flask import request
+            
+            # Check authentication first
+            if not is_authenticated():
+                if request.is_json:
+                    return jsonify({'error': 'Authentication required', 'redirect': '/login'}), 401
+                # Store the intended destination
+                next_url = request.url if request.method == 'GET' else request.referrer
+                if next_url and next_url != request.url_root:
+                    return redirect(url_for('login', next=next_url))
+                return redirect(url_for('login'))
             channel_name = (request.view_args.get(channel_param) or 
                            request.args.get(channel_param) or
                            request.form.get(channel_param))

@@ -144,7 +144,11 @@
                                             <span class="text-primary fw-semibold">{{ model.cache_size_str or '0 B' }}</span>
                                         </td>
                                         <td>
-                                            <span class="text-muted">{{ (model.last_modified|int * 1000)|string if model.last_modified else 'Never' }}</span>
+                                            {% if model.last_modified %}
+                                                <span class="text-muted" data-utc-time="{{ model.last_modified|int * 1000 }}">{{ (model.last_modified|int * 1000)|string }}</span>
+                                            {% else %}
+                                                <span class="text-muted">Never</span>
+                                            {% endif %}
                                         </td>
                                         <td>
                                             <div class="progress" style="width: 120px; height: 8px;">
@@ -217,7 +221,13 @@
                                 </div>
                                 <div class="stat-row">
                                     <span class="stat-label">Last Updated:</span>
-                                    <span class="stat-value">{{ (model.last_modified|int * 1000)|string if model.last_modified else 'Never' }}</span>
+                                    <span class="stat-value">
+                                        {% if model.last_modified %}
+                                            <span data-utc-time="{{ model.last_modified|int * 1000 }}">{{ (model.last_modified|int * 1000)|string }}</span>
+                                        {% else %}
+                                            Never
+                                        {% endif %}
+                                    </span>
                                 </div>
                             </div>
                             

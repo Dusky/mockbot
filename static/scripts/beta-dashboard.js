@@ -249,6 +249,25 @@ function createTTSActivityItem(entry) {
 // ====================================================================
 
 function initializeQuickActions() {
+    // Main quick actions button - scroll to quick actions panel
+    const quickActionsBtn = document.getElementById('quickActionsBtn');
+    if (quickActionsBtn) {
+        quickActionsBtn.addEventListener('click', () => {
+            const quickActionsPanel = document.querySelector('.quick-actions').closest('.dashboard-panel');
+            if (quickActionsPanel) {
+                quickActionsPanel.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                });
+                // Add a subtle highlight effect
+                quickActionsPanel.style.boxShadow = '0 0 20px rgba(0, 123, 255, 0.3)';
+                setTimeout(() => {
+                    quickActionsPanel.style.boxShadow = '';
+                }, 2000);
+            }
+        });
+    }
+    
     // Rebuild all models
     const rebuildAllBtn = document.getElementById('rebuildAllBtn');
     if (rebuildAllBtn) {

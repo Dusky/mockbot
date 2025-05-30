@@ -407,9 +407,14 @@ window.BotController = window.BotController || {
             const activityCell = document.createElement('td');
             if (normalizedChannel.last_activity) {
                 try {
-                    const activityDate = new Date(normalizedChannel.last_activity);
-                    activityCell.textContent = activityDate.toLocaleString();
-                    activityCell.title = activityDate.toISOString();
+                    if (window.timezoneUtils) {
+                        activityCell.textContent = window.timezoneUtils.toLocalTime(normalizedChannel.last_activity);
+                        activityCell.title = normalizedChannel.last_activity;
+                    } else {
+                        const activityDate = new Date(normalizedChannel.last_activity);
+                        activityCell.textContent = activityDate.toLocaleString();
+                        activityCell.title = activityDate.toISOString();
+                    }
                 } catch (e) {
                     activityCell.textContent = normalizedChannel.last_activity; // Fallback
                 }

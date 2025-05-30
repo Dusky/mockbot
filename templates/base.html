@@ -42,13 +42,16 @@
   <script src="https://cdn.socket.io/4.0.0/socket.io.min.js" crossorigin="anonymous"></script>
   
   <!-- App Scripts - CRITICAL SEQUENCE: Don't change this order -->
-  <!-- 1. First notification.js (needed by everything) -->
+  <!-- 1. First timezone utils -->
+  <script src="{{ url_for('static', filename='scripts/timezone-utils.js') }}"></script>
+  
+  <!-- 2. Then notification.js (needed by everything) -->
   <script src="{{ url_for('static', filename='scripts/notification.js') }}"></script>
   
-  <!-- 2. Then bot_status.js must load and initialize -->
+  <!-- 3. Then bot_status.js must load and initialize -->
   <script src="{{ url_for('static', filename='scripts/bot_status.js') }}"></script>
   
-  <!-- 3. Give bot_status.js time to initialize -->
+  <!-- 4. Give bot_status.js time to initialize -->
   <script>
     console.log("Ensuring BotStatus is ready...");
     // Force a synchronous wait to ensure BotStatus is initialized
@@ -59,7 +62,7 @@
     }
   </script>
   
-  <!-- 4. Then load markov.js which depends on bot_status.js -->
+  <!-- 5. Then load markov.js which depends on bot_status.js -->
   <script src="{{ url_for('static', filename='scripts/markov.js') }}"></script>
   
   <!-- Then other scripts -->
@@ -98,21 +101,28 @@
               <i class="fas fa-tachometer-alt me-1"></i> Dashboard
             </a>
           </li>
+          {% if current_user and current_user.role_name in ['admin', 'super_admin', 'streamer'] %}
           <li class="nav-item">
             <a class="nav-link {{ 'active' if request.endpoint == 'settings_page' else '' }}" href="{{ url_for('settings_page') }}">
               <i class="fas fa-cog me-1"></i> Settings
             </a>
           </li>
+          {% endif %}
+          {% if current_user and current_user.role_name in ['admin', 'super_admin', 'streamer'] %}
           <li class="nav-item">
             <a class="nav-link {{ 'active' if request.endpoint == 'stats_page' else '' }}" href="{{ url_for('stats_page') }}">
               <i class="fas fa-brain me-1"></i> Brain
             </a>
           </li>
+          {% endif %}
+          {% if current_user and current_user.role_name in ['admin', 'super_admin'] %}
           <li class="nav-item">
             <a class="nav-link {{ 'active' if request.endpoint == 'logs_page' else '' }}" href="{{ url_for('logs_page') }}">
               <i class="fas fa-terminal me-1"></i> Logs
             </a>
           </li>
+          {% endif %}
+          {% if current_user and current_user.role_name in ['admin', 'super_admin'] %}
           <li class="nav-item">
             <a class="nav-link {{ 'active' if request.endpoint == 'bot_control_page' else '' }}" href="{{ url_for('bot_control_page') }}">
               <span class="d-flex align-items-center">
@@ -121,6 +131,8 @@
               </span>
             </a>
           </li>
+          {% endif %}
+          {% if current_user and current_user.role_name in ['admin', 'super_admin', 'streamer'] %}
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle {{ 'active' if request.endpoint == 'channel_page' else '' }}" href="#" id="channelsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
               <i class="fas fa-hashtag me-1"></i> Channels
@@ -129,6 +141,7 @@
               <li><a class="dropdown-item" href="#"><i class="fas fa-spinner fa-spin me-2"></i>Loading channels...</a></li>
             </ul>
           </li>
+          {% endif %}
         </ul>
 
         <!-- Right-aligned controls -->

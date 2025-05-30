@@ -158,7 +158,7 @@
                             </div>
                             <div class="activity-content">
                                 <p class="activity-text">{{ tts.message[:50] }}{% if tts.message|length > 50 %}...{% endif %}</p>
-                                <small class="activity-time">{{ tts.timestamp }}</small>
+                                <small class="activity-time" data-utc-relative="{{ tts.timestamp }}">{{ tts.timestamp }}</small>
                             </div>
                             {% if tts.file %}
                             <div class="activity-actions">

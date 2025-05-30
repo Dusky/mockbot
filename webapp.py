@@ -1541,11 +1541,6 @@ def serve_tts_output(filename):
     directory = os.path.join(app.root_path, 'static', 'outputs')
     return send_from_directory(directory, filename)
 
-@app.route('/tts-popup/<channel_name>')
-@require_auth
-def tts_popup(channel_name):
-    """Serve TTS popup window for stream capture"""
-    return render_template('tts_popup.html', channel_name=channel_name)
 
 @app.route('/set-theme/<theme_name>') 
 def set_theme_route(theme_name): 
@@ -1656,6 +1651,7 @@ def api_tts_logs():
         # Filtering parameters
         channel_filter_input = request.args.get('channel_filter', None, type=str)
         message_filter_input = request.args.get('message_filter', None, type=str)
+        id_filter = request.args.get('id', None, type=str)
 
         # Validate sort_order
         sort_order = "ASC" if sort_order_input == "asc" else "DESC"
@@ -1685,6 +1681,10 @@ def api_tts_logs():
         if message_filter_input:
             where_clauses.append("message LIKE ?")
             query_params.append(f"%{message_filter_input}%")
+        
+        if id_filter:
+            where_clauses.append("message_id = ?")
+            query_params.append(id_filter)
         
         where_sql = ""
         if where_clauses:
@@ -2199,7 +2199,7 @@ def new_audio_notification():
     if channel_name and tts_log_id is not None:
         # Emit an event to all connected SocketIO clients
         # The event name 'new_tts_entry' should match what clients listen for.
-        socketio.emit('new_tts_entry', {'id': tts_log_id, 'channel': channel_name})
+        socketio.emit('new_tts_entry', {'id': tts_log_id, 'channel': channel_name}, room=f"channel_{channel_name}")
         app.logger.info(f"Emitted 'new_tts_entry' via SocketIO for tts_log_id: {tts_log_id}, channel: {channel_name}")
         return jsonify({"success": True, "message": "Notification emitted"}), 200
     else:
@@ -2547,6 +2547,18 @@ def beta_channel_page(channel_name):
         # Convert to dict for template
         channel_data = dict(channel_config)
         channel_data['name'] = channel_name
+        
+        # Get message count for warning logic
+        try:
+            conn = sqlite3.connect(db_file)
+            c = conn.cursor()
+            c.execute("SELECT COUNT(*) FROM messages WHERE channel = ?", (channel_name,))
+            message_count = c.fetchone()[0]
+            channel_data['messages_sent'] = message_count
+            conn.close()
+        except Exception as e:
+            app.logger.warning(f"Could not get message count for {channel_name}: {e}")
+            channel_data['messages_sent'] = 0
         
         # Get current bot status for this channel
         bot_running = is_bot_actually_running()

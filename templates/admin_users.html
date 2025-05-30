@@ -301,7 +301,7 @@
                             <td>
                                 <div class="last-login">
                                     {% if user.last_login %}
-                                        {{ user.last_login|strftime('%Y-%m-%d %H:%M') }}
+                                        <span data-utc-time="{{ user.last_login }}">{{ user.last_login|strftime('%Y-%m-%d %H:%M') }}</span>
                                     {% else %}
                                         <span class="text-muted">Never</span>
                                     {% endif %}
@@ -309,7 +309,7 @@
                             </td>
                             <td>
                                 <div class="last-login">
-                                    {{ user.created_at|strftime('%Y-%m-%d') }}
+                                    <span data-utc-time="{{ user.created_at }}">{{ user.created_at|strftime('%Y-%m-%d') }}</span>
                                 </div>
                             </td>
                             <td>

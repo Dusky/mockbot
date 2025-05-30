@@ -208,13 +208,25 @@
                     <span class="user-info-label">
                         <i class="fas fa-calendar me-2"></i>Member Since
                     </span>
-                    <span class="user-info-value">{{ user.created_at.split('T')[0] if user.created_at else 'Unknown' }}</span>
+                    <span class="user-info-value">
+                        {% if user.created_at %}
+                            <span data-utc-time="{{ user.created_at }}">{{ user.created_at.split('T')[0] }}</span>
+                        {% else %}
+                            Unknown
+                        {% endif %}
+                    </span>
                 </div>
                 <div class="user-info-item">
                     <span class="user-info-label">
                         <i class="fas fa-clock me-2"></i>Last Login
                     </span>
-                    <span class="user-info-value">{{ user.last_login.split('T')[0] if user.last_login else 'Never' }}</span>
+                    <span class="user-info-value">
+                        {% if user.last_login %}
+                            <span data-utc-time="{{ user.last_login }}">{{ user.last_login.split('T')[0] }}</span>
+                        {% else %}
+                            Never
+                        {% endif %}
+                    </span>
                 </div>
                 {% if user.role_name == 'streamer' %}
                 <div class="user-info-item">

@@ -65,8 +65,20 @@ class TTSModelCache:
                 pytorch_version = torch.__version__
                 logging.info(f"TTS: Using PyTorch version {pytorch_version} with device {device}")
                 
-                processor = AutoProcessor.from_pretrained(model_path)
-                model = BarkModel.from_pretrained(model_path)
+                # PYTORCH 2.6 FIX: Monkey-patch torch.load to use weights_only=False for Bark compatibility
+                original_torch_load = torch.load
+                def patched_torch_load(*args, **kwargs):
+                    if 'weights_only' not in kwargs:
+                        kwargs['weights_only'] = False
+                    return original_torch_load(*args, **kwargs)
+                torch.load = patched_torch_load
+                
+                try:
+                    processor = AutoProcessor.from_pretrained(model_path)
+                    model = BarkModel.from_pretrained(model_path)
+                finally:
+                    # Restore original torch.load function
+                    torch.load = original_torch_load
                 
                 # Force CPU device if CPU-only mode
                 if str(device) == "cpu":
@@ -561,9 +573,22 @@ async def process_text(channel, text, model_type="bark", voice_preset_override=N
                 # Import inside function to avoid loading models unnecessarily
                 from bark import SAMPLE_RATE, generate_audio, preload_models
                 from scipy.io.wavfile import write as write_wav
+                import torch
                 
-                # Make sure models are loaded
-                preload_models()
+                # PYTORCH 2.6 FIX: Monkey-patch torch.load to use weights_only=False for Bark compatibility
+                original_torch_load = torch.load
+                def patched_torch_load(*args, **kwargs):
+                    if 'weights_only' not in kwargs:
+                        kwargs['weights_only'] = False
+                    return original_torch_load(*args, **kwargs)
+                torch.load = patched_torch_load
+                
+                try:
+                    # Make sure models are loaded
+                    preload_models()
+                finally:
+                    # Restore original torch.load function
+                    torch.load = original_torch_load
                 
                 # Determine the voice preset to use
                 actual_voice_preset = voice_preset_override if voice_preset_override else "v2/en_speaker_0"

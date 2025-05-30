@@ -702,11 +702,14 @@ async function generateTTS() {
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
     
     try {
-        await betaUtils.apiRequest(`/api/channel/${channelName}/tts`, {
+        console.log('[Beta Channel] Sending TTS request:', { channel: channelName, text: text.substring(0, 50) + '...' });
+        
+        const response = await betaUtils.apiRequest(`/api/channel/${channelName}/tts`, {
             method: 'POST',
             body: JSON.stringify({ text })
         });
         
+        console.log('[Beta Channel] TTS response:', response);
         showToast('TTS generated successfully!', 'success');
         textarea.value = '';
         document.getElementById('charCount').textContent = '0/500';
@@ -716,7 +719,13 @@ async function generateTTS() {
         
     } catch (error) {
         console.error('[Beta Channel] Error generating TTS:', error);
-        showToast('Failed to generate TTS', 'error');
+        
+        // More detailed error reporting
+        if (error.message) {
+            showToast(`Failed to generate TTS: ${error.message}`, 'error');
+        } else {
+            showToast('Failed to generate TTS - check console for details', 'error');
+        }
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;

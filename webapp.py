@@ -2562,6 +2562,7 @@ def beta_channel_page(channel_name):
         return render_template("500.html", error_message=f"Error loading channel data: {str(e)}"), 500
 
 @app.route('/api/channel/<channel_name>/tts', methods=['POST'])
+@require_channel_access('channel_name', 'edit')
 def api_channel_tts(channel_name):
     """Generate TTS for a specific channel."""
     try:

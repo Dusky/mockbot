@@ -209,7 +209,7 @@ function setupQuickActions() {
 async function rebuildAllModels() {
     try {
         showToast('Starting model rebuild...', 'info');
-        const response = await fetch('/api/rebuild-all-models', {
+        const response = await fetch('/rebuild-all-caches', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -231,7 +231,7 @@ async function rebuildAllModels() {
 async function rebuildModel(modelName) {
     try {
         showToast(`Rebuilding ${modelName} model...`, 'info');
-        const response = await fetch(`/api/rebuild-model/${modelName}`, {
+        const response = await fetch(`/rebuild-cache/${modelName}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

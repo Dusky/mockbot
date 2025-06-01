@@ -4,6 +4,9 @@ settings.conf
 
 # Databases
 *.db
+*.db.backup.*
+*.db-wal
+*.db-shm
 *.sqlite
 *.sqlite3
 
@@ -64,30 +67,17 @@ static/outputs/
 .DS_Store
 Thumbs.db
 
-# Dependency marker
-.deps_installed
-bot_heartbeat.json
-bot.pid
+# Development files
 CLAUDE.md
 FEATURES.md
 CODE_CLEANUP.md
-logs/firestarman.txt
 WEB_INTERFACE_ISSUES.md
 RESTRUCTURE.md
-cache/aegies_model.json
-cache/firestarman_model.json
-cache/general_markov_model.json
-cache/imyt_model.json
 CHANNEL_STATUS_FIX_PLAN.md
-.aider*
-logs/firestarman.txt
 CODE_REVIEW_PLAN.md
-messages.db.backup.20250529_101235
-messages.db.backup.20250529_101255
-messages.db.backup.20250529_101351
-messages.db.backup.20250529_101756
-messages.db.backup.20250529_101854
-messages.db-wal
-messages.db-wal
-messages.db-shm
-messages.db-wal
+.aider*
+
+# Runtime files
+.deps_installed
+bot_heartbeat.json
+bot.pid

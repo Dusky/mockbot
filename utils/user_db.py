@@ -1100,7 +1100,76 @@ class UserDatabase:
             return None
         finally:
             conn.close()
-    
+
+    def has_tts_access(self, user_id: int) -> bool:
+        """Check if user has access to TTS features (Premium subscription)."""
+        conn = self.get_connection()
+        try:
+            user = conn.execute("""
+                SELECT subscription_tier, subscription_status
+                FROM users
+                WHERE id = ?
+            """, (user_id,)).fetchone()
+
+            if not user:
+                return False
+
+            return (user['subscription_tier'] == 'premium' and
+                    user['subscription_status'] == 'active')
+        finally:
+            conn.close()
+
+    def get_subscription_status(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Get user's subscription information."""
+        conn = self.get_connection()
+        try:
+            result = conn.execute("""
+                SELECT u.subscription_tier, u.subscription_status, u.stripe_customer_id,
+                       s.stripe_subscription_id, s.current_period_start, s.current_period_end,
+                       s.cancel_at_period_end
+                FROM users u
+                LEFT JOIN subscriptions s ON u.id = s.user_id AND s.status = 'active'
+                WHERE u.id = ?
+            """, (user_id,)).fetchone()
+
+            if result:
+                return dict(result)
+            return None
+        finally:
+            conn.close()
+
+    def update_subscription(self, user_id: int, tier: str, status: str,
+                           stripe_customer_id: str = None) -> bool:
+        """Update user's subscription tier and status."""
+        conn = self.get_connection()
+        try:
+            updates = {
+                'subscription_tier': tier,
+                'subscription_status': status
+            }
+
+            if stripe_customer_id:
+                updates['stripe_customer_id'] = stripe_customer_id
+
+            set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+            values = list(updates.values()) + [user_id]
+
+            conn.execute(f"""
+                UPDATE users
+                SET {set_clause}, updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, values)
+
+            conn.commit()
+            logger.info(f"Updated subscription for user {user_id}: {tier}/{status}")
+            return True
+        except Exception as e:
+            logger.error(f"Error updating subscription: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
     def update_user(self, user_id: int, username: str = None, email: str = None, role_id: int = None) -> bool:
         """Update user information."""
         conn = self.get_connection()

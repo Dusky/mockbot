@@ -231,45 +231,20 @@ class UserDatabase:
         """Create default system roles with permissions."""
         
         # Define default roles and their permissions
+        # Simplified: only super_admin (platform admin) and streamer (users)
         default_roles = {
             'super_admin': {
                 'display_name': 'Super Administrator',
-                'description': 'Full system access with all permissions',
+                'description': 'Platform administrator with full system access',
                 'permissions': ['*']  # Wildcard for all permissions
-            },
-            'admin': {
-                'display_name': 'Administrator',
-                'description': 'System administration with user management',
-                'permissions': [
-                    'dashboard.*', 'bot.*', 'channels.*', 
-                    'tts.*', 'models.*', 'users.*',
-                    'system.logs', 'system.settings'
-                ]
-            },
-            'moderator': {
-                'display_name': 'Moderator',
-                'description': 'Channel management and monitoring',
-                'permissions': [
-                    'dashboard.view', 'dashboard.stats',
-                    'channels.view', 'channels.edit', 'channels.moderate',
-                    'tts.generate', 'tts.history', 'tts.manage',
-                    'models.view'
-                ]
             },
             'streamer': {
                 'display_name': 'Streamer',
-                'description': 'Channel owner with access to own channel settings only',
+                'description': 'Twitch streamer managing their own channel',
                 'permissions': [
-                    'channels.own', 'channels.view_own', 'channels.edit_own', 
-                    'channels.settings_own', 'tts.generate', 'tts.history_own'
-                ]
-            },
-            'viewer': {
-                'display_name': 'Viewer',
-                'description': 'Read-only access to dashboard and statistics',
-                'permissions': [
-                    'dashboard.view', 'dashboard.stats',
-                    'channels.view', 'tts.history', 'models.view'
+                    'dashboard.view',
+                    'own_channel.*',
+                    'tts.own_channel'
                 ]
             }
         }

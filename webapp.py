@@ -28,6 +28,7 @@ from utils.tts import start_tts_processing # Import for TTS generation
 from utils.db_setup import ensure_db_setup
 from utils.db_manager import get_db_manager, execute_query_sync, execute_update_sync
 from utils.user_db import UserDatabase
+from utils.stripe_service import stripe_service
 from utils.auth import (
     init_auth, require_auth, require_permission, require_role, require_channel_access,
     login_user, logout_user, is_authenticated, get_current_user,
@@ -780,6 +781,260 @@ def logout():
     """Logout and clear session."""
     logout_user(request.remote_addr, request.headers.get('User-Agent', 'Unknown'))
     return redirect(url_for('login'))
+
+# Stripe Billing & Premium Routes
+@app.route('/premium')
+@require_auth
+def premium_page():
+    """Premium subscription and billing page."""
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+
+    subscription_status = user_db.get_subscription_status(user['id']) if user else None
+    has_premium = user_db.has_tts_access(user['id']) if user else False
+
+    return render_template('premium.html',
+                         user=user,
+                         subscription_status=subscription_status,
+                         has_premium=has_premium,
+                         stripe_publishable_key=stripe_service.publishable_key)
+
+@app.route('/checkout/create', methods=['POST'])
+@require_auth
+def create_checkout():
+    """Create Stripe checkout session for Premium subscription."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    # Check if already has premium
+    if user_db.has_tts_access(user['id']):
+        return jsonify({'success': False, 'error': 'Already subscribed to Premium'}), 400
+
+    try:
+        # Get user email
+        user_email = user.get('email') or f"{user['username']}@ansv.bot"
+
+        # Create checkout session
+        success_url = url_for('checkout_success', _external=True) + '?session_id={CHECKOUT_SESSION_ID}'
+        cancel_url = url_for('checkout_cancel', _external=True)
+
+        result = stripe_service.create_checkout_session(
+            user_id=user['id'],
+            user_email=user_email,
+            success_url=success_url,
+            cancel_url=cancel_url
+        )
+
+        if result and result.get('success'):
+            return jsonify({
+                'success': True,
+                'session_id': result['session_id'],
+                'url': result['url']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to create checkout session')
+            }), 500
+
+    except Exception as e:
+        app.logger.error(f"Error creating checkout: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/checkout/success')
+@require_auth
+def checkout_success():
+    """Handle successful checkout redirect."""
+    session_id = request.args.get('session_id')
+
+    return render_template('checkout_success.html',
+                         session_id=session_id,
+                         message='Payment successful! Your Premium subscription is being activated.')
+
+@app.route('/checkout/cancel')
+@require_auth
+def checkout_cancel():
+    """Handle cancelled checkout redirect."""
+    return render_template('checkout_cancel.html',
+                         message='Checkout cancelled. You can try again anytime.')
+
+@app.route('/billing/portal', methods=['POST'])
+@require_auth
+def billing_portal():
+    """Redirect to Stripe customer portal for subscription management."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    # Get subscription status to find customer ID
+    subscription_status = user_db.get_subscription_status(user['id'])
+
+    if not subscription_status or not subscription_status.get('stripe_customer_id'):
+        return jsonify({'success': False, 'error': 'No active subscription found'}), 400
+
+    try:
+        return_url = url_for('premium_page', _external=True)
+
+        result = stripe_service.create_customer_portal_session(
+            customer_id=subscription_status['stripe_customer_id'],
+            return_url=return_url
+        )
+
+        if result and result.get('success'):
+            return jsonify({
+                'success': True,
+                'url': result['url']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': result.get('error', 'Failed to create portal session')
+            }), 500
+
+    except Exception as e:
+        app.logger.error(f"Error creating portal session: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/webhook/stripe', methods=['POST'])
+def stripe_webhook():
+    """Handle Stripe webhook events."""
+    payload = request.data
+    sig_header = request.headers.get('Stripe-Signature')
+
+    if not sig_header:
+        app.logger.error("No Stripe signature in webhook request")
+        return jsonify({'error': 'No signature'}), 400
+
+    # Verify and construct event
+    event = stripe_service.construct_webhook_event(payload, sig_header)
+
+    if not event:
+        return jsonify({'error': 'Invalid signature'}), 400
+
+    event_type = event['type']
+    app.logger.info(f"Received Stripe webhook: {event_type}")
+
+    try:
+        if event_type == 'checkout.session.completed':
+            # Payment successful, activate subscription
+            session = event['data']['object']
+            user_id = int(session.get('client_reference_id') or session['metadata'].get('user_id'))
+            customer_id = session['customer']
+            subscription_id = session.get('subscription')
+
+            app.logger.info(f"Checkout completed for user {user_id}, subscription {subscription_id}")
+
+            # Update user subscription status
+            user_db.update_subscription(
+                user_id=user_id,
+                tier='premium',
+                status='active',
+                stripe_customer_id=customer_id,
+                stripe_subscription_id=subscription_id
+            )
+
+        elif event_type == 'invoice.payment_succeeded':
+            # Recurring payment successful
+            invoice = event['data']['object']
+            subscription_id = invoice['subscription']
+            customer_id = invoice['customer']
+
+            # Find user by subscription ID
+            conn = user_db.get_connection()
+            c = conn.cursor()
+            c.execute("SELECT id FROM users WHERE stripe_subscription_id = ?", (subscription_id,))
+            user_row = c.fetchone()
+            conn.close()
+
+            if user_row:
+                user_id = user_row[0]
+                app.logger.info(f"Payment succeeded for user {user_id}, subscription {subscription_id}")
+
+                # Ensure subscription is active
+                user_db.update_subscription(
+                    user_id=user_id,
+                    tier='premium',
+                    status='active'
+                )
+
+        elif event_type == 'invoice.payment_failed':
+            # Payment failed
+            invoice = event['data']['object']
+            subscription_id = invoice['subscription']
+
+            # Find user by subscription ID
+            conn = user_db.get_connection()
+            c = conn.cursor()
+            c.execute("SELECT id FROM users WHERE stripe_subscription_id = ?", (subscription_id,))
+            user_row = c.fetchone()
+            conn.close()
+
+            if user_row:
+                user_id = user_row[0]
+                app.logger.warning(f"Payment failed for user {user_id}, subscription {subscription_id}")
+
+                # Mark as past_due
+                user_db.update_subscription(
+                    user_id=user_id,
+                    tier='premium',
+                    status='past_due'
+                )
+
+        elif event_type == 'customer.subscription.deleted':
+            # Subscription cancelled
+            subscription = event['data']['object']
+            subscription_id = subscription['id']
+
+            # Find user by subscription ID
+            conn = user_db.get_connection()
+            c = conn.cursor()
+            c.execute("SELECT id FROM users WHERE stripe_subscription_id = ?", (subscription_id,))
+            user_row = c.fetchone()
+            conn.close()
+
+            if user_row:
+                user_id = user_row[0]
+                app.logger.info(f"Subscription cancelled for user {user_id}, subscription {subscription_id}")
+
+                # Downgrade to free
+                user_db.update_subscription(
+                    user_id=user_id,
+                    tier='free',
+                    status='cancelled'
+                )
+
+        elif event_type == 'customer.subscription.updated':
+            # Subscription updated (e.g., cancel at period end set)
+            subscription = event['data']['object']
+            subscription_id = subscription['id']
+            cancel_at_period_end = subscription.get('cancel_at_period_end', False)
+
+            # Find user by subscription ID
+            conn = user_db.get_connection()
+            c = conn.cursor()
+            c.execute("SELECT id FROM users WHERE stripe_subscription_id = ?", (subscription_id,))
+            user_row = c.fetchone()
+            conn.close()
+
+            if user_row:
+                user_id = user_row[0]
+                app.logger.info(f"Subscription updated for user {user_id}, cancel_at_period_end={cancel_at_period_end}")
+
+                # Update status - still active until period ends
+                if cancel_at_period_end:
+                    user_db.update_subscription(
+                        user_id=user_id,
+                        tier='premium',
+                        status='active'  # Still active until period ends
+                    )
+
+        return jsonify({'success': True}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error processing webhook {event_type}: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # User Profile Management Routes
 @app.route('/profile')

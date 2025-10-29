@@ -9,6 +9,8 @@ import json
 import random
 import traceback
 import signal # Added import for signal
+import requests
+from urllib.parse import urlencode
 from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, make_response, session
 from flask_socketio import SocketIO # Import SocketIO
 from datetime import datetime, timedelta
@@ -16,6 +18,10 @@ import configparser
 import hashlib
 import secrets
 from functools import wraps
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 from utils.markov_handler import MarkovHandler
 from utils.logger import Logger
 from utils.tts import start_tts_processing # Import for TTS generation
@@ -568,6 +574,206 @@ def login():
     
     # GET request - show login form with CSRF token
     return render_template('login.html', csrf_token=CSRFProtection.generate_csrf_token())
+
+@app.route('/auth/twitch')
+def auth_twitch():
+    """Initiate Twitch OAuth flow."""
+    client_id = os.getenv('TWITCH_CLIENT_ID')
+    redirect_uri = os.getenv('TWITCH_REDIRECT_URI', 'http://localhost:5001/auth/twitch/callback')
+
+    if not client_id:
+        app.logger.error("TWITCH_CLIENT_ID not configured")
+        return render_template('login.html', error='OAuth not configured. Please contact administrator.'), 500
+
+    # Generate random state for CSRF protection
+    state = secrets.token_urlsafe(32)
+    session['oauth_state'] = state
+
+    # Build Twitch OAuth authorization URL
+    params = {
+        'client_id': client_id,
+        'redirect_uri': redirect_uri,
+        'response_type': 'code',
+        'scope': 'user:read:email',  # Request email permission
+        'state': state
+    }
+
+    auth_url = f"https://id.twitch.tv/oauth2/authorize?{urlencode(params)}"
+    return redirect(auth_url)
+
+@app.route('/auth/twitch/callback')
+def auth_twitch_callback():
+    """Handle Twitch OAuth callback."""
+    # Verify state to prevent CSRF
+    state = request.args.get('state')
+    if not state or state != session.get('oauth_state'):
+        app.logger.warning("OAuth state mismatch - possible CSRF attack")
+        return render_template('login.html', error='Authentication failed. Please try again.'), 400
+
+    # Clear state from session
+    session.pop('oauth_state', None)
+
+    # Get authorization code
+    code = request.args.get('code')
+    if not code:
+        error = request.args.get('error', 'Unknown error')
+        app.logger.warning(f"OAuth authorization failed: {error}")
+        return render_template('login.html', error='Twitch authorization denied.'), 400
+
+    # Exchange code for access token
+    client_id = os.getenv('TWITCH_CLIENT_ID')
+    client_secret = os.getenv('TWITCH_CLIENT_SECRET')
+    redirect_uri = os.getenv('TWITCH_REDIRECT_URI', 'http://localhost:5001/auth/twitch/callback')
+
+    if not client_id or not client_secret:
+        app.logger.error("Twitch OAuth credentials not configured")
+        return render_template('login.html', error='OAuth not configured.'), 500
+
+    token_url = 'https://id.twitch.tv/oauth2/token'
+    token_data = {
+        'client_id': client_id,
+        'client_secret': client_secret,
+        'code': code,
+        'grant_type': 'authorization_code',
+        'redirect_uri': redirect_uri
+    }
+
+    try:
+        # Request access token
+        token_response = requests.post(token_url, data=token_data, timeout=10)
+        token_response.raise_for_status()
+        token_json = token_response.json()
+        access_token = token_json.get('access_token')
+
+        if not access_token:
+            app.logger.error("No access token in Twitch response")
+            return render_template('login.html', error='Authentication failed.'), 500
+
+        # Fetch user information from Twitch
+        user_url = 'https://api.twitch.tv/helix/users'
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Client-Id': client_id
+        }
+
+        user_response = requests.get(user_url, headers=headers, timeout=10)
+        user_response.raise_for_status()
+        user_json = user_response.json()
+
+        if not user_json.get('data'):
+            app.logger.error("No user data in Twitch response")
+            return render_template('login.html', error='Failed to fetch user data.'), 500
+
+        twitch_user = user_json['data'][0]
+        twitch_user_id = twitch_user['id']
+        twitch_username = twitch_user['login']
+        twitch_email = twitch_user.get('email', '')
+        avatar_url = twitch_user.get('profile_image_url', '')
+
+        app.logger.info(f"OAuth successful for Twitch user: {twitch_username} (ID: {twitch_user_id})")
+
+        # Check if user already exists by Twitch ID
+        conn = user_db.get_connection()
+        existing_user = conn.execute(
+            "SELECT * FROM users WHERE twitch_user_id = ?",
+            (twitch_user_id,)
+        ).fetchone()
+
+        if existing_user:
+            # User exists - log them in
+            user_dict = dict(existing_user)
+
+            # Update OAuth data if changed
+            conn.execute("""
+                UPDATE users
+                SET twitch_username = ?, avatar_url = ?, last_login = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (twitch_username, avatar_url, user_dict['id']))
+            conn.commit()
+            conn.close()
+
+            # Create session
+            session['user_id'] = user_dict['id']
+            session['username'] = user_dict['username']
+            session.permanent = False
+
+            app.logger.info(f"Existing user logged in via OAuth: {user_dict['username']}")
+            return redirect('/beta')
+
+        else:
+            # New user - create account
+            # Get streamer role ID
+            streamer_role = conn.execute(
+                "SELECT id FROM roles WHERE name = 'streamer'"
+            ).fetchone()
+
+            if not streamer_role:
+                app.logger.error("Streamer role not found in database")
+                conn.close()
+                return render_template('login.html', error='System error. Please contact administrator.'), 500
+
+            # Generate random password (won't be used for OAuth users)
+            random_password = secrets.token_urlsafe(32)
+            password_hash = user_db.hash_password(random_password)
+
+            # Create new user
+            try:
+                conn.execute("""
+                    INSERT INTO users (
+                        username, email, password_hash, role_id,
+                        twitch_user_id, twitch_username, avatar_url, managed_channel,
+                        subscription_tier, subscription_status, onboarding_completed
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    twitch_username,  # Use Twitch username
+                    twitch_email,
+                    password_hash,
+                    streamer_role['id'],
+                    twitch_user_id,
+                    twitch_username,
+                    avatar_url,
+                    twitch_username,  # Set managed_channel to their username
+                    'free',
+                    'inactive',
+                    0  # Not onboarded yet
+                ))
+                conn.commit()
+
+                # Get the newly created user
+                new_user = conn.execute(
+                    "SELECT * FROM users WHERE twitch_user_id = ?",
+                    (twitch_user_id,)
+                ).fetchone()
+                conn.close()
+
+                if new_user:
+                    user_dict = dict(new_user)
+
+                    # Create session
+                    session['user_id'] = user_dict['id']
+                    session['username'] = user_dict['username']
+                    session.permanent = False
+
+                    app.logger.info(f"New user created via OAuth: {twitch_username}")
+
+                    # Redirect to dashboard (onboarding can be added later)
+                    return redirect('/beta')
+                else:
+                    app.logger.error("Failed to retrieve newly created user")
+                    return render_template('login.html', error='Account creation failed.'), 500
+
+            except Exception as e:
+                conn.rollback()
+                conn.close()
+                app.logger.error(f"Error creating user from OAuth: {e}")
+                return render_template('login.html', error='Failed to create account.'), 500
+
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"OAuth request failed: {e}")
+        return render_template('login.html', error='Failed to communicate with Twitch.'), 500
+    except Exception as e:
+        app.logger.error(f"OAuth error: {e}")
+        return render_template('login.html', error='Authentication failed.'), 500
 
 @app.route('/logout')
 def logout():

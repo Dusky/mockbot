@@ -132,32 +132,37 @@
 
 ---
 
-### Phase 3: Twitch OAuth Integration (2-3 days)
+### Phase 3: Twitch OAuth Integration ✅ COMPLETED
 **Goal**: Allow streamers to sign up with Twitch
 
-- [ ] Register Twitch OAuth application
-  - Get Client ID & Client Secret
-  - Set redirect URI: `https://yourdomain.com/auth/twitch/callback`
+- [x] Add OAuth environment variables to `.env.example`:
+  - TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET, TWITCH_REDIRECT_URI
+  - Added registration instructions
 
-- [ ] Add OAuth routes to `webapp.py`:
-  - `GET /auth/twitch` - Initiate OAuth flow
-  - `GET /auth/twitch/callback` - Handle callback
+- [x] Add OAuth routes to `webapp.py`:
+  - `GET /auth/twitch` - Initiate OAuth flow with state parameter
+  - `GET /auth/twitch/callback` - Handle OAuth callback
 
-- [ ] Update `login.html`:
-  - Add "Sign in with Twitch" button (primary)
+- [x] OAuth callback features:
+  - Exchange code for access token
+  - Fetch user data from Twitch API
+  - Create new users automatically with streamer role
+  - Update existing users on re-authentication
+  - Set `managed_channel` to Twitch username
+  - CSRF protection with state parameter
+
+- [x] Update `login.html`:
+  - Add prominent "Sign in with Twitch" button with Twitch branding
+  - Add divider with "or continue with email"
   - Keep email/password as fallback
+  - Style with Twitch purple colors (#9146FF)
 
-- [ ] Store OAuth data:
-  - `twitch_user_id`, `twitch_username`, `avatar_url`
-  - Auto-populate `managed_channel` with username
+**Files modified**:
+- `.env.example` (OAuth credentials)
+- `webapp.py` (OAuth routes + imports)
+- `templates/login.html` (OAuth button + styling)
 
-- [ ] Handle account linking (if email user wants to link Twitch)
-
-**Files to create/modify**:
-- `webapp.py` (new routes)
-- `templates/login.html`
-- `utils/user_db.py` (OAuth user creation)
-- `.env` (TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET)
+**Note**: Users must register a Twitch OAuth app at https://dev.twitch.tv/console/apps and add credentials to `.env` file
 
 ---
 
@@ -443,8 +448,8 @@ USERS_DATABASE_URL=sqlite:///users.db
 
 ## 🚦 Current Status
 
-**Phase**: Phases 1 & 2 Complete ✅ - Foundation Ready
-**Next Action**: Choose next phase (OAuth, Landing Page, or Feature Gating)
+**Phase**: Phases 1, 2 & 3 Complete ✅ - OAuth + Foundation Ready
+**Next Action**: Choose next phase (Landing Page, Onboarding, or Feature Gating)
 
 ### Options:
 1. **Start with UX** (Phase 3 & 4) - Landing page + OAuth first

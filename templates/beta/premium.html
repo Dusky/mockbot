@@ -1,0 +1,297 @@
+{% extends "beta/base.html" %}
+
+{% block title %}Premium Subscription - ANSV Bot{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4 py-3">
+    <!-- Premium Hero Section -->
+    <div class="hero-section mb-4">
+        <div class="hero-content">
+            <h1 class="hero-title">
+                <i class="fas fa-star me-3"></i>
+                ANSV Bot Premium
+            </h1>
+            <p class="hero-subtitle">Unlock Text-to-Speech for your Markov bot responses</p>
+        </div>
+    </div>
+
+    <!-- Current Plan Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            {% if has_premium %}
+            <!-- Active Premium Status -->
+            <div class="alert alert-success" style="border-left: 4px solid #00CC66;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h4 class="mb-2"><i class="fas fa-check-circle me-2"></i>Premium Active</h4>
+                        <p class="mb-0">You have full access to TTS features</p>
+                        {% if subscription_status and subscription_status.stripe_subscription_id %}
+                        <small class="text-muted">
+                            Status: {{ subscription_status.subscription_status|capitalize }}
+                            {% if subscription_status.current_period_end %}
+                            | Next billing: {{ subscription_status.current_period_end }}
+                            {% endif %}
+                        </small>
+                        {% endif %}
+                    </div>
+                    {% if subscription_status and subscription_status.stripe_customer_id %}
+                    <button class="btn btn-outline-secondary" id="manageSubscriptionBtn">
+                        <i class="fas fa-cog me-2"></i>Manage Subscription
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <!-- Free Plan Status -->
+            <div class="alert alert-info" style="border-left: 4px solid #9146FF;">
+                <div class="d-flex align-items-center justify-content-between">
+                    <div>
+                        <h4 class="mb-2"><i class="fas fa-info-circle me-2"></i>Free Plan</h4>
+                        <p class="mb-0">Upgrade to Premium to unlock TTS features</p>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Pricing Section -->
+    {% if not has_premium %}
+    <div class="row mb-4">
+        <div class="col-md-8 offset-md-2 col-lg-6 offset-lg-3">
+            <div class="card premium-pricing-card">
+                <div class="card-body p-5 text-center">
+                    <div class="mb-4">
+                        <i class="fas fa-star fa-3x text-warning"></i>
+                    </div>
+                    <h2 class="mb-3">ANSV Bot Premium</h2>
+                    <div class="pricing-amount mb-4">
+                        <span class="display-3 fw-bold">$2</span>
+                        <span class="text-muted fs-4">/month</span>
+                    </div>
+                    <button class="btn btn-primary btn-lg w-100 mb-4" id="upgradeBtn">
+                        <i class="fas fa-star me-2"></i>Upgrade to Premium
+                    </button>
+                    <p class="text-muted small">Cancel anytime. No long-term commitment.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Features Comparison -->
+    <div class="row">
+        <div class="col-12">
+            <div class="settings-panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">
+                        <i class="fas fa-list me-2"></i>
+                        Features Comparison
+                    </h2>
+                </div>
+                <div class="panel-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Feature</th>
+                                    <th class="text-center">Free</th>
+                                    <th class="text-center">Premium</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>
+                                        <strong>Markov Chat Bot</strong>
+                                        <br><small class="text-muted">AI-powered message generation trained on your chat</small>
+                                    </td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <strong>Unlimited Channels</strong>
+                                        <br><small class="text-muted">Add the bot to your Twitch channel</small>
+                                    </td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <strong>Auto-Reply Mode</strong>
+                                        <br><small class="text-muted">Bot automatically responds to chat</small>
+                                    </td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <strong>Custom Commands</strong>
+                                        <br><small class="text-muted">!ansv commands for manual generation</small>
+                                    </td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td>
+                                        <strong>Text-to-Speech (TTS)</strong>
+                                        <br><small class="text-muted">Janky AI voices read bot messages aloud</small>
+                                    </td>
+                                    <td class="text-center"><i class="fas fa-lock text-muted fa-2x"></i></td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td>
+                                        <strong>Voice Customization</strong>
+                                        <br><small class="text-muted">Choose from multiple voice presets</small>
+                                    </td>
+                                    <td class="text-center"><i class="fas fa-lock text-muted fa-2x"></i></td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                </tr>
+                                <tr class="table-primary">
+                                    <td>
+                                        <strong>TTS History & Playback</strong>
+                                        <br><small class="text-muted">Browse and replay generated TTS</small>
+                                    </td>
+                                    <td class="text-center"><i class="fas fa-lock text-muted fa-2x"></i></td>
+                                    <td class="text-center"><i class="fas fa-check text-success fa-2x"></i></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Premium Benefits -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="settings-panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">
+                        <i class="fas fa-gift me-2"></i>
+                        Why Upgrade?
+                    </h2>
+                </div>
+                <div class="panel-body">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <div class="benefit-card text-center p-4">
+                                <i class="fas fa-volume-up fa-3x text-primary mb-3"></i>
+                                <h5>Entertaining Content</h5>
+                                <p class="text-muted">The janky TTS voices add hilarious audio to your stream</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="benefit-card text-center p-4">
+                                <i class="fas fa-robot fa-3x text-primary mb-3"></i>
+                                <h5>Automated System</h5>
+                                <p class="text-muted">Bot generates AND speaks messages automatically</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <div class="benefit-card text-center p-4">
+                                <i class="fas fa-dollar-sign fa-3x text-primary mb-3"></i>
+                                <h5>Just $2/Month</h5>
+                                <p class="text-muted">Affordable pricing for streamers on a budget</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Stripe Checkout -->
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+const stripe = Stripe('{{ stripe_publishable_key }}');
+
+// Upgrade button handler
+{% if not has_premium %}
+document.getElementById('upgradeBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('upgradeBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Loading...';
+
+    try {
+        const response = await fetch('/checkout/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.url) {
+            // Redirect to Stripe Checkout
+            window.location.href = data.url;
+        } else {
+            alert('Error creating checkout session: ' + (data.error || 'Unknown error'));
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-star me-2"></i>Upgrade to Premium';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error creating checkout session');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-star me-2"></i>Upgrade to Premium';
+    }
+});
+{% endif %}
+
+// Manage subscription button handler
+{% if has_premium and subscription_status and subscription_status.stripe_customer_id %}
+document.getElementById('manageSubscriptionBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('manageSubscriptionBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Loading...';
+
+    try {
+        const response = await fetch('/billing/portal', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.url) {
+            // Redirect to Stripe Customer Portal
+            window.location.href = data.url;
+        } else {
+            alert('Error opening billing portal: ' + (data.error || 'Unknown error'));
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-cog me-2"></i>Manage Subscription';
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error opening billing portal');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-cog me-2"></i>Manage Subscription';
+    }
+});
+{% endif %}
+</script>
+
+<style>
+.premium-pricing-card {
+    border: 2px solid #9146FF;
+    box-shadow: 0 4px 12px rgba(145, 70, 255, 0.2);
+}
+
+.benefit-card {
+    background: #f8f9fa;
+    border-radius: 8px;
+    height: 100%;
+}
+
+.table-primary {
+    background-color: rgba(145, 70, 255, 0.05);
+}
+</style>
+{% endblock %}

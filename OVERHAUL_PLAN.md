@@ -108,25 +108,27 @@
 
 ---
 
-### Phase 2: Simplify Role System (1-2 days)
+### Phase 2: Simplify Role System ✅ COMPLETED
 **Goal**: Remove unnecessary complexity
 
-- [ ] Update `user_db.py` role definitions:
+- [x] Update `user_db.py` role definitions:
   - Keep: super_admin, streamer
   - Remove: admin, moderator, viewer
 
-- [ ] Simplify permissions:
+- [x] Simplify permissions:
   - super_admin: ['*']
-  - streamer: ['own_channel.*', 'dashboard.view']
+  - streamer: ['dashboard.view', 'own_channel.*', 'tts.own_channel']
 
-- [ ] Update permission checks throughout codebase
+- [x] Update permission checks in auth.py:
+  - Simplified channel access checks
+  - Use managed_channel field for streamers
+  - Removed references to old roles
 
-- [ ] Remove complex permission decorators (keep simple ones)
+- [x] Update role constants (Roles class)
 
-**Files to modify**:
+**Files modified**:
 - `utils/user_db.py`
 - `utils/auth.py`
-- `webapp.py` (permission checks)
 
 ---
 
@@ -441,8 +443,8 @@ USERS_DATABASE_URL=sqlite:///users.db
 
 ## 🚦 Current Status
 
-**Phase**: Phase 1 Complete ✅ - Moving to Phase 2
-**Next Action**: Simplify role system
+**Phase**: Phases 1 & 2 Complete ✅ - Foundation Ready
+**Next Action**: Choose next phase (OAuth, Landing Page, or Feature Gating)
 
 ### Options:
 1. **Start with UX** (Phase 3 & 4) - Landing page + OAuth first

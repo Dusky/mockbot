@@ -71,10 +71,10 @@
 
 ## 🗺️ Implementation Roadmap
 
-### Phase 1: Database Schema Updates (2-3 days)
+### Phase 1: Database Schema Updates ✅ COMPLETED
 **Goal**: Add subscription and Twitch OAuth fields
 
-- [ ] Add to `users` table:
+- [x] Add to `users` table:
   - `twitch_user_id` VARCHAR(50) UNIQUE
   - `twitch_username` VARCHAR(50)
   - `avatar_url` TEXT
@@ -84,20 +84,25 @@
   - `stripe_customer_id` VARCHAR(100)
   - `onboarding_completed` BOOLEAN DEFAULT 0
 
-- [ ] Create `subscriptions` table:
+- [x] Create `subscriptions` table:
   - id, user_id, stripe_subscription_id
   - status, current_period_start, current_period_end
   - cancel_at_period_end, created_at, updated_at
 
-- [ ] Create `payments` table:
+- [x] Create `payments` table:
   - id, user_id, amount, currency, status
   - stripe_payment_intent_id, description, created_at
 
-- [ ] Add `user_id` to `channel_configs` table
+- [x] Add `user_id` to `channel_configs` table
 
-- [ ] Create migration script
+- [x] Create migration logic for existing databases
 
-**Files to modify**:
+- [x] Add subscription helper methods:
+  - `has_tts_access()` - Check if user has Premium
+  - `get_subscription_status()` - Get subscription details
+  - `update_subscription()` - Update subscription tier/status
+
+**Files modified**:
 - `utils/db_setup.py` (messages.db)
 - `utils/user_db.py` (users.db)
 
@@ -436,8 +441,8 @@ USERS_DATABASE_URL=sqlite:///users.db
 
 ## 🚦 Current Status
 
-**Phase**: Not Started
-**Next Action**: Choose starting phase
+**Phase**: Phase 1 Complete ✅ - Moving to Phase 2
+**Next Action**: Simplify role system
 
 ### Options:
 1. **Start with UX** (Phase 3 & 4) - Landing page + OAuth first

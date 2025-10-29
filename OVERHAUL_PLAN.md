@@ -274,40 +274,40 @@
 
 ---
 
-### Phase 7: Premium Feature Gating (2-3 days)
+### Phase 7: Premium Feature Gating ✅ COMPLETED
 **Goal**: Lock TTS behind subscription
 
-- [ ] Add subscription check helper to User model:
+- [x] Add subscription check helper to User model:
   ```python
   def has_tts_access(self):
       return self.subscription_tier == 'premium' and \
              self.subscription_status == 'active'
   ```
 
-- [ ] Update TTS endpoints:
+- [x] Update TTS endpoints:
   - Check `current_user.has_tts_access()` before generation
   - Return error with upgrade prompt if false
 
-- [ ] Lock TTS UI for free users:
+- [x] Lock TTS UI for free users:
   - Show lock icon on TTS sections
   - Add upgrade CTAs
   - Disable TTS controls
 
-- [ ] Update channel settings page:
+- [x] Update channel settings page:
   - Free users: Show locked TTS section with upgrade button
   - Premium users: Show full TTS controls
 
-- [ ] Add subscription status to dashboard:
+- [x] Add subscription status to dashboard:
   - Show current plan (Free/Premium)
   - Show next billing date (Premium)
   - Prominent upgrade button (Free)
 
-**Files to modify**:
-- `webapp.py` (TTS route checks)
-- `utils/user_db.py` (add helper method)
-- `templates/beta/channel.html` (lock TTS section)
-- `templates/beta/dashboard.html` (show plan status)
-- `templates/beta/settings.html` (TTS settings gating)
+**Files modified**:
+- `webapp.py` (TTS route checks, subscription status passed to templates)
+- `utils/user_db.py` (has_tts_access helper method)
+- `templates/beta/channel.html` (locked TTS toggle, Quick TTS panel with upgrade prompt)
+- `templates/beta/dashboard.html` (subscription banner with plan status)
+- `templates/beta/settings.html` (locked TTS toggles, voice settings, global TTS config)
 
 ---
 
@@ -448,13 +448,21 @@ USERS_DATABASE_URL=sqlite:///users.db
 
 ## 🚦 Current Status
 
-**Phase**: Phases 1, 2 & 3 Complete ✅ - OAuth + Foundation Ready
-**Next Action**: Choose next phase (Landing Page, Onboarding, or Feature Gating)
+**Phase**: Phases 1, 2, 3 & 7 Complete ✅ - OAuth, Foundation & Feature Gating Ready
+**Next Action**: Choose next phase (Landing Page, Onboarding, or Stripe Integration)
 
-### Options:
-1. **Start with UX** (Phase 3 & 4) - Landing page + OAuth first
-2. **Start with foundation** (Phase 1 & 2) - Database + roles first
-3. **Sequential** - Follow roadmap in order (Phase 1 → 9)
+### Completed Phases:
+- Phase 1: Database Schema Updates ✅
+- Phase 2: Role Simplification ✅
+- Phase 3: Twitch OAuth Integration ✅
+- Phase 7: Premium Feature Gating ✅
+
+### Remaining Phases:
+- Phase 4: Landing Page & Public UI
+- Phase 5: Onboarding Flow
+- Phase 6: Stripe Integration (Required for payments)
+- Phase 8: Simplified Streamer Dashboard
+- Phase 9: Testing & Polish
 
 ---
 

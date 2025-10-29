@@ -2746,6 +2746,11 @@ def debug_session():
 def beta_channel_page(channel_name):
     """Render the redesigned beta channel page."""
     try:
+        # Get current user and subscription status
+        user = get_current_user()
+        subscription_status = user_db.get_subscription_status(user['id']) if user else None
+        has_premium = user_db.has_tts_access(user['id']) if user else False
+
         # Validate channel exists
         conn = sqlite3.connect(db_file)
         conn.row_factory = sqlite3.Row
@@ -2753,10 +2758,10 @@ def beta_channel_page(channel_name):
         c.execute("SELECT * FROM channel_configs WHERE channel_name = ?", (channel_name,))
         channel_config = c.fetchone()
         conn.close()
-        
+
         if not channel_config:
             return render_template("404.html", error_message=f"Channel '{channel_name}' not found"), 404
-        
+
         # Convert to dict for template
         channel_data = dict(channel_config)
         channel_data['name'] = channel_name
@@ -2789,8 +2794,11 @@ def beta_channel_page(channel_name):
         
         channel_data['currently_connected'] = currently_connected
         channel_data['bot_running'] = bot_running
-        
-        return render_template("beta/channel.html", channel=channel_data)
+
+        return render_template("beta/channel.html",
+                             channel=channel_data,
+                             subscription_status=subscription_status,
+                             has_premium=has_premium)
         
     except Exception as e:
         app.logger.error(f"Error loading beta channel page for {channel_name}: {e}")

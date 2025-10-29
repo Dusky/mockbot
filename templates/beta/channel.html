@@ -38,6 +38,28 @@
         </div>
     </div>
 
+    <!-- Subscription Status Banner -->
+    {% if not has_premium %}
+    <div class="alert alert-warning mb-4" style="border-left: 4px solid #9146FF;">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <h5 class="mb-1"><i class="fas fa-lock me-2"></i>TTS Features Locked</h5>
+                <p class="mb-0">Text-to-Speech is a Premium feature. Upgrade to Premium ($2/month) to unlock TTS generation</p>
+            </div>
+            <a href="/premium" class="btn btn-primary">
+                <i class="fas fa-star me-2"></i>Upgrade to Premium
+            </a>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-success mb-4" style="border-left: 4px solid #00CC66;">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-check-circle me-2"></i>
+            <span><strong>Premium Active</strong> - TTS features unlocked</span>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Quick Controls Toolbar -->
     <div class="row mb-4">
         <div class="col-12">
@@ -65,12 +87,13 @@
                     </div>
                     
                     <div class="form-check form-switch control-toggle"
-                         data-tippy-content="Enable text-to-speech generation for chat messages">
-                        <input class="form-check-input" type="checkbox" id="ttsToggle" 
-                               {% if channel.tts_enabled %}checked{% endif %}>
+                         data-tippy-content="{% if not has_premium %}Premium feature - Upgrade to unlock TTS{% else %}Enable text-to-speech generation for chat messages{% endif %}">
+                        <input class="form-check-input" type="checkbox" id="ttsToggle"
+                               {% if channel.tts_enabled %}checked{% endif %}
+                               {% if not has_premium %}disabled{% endif %}>
                         <label class="form-check-label" for="ttsToggle">
-                            <i class="fas fa-volume-up"></i>
-                            <span class="control-label">TTS</span>
+                            <i class="fas {% if not has_premium %}fa-lock{% else %}fa-volume-up{% endif %}"></i>
+                            <span class="control-label">TTS{% if not has_premium %} (Premium){% endif %}</span>
                         </label>
                     </div>
                     
@@ -275,13 +298,25 @@
             <div class="tts-panel mb-4" id="ttsPanel" {% if not channel.tts_enabled %}style="display: none;"{% endif %}>
                 <div class="panel-header">
                     <h2 class="panel-title">
-                        <i class="fas fa-microphone me-2"></i>
-                        Quick TTS
+                        <i class="fas {% if not has_premium %}fa-lock{% else %}fa-microphone{% endif %} me-2"></i>
+                        Quick TTS{% if not has_premium %} (Premium){% endif %}
                     </h2>
                 </div>
                 <div class="panel-body">
+                    {% if not has_premium %}
+                    <!-- Locked State for Free Users -->
+                    <div class="text-center py-4">
+                        <i class="fas fa-lock fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">Premium Feature</h5>
+                        <p class="text-muted mb-3">Upgrade to Premium to unlock Text-to-Speech generation</p>
+                        <a href="/premium" class="btn btn-primary">
+                            <i class="fas fa-star me-2"></i>Upgrade Now - $2/month
+                        </a>
+                    </div>
+                    {% else %}
+                    <!-- TTS Form for Premium Users -->
                     <div class="tts-form">
-                        <textarea class="form-control mb-3" id="ttsTextarea" rows="3" 
+                        <textarea class="form-control mb-3" id="ttsTextarea" rows="3"
                                   placeholder="Enter text for TTS generation..." maxlength="500"></textarea>
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <small class="text-muted">Voice: {{ channel.voice_preset or 'v2/en_speaker_0' }}</small>
@@ -291,6 +326,7 @@
                             <i class="fas fa-volume-up me-2"></i>Generate TTS
                         </button>
                     </div>
+                    {% endif %}
                     
                     <!-- Auto TTS Player Container -->
                     <div class="auto-tts-player mt-3" id="autoTTSPlayerContainer" style="display: none;">
@@ -477,7 +513,8 @@ window.channelData = {
     currently_connected: {{ channel.currently_connected|tojson }},
     bot_running: {{ channel.bot_running|tojson }},
     use_general_model: {{ channel.use_general_model|tojson }},
-    messages_sent: {{ channel.messages_sent|tojson }}
+    messages_sent: {{ channel.messages_sent|tojson }},
+    has_premium: {{ has_premium|tojson }}
 };
 
 </script>

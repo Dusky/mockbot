@@ -1,0 +1,135 @@
+{% extends "beta/base.html" %}
+
+{% block title %}Bot Settings - ANSV Bot{% endblock %}
+
+{% block content %}
+<div class="container-fluid d-flex align-items-center justify-content-center min-vh-100">
+    <div class="row justify-content-center w-100">
+        <div class="col-md-8 col-lg-6">
+            <div class="onboarding-card">
+                <h2 class="mb-4"><i class="fas fa-sliders-h me-2 text-primary"></i>Bot Settings</h2>
+
+                <p class="text-muted mb-4">
+                    Configure how often the bot generates messages. You can change these later!
+                </p>
+
+                <form id="settingsForm">
+                    <!-- Auto-Reply Mode -->
+                    <div class="setting-group mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="voiceEnabled" checked>
+                            <label class="form-check-label" for="voiceEnabled">
+                                <strong>Enable Auto-Reply Mode</strong>
+                            </label>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            Bot automatically generates messages based on chat activity
+                        </small>
+                    </div>
+
+                    <!-- Message Frequency -->
+                    <div class="setting-group mb-4">
+                        <label class="form-label">
+                            <strong>Message Frequency</strong>
+                        </label>
+                        <select class="form-select" id="linesBetweenMessages">
+                            <option value="50">Every 50 messages (Very Frequent)</option>
+                            <option value="100" selected>Every 100 messages (Frequent)</option>
+                            <option value="200">Every 200 messages (Moderate)</option>
+                            <option value="300">Every 300 messages (Occasional)</option>
+                        </select>
+                        <small class="text-muted d-block mt-2">
+                            How often the bot chimes in with generated messages
+                        </small>
+                    </div>
+
+                    <!-- Join Channel -->
+                    <div class="setting-group mb-4">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="joinChannel" checked>
+                            <label class="form-check-label" for="joinChannel">
+                                <strong>Join Channel Now</strong>
+                            </label>
+                        </div>
+                        <small class="text-muted d-block mt-2">
+                            Connect ANSV Bot to your channel immediately
+                        </small>
+                    </div>
+
+                    <div class="alert alert-success">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        <strong>Tip:</strong> The bot learns from your chat history. The more messages, the better the AI!
+                    </div>
+                </form>
+
+                <div class="progress mb-4">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: 75%"></div>
+                </div>
+                <small class="text-muted">Step 3 of 4</small>
+
+                <div class="d-flex justify-content-between mt-5">
+                    <a href="{{ url_for('onboarding_channel') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back
+                    </a>
+                    <button class="btn btn-primary px-5" onclick="saveSettings()">
+                        Continue <i class="fas fa-arrow-right ms-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.onboarding-card {
+    background: var(--bs-card-bg, #fff);
+    border-radius: 16px;
+    padding: 3rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.setting-group {
+    padding: 1rem;
+    background: var(--bs-secondary-bg, #f8f9fa);
+    border-radius: 8px;
+}
+</style>
+
+<script>
+function saveSettings() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+
+    const settings = {
+        voice_enabled: document.getElementById('voiceEnabled').checked,
+        lines_between_messages: parseInt(document.getElementById('linesBetweenMessages').value),
+        join_channel: document.getElementById('joinChannel').checked
+    };
+
+    fetch('/onboarding/settings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settings)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '/onboarding/premium';
+        } else {
+            alert('Error: ' + (data.error || 'Failed to save settings'));
+            btn.disabled = false;
+            btn.innerHTML = 'Continue <i class="fas fa-arrow-right ms-2"></i>';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error saving settings');
+        btn.disabled = false;
+        btn.innerHTML = 'Continue <i class="fas fa-arrow-right ms-2"></i>';
+    });
+}
+</script>
+{% endblock %}

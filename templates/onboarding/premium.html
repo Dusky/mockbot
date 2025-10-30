@@ -1,0 +1,198 @@
+{% extends "beta/base.html" %}
+
+{% block title %}Go Premium - ANSV Bot{% endblock %}
+
+{% block content %}
+<div class="container-fluid d-flex align-items-center justify-content-center min-vh-100">
+    <div class="row justify-content-center w-100">
+        <div class="col-md-8 col-lg-6">
+            <div class="onboarding-card text-center">
+                <div class="premium-icon mb-4">
+                    <i class="fas fa-star fa-4x text-warning"></i>
+                </div>
+
+                <h2 class="mb-3">Want TTS? Go Premium!</h2>
+                <p class="lead text-muted mb-4">
+                    Upgrade to Premium for just <strong>$2/month</strong> and unlock Text-to-Speech features.
+                </p>
+
+                <div class="premium-features mb-4">
+                    <div class="feature-badge">
+                        <i class="fas fa-volume-up"></i>
+                        <span>Janky AI TTS Voices</span>
+                    </div>
+                    <div class="feature-badge">
+                        <i class="fas fa-microphone"></i>
+                        <span>Multiple Voice Presets</span>
+                    </div>
+                    <div class="feature-badge">
+                        <i class="fas fa-history"></i>
+                        <span>TTS History & Playback</span>
+                    </div>
+                </div>
+
+                <div class="comparison-box mb-4">
+                    <div class="row text-start">
+                        <div class="col-6">
+                            <h5 class="text-muted">Free</h5>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>Markov Chat Bot</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Auto-Reply Mode</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Dashboard Access</li>
+                                <li class="text-muted"><i class="fas fa-times me-2"></i>No TTS</li>
+                            </ul>
+                        </div>
+                        <div class="col-6 premium-column">
+                            <h5 class="text-warning">Premium $2/mo</h5>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>Everything in Free</li>
+                                <li><i class="fas fa-check text-success me-2"></i><strong>TTS Enabled</strong></li>
+                                <li><i class="fas fa-check text-success me-2"></i><strong>Voice Presets</strong></li>
+                                <li><i class="fas fa-check text-success me-2"></i><strong>TTS History</strong></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="progress mb-4">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: 100%"></div>
+                </div>
+                <small class="text-muted">Step 4 of 4 - Almost done!</small>
+
+                <div class="d-flex flex-column gap-3 mt-5">
+                    <button class="btn btn-warning btn-lg" onclick="upgradeToPremium()">
+                        <i class="fas fa-star me-2"></i>Upgrade to Premium - $2/month
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="skipPremium()">
+                        Skip for Now - Start with Free
+                    </button>
+                </div>
+
+                <small class="text-muted d-block mt-3">
+                    You can upgrade to Premium anytime from your dashboard!
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.onboarding-card {
+    background: var(--bs-card-bg, #fff);
+    border-radius: 16px;
+    padding: 3rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.premium-icon {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.premium-features {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.feature-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(255, 152, 0, 0.1));
+    border-radius: 8px;
+    min-width: 120px;
+}
+
+.feature-badge i {
+    font-size: 1.5rem;
+    color: #FFC107;
+}
+
+.feature-badge span {
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.comparison-box {
+    background: var(--bs-secondary-bg, #f8f9fa);
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+.premium-column {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(255, 152, 0, 0.1));
+    border-radius: 8px;
+    padding: 1rem;
+}
+</style>
+
+<script>
+function upgradeToPremium() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Redirecting...';
+
+    // Complete onboarding first
+    fetch('/onboarding/complete', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Redirect to premium checkout
+            window.location.href = '/premium';
+        } else {
+            alert('Error: ' + (data.error || 'Failed to complete onboarding'));
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-star me-2"></i>Upgrade to Premium - $2/month';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error completing onboarding');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-star me-2"></i>Upgrade to Premium - $2/month';
+    });
+}
+
+function skipPremium() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Finishing setup...';
+
+    fetch('/onboarding/complete', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '/beta';
+        } else {
+            alert('Error: ' + (data.error || 'Failed to complete onboarding'));
+            btn.disabled = false;
+            btn.innerHTML = 'Skip for Now - Start with Free';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error completing onboarding');
+        btn.disabled = false;
+        btn.innerHTML = 'Skip for Now - Start with Free';
+    });
+}
+</script>
+{% endblock %}

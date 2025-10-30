@@ -1,0 +1,92 @@
+{% extends "beta/base.html" %}
+
+{% block title %}Welcome - ANSV Bot{% endblock %}
+
+{% block content %}
+<div class="container-fluid d-flex align-items-center justify-content-center min-vh-100">
+    <div class="row justify-content-center w-100">
+        <div class="col-md-8 col-lg-6">
+            <div class="onboarding-card text-center">
+                <div class="onboarding-icon mb-4">
+                    <i class="fas fa-robot fa-4x text-primary"></i>
+                </div>
+
+                <h1 class="mb-3">Welcome to ANSV Bot!</h1>
+                <p class="lead text-muted mb-4">
+                    Hey <strong>{{ current_user.twitch_username or current_user.username }}</strong>! 👋
+                </p>
+                <p class="text-muted mb-4">
+                    Let's get your Markov chat bot set up. This will only take a minute!
+                </p>
+
+                <div class="features-preview mb-4">
+                    <div class="feature-item">
+                        <i class="fas fa-brain text-success"></i>
+                        <span>AI learns from your chat</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-robot text-info"></i>
+                        <span>Auto-generates messages</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fas fa-volume-up text-warning"></i>
+                        <span>Optional TTS (Premium)</span>
+                    </div>
+                </div>
+
+                <div class="progress mb-4">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: 25%"></div>
+                </div>
+                <small class="text-muted">Step 1 of 4</small>
+
+                <div class="mt-5">
+                    <a href="{{ url_for('onboarding_channel') }}" class="btn btn-primary btn-lg px-5">
+                        Let's Go! <i class="fas fa-arrow-right ms-2"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.onboarding-card {
+    background: var(--bs-card-bg, #fff);
+    border-radius: 16px;
+    padding: 3rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.onboarding-icon {
+    animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.features-preview {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+
+.feature-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.feature-item i {
+    font-size: 2rem;
+}
+
+.feature-item span {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+}
+</style>
+{% endblock %}

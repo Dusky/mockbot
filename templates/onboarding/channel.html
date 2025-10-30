@@ -1,0 +1,119 @@
+{% extends "beta/base.html" %}
+
+{% block title %}Confirm Channel - ANSV Bot{% endblock %}
+
+{% block content %}
+<div class="container-fluid d-flex align-items-center justify-content-center min-vh-100">
+    <div class="row justify-content-center w-100">
+        <div class="col-md-8 col-lg-6">
+            <div class="onboarding-card">
+                <h2 class="mb-4"><i class="fas fa-hashtag me-2 text-primary"></i>Your Channel</h2>
+
+                <p class="text-muted mb-4">
+                    We've automatically detected your Twitch channel. ANSV Bot will be added to this channel.
+                </p>
+
+                <div class="channel-preview mb-4">
+                    <div class="channel-info">
+                        <div class="channel-avatar">
+                            {% if current_user.avatar_url %}
+                            <img src="{{ current_user.avatar_url }}" alt="{{ current_user.twitch_username }}" class="rounded-circle">
+                            {% else %}
+                            <i class="fas fa-user-circle fa-3x text-primary"></i>
+                            {% endif %}
+                        </div>
+                        <div class="channel-details">
+                            <h4 class="mb-1">#{{ current_user.managed_channel or current_user.twitch_username or current_user.username }}</h4>
+                            <p class="text-muted mb-0">
+                                <i class="fab fa-twitch me-1"></i>
+                                {{ current_user.twitch_username or current_user.username }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Note:</strong> ANSV is the bot account that will join your channel. Make sure to mod the bot for best results!
+                </div>
+
+                <div class="progress mb-4">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: 50%"></div>
+                </div>
+                <small class="text-muted">Step 2 of 4</small>
+
+                <div class="d-flex justify-content-between mt-5">
+                    <a href="{{ url_for('onboarding_welcome') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back
+                    </a>
+                    <button class="btn btn-primary px-5" onclick="confirmChannel()">
+                        Continue <i class="fas fa-arrow-right ms-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.onboarding-card {
+    background: var(--bs-card-bg, #fff);
+    border-radius: 16px;
+    padding: 3rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+}
+
+.channel-preview {
+    background: var(--bs-secondary-bg, #f8f9fa);
+    border-radius: 12px;
+    padding: 2rem;
+}
+
+.channel-info {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.channel-avatar img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+}
+
+.channel-details h4 {
+    margin: 0;
+}
+</style>
+
+<script>
+function confirmChannel() {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Confirming...';
+
+    fetch('/onboarding/channel', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '/onboarding/settings';
+        } else {
+            alert('Error: ' + (data.error || 'Failed to confirm channel'));
+            btn.disabled = false;
+            btn.innerHTML = 'Continue <i class="fas fa-arrow-right ms-2"></i>';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error confirming channel');
+        btn.disabled = false;
+        btn.innerHTML = 'Continue <i class="fas fa-arrow-right ms-2"></i>';
+    });
+}
+</script>
+{% endblock %}

@@ -697,6 +697,10 @@ def auth_twitch_callback():
             session.permanent = False
 
             app.logger.info(f"Existing user logged in via OAuth: {user_dict['username']}")
+
+            # Redirect to onboarding if not completed, otherwise dashboard
+            if not user_dict.get('onboarding_completed'):
+                return redirect('/onboarding')
             return redirect('/beta')
 
         else:
@@ -755,8 +759,8 @@ def auth_twitch_callback():
 
                     app.logger.info(f"New user created via OAuth: {twitch_username}")
 
-                    # Redirect to dashboard (onboarding can be added later)
-                    return redirect('/beta')
+                    # Redirect new users to onboarding
+                    return redirect('/onboarding')
                 else:
                     app.logger.error("Failed to retrieve newly created user")
                     return render_template('login.html', error='Account creation failed.'), 500
@@ -1033,6 +1037,153 @@ def stripe_webhook():
     except Exception as e:
         app.logger.error(f"Error processing webhook {event_type}: {e}")
         return jsonify({'error': str(e)}), 500
+
+# Onboarding Routes
+@app.route('/onboarding')
+@require_auth
+def onboarding_welcome():
+    """Welcome page for new users."""
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+
+    # If already completed onboarding, redirect to dashboard
+    if user.get('onboarding_completed'):
+        return redirect(url_for('beta_dashboard'))
+
+    return render_template('onboarding/welcome.html')
+
+@app.route('/onboarding/channel')
+@require_auth
+def onboarding_channel():
+    """Channel confirmation page."""
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+
+    if user.get('onboarding_completed'):
+        return redirect(url_for('beta_dashboard'))
+
+    return render_template('onboarding/channel.html')
+
+@app.route('/onboarding/channel', methods=['POST'])
+@require_auth
+def onboarding_channel_confirm():
+    """Confirm channel selection."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    try:
+        # Channel is already set from OAuth (managed_channel)
+        # Just confirm it exists
+        managed_channel = user.get('managed_channel')
+        if not managed_channel:
+            return jsonify({'success': False, 'error': 'No managed channel found'}), 400
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        app.logger.error(f"Error confirming channel: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/onboarding/settings')
+@require_auth
+def onboarding_settings():
+    """Bot settings configuration page."""
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+
+    if user.get('onboarding_completed'):
+        return redirect(url_for('beta_dashboard'))
+
+    return render_template('onboarding/settings.html')
+
+@app.route('/onboarding/settings', methods=['POST'])
+@require_auth
+def onboarding_settings_save():
+    """Save initial bot settings and create channel config."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    try:
+        data = request.json
+        managed_channel = user.get('managed_channel')
+
+        if not managed_channel:
+            return jsonify({'success': False, 'error': 'No managed channel found'}), 400
+
+        # Create channel config with user's settings
+        conn = sqlite3.connect(db_file)
+        c = conn.cursor()
+
+        # Check if channel config already exists
+        c.execute("SELECT channel_name FROM channel_configs WHERE channel_name = ?", (managed_channel,))
+        existing = c.fetchone()
+
+        if not existing:
+            # Create new channel config
+            c.execute("""
+                INSERT INTO channel_configs (
+                    channel_name, user_id, join_channel, voice_enabled,
+                    tts_enabled, lines_between_messages
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, (
+                managed_channel,
+                user['id'],
+                data.get('join_channel', True),
+                data.get('voice_enabled', True),
+                False,  # TTS disabled by default (Premium only)
+                data.get('lines_between_messages', 100)
+            ))
+            conn.commit()
+
+        conn.close()
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        app.logger.error(f"Error saving settings: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/onboarding/premium')
+@require_auth
+def onboarding_premium():
+    """Premium upsell page."""
+    user = get_current_user()
+    if not user:
+        return redirect(url_for('login'))
+
+    if user.get('onboarding_completed'):
+        return redirect(url_for('beta_dashboard'))
+
+    return render_template('onboarding/premium.html')
+
+@app.route('/onboarding/complete', methods=['POST'])
+@require_auth
+def onboarding_complete():
+    """Mark onboarding as complete."""
+    user = get_current_user()
+    if not user:
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    try:
+        # Mark onboarding as complete
+        conn = user_db.get_connection()
+        c = conn.cursor()
+        c.execute("UPDATE users SET onboarding_completed = 1 WHERE id = ?", (user['id'],))
+        conn.commit()
+        conn.close()
+
+        app.logger.info(f"User {user['id']} completed onboarding")
+
+        return jsonify({'success': True})
+
+    except Exception as e:
+        app.logger.error(f"Error completing onboarding: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # User Profile Management Routes
 @app.route('/profile')
@@ -2861,6 +3012,11 @@ def beta_dashboard():
     try:
         # Get current user and subscription status
         user = get_current_user()
+
+        # Redirect to onboarding if not completed
+        if user and not user.get('onboarding_completed'):
+            return redirect(url_for('onboarding_welcome'))
+
         subscription_status = user_db.get_subscription_status(user['id']) if user else None
         has_premium = user_db.has_tts_access(user['id']) if user else False
 

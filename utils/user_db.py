@@ -81,6 +81,7 @@ class UserDatabase:
                             subscription_tier VARCHAR(20) DEFAULT 'free',
                             subscription_status VARCHAR(20) DEFAULT 'inactive',
                             stripe_customer_id VARCHAR(100),
+                            stripe_subscription_id VARCHAR(100),
                             onboarding_completed BOOLEAN DEFAULT 0,
                             FOREIGN KEY (role_id) REFERENCES roles(id)
                         )
@@ -112,6 +113,7 @@ class UserDatabase:
                         subscription_tier VARCHAR(20) DEFAULT 'free',
                         subscription_status VARCHAR(20) DEFAULT 'inactive',
                         stripe_customer_id VARCHAR(100),
+                        stripe_subscription_id VARCHAR(100),
                         onboarding_completed BOOLEAN DEFAULT 0,
                         FOREIGN KEY (role_id) REFERENCES roles(id)
                     )
@@ -206,6 +208,7 @@ class UserDatabase:
                 ('subscription_tier', "VARCHAR(20) DEFAULT 'free'"),
                 ('subscription_status', "VARCHAR(20) DEFAULT 'inactive'"),
                 ('stripe_customer_id', 'VARCHAR(100)'),
+                ('stripe_subscription_id', 'VARCHAR(100)'),
                 ('onboarding_completed', 'BOOLEAN DEFAULT 0')
             ]
 
@@ -1114,10 +1117,15 @@ class UserDatabase:
             conn.close()
 
     def update_subscription(self, user_id: int, tier: str, status: str,
-                           stripe_customer_id: str = None) -> bool:
+                           stripe_customer_id: str = None,
+                           stripe_subscription_id: str = None,
+                           current_period_start: str = None,
+                           current_period_end: str = None,
+                           cancel_at_period_end: bool = False) -> bool:
         """Update user's subscription tier and status."""
         conn = self.get_connection()
         try:
+            # Update users table
             updates = {
                 'subscription_tier': tier,
                 'subscription_status': status
@@ -1125,6 +1133,9 @@ class UserDatabase:
 
             if stripe_customer_id:
                 updates['stripe_customer_id'] = stripe_customer_id
+
+            if stripe_subscription_id:
+                updates['stripe_subscription_id'] = stripe_subscription_id
 
             set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
             values = list(updates.values()) + [user_id]
@@ -1134,6 +1145,33 @@ class UserDatabase:
                 SET {set_clause}, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, values)
+
+            # Update or create subscription record if we have subscription details
+            if stripe_subscription_id and status in ['active', 'past_due', 'cancelled']:
+                # Check if subscription record exists
+                existing = conn.execute("""
+                    SELECT id FROM subscriptions WHERE stripe_subscription_id = ?
+                """, (stripe_subscription_id,)).fetchone()
+
+                if existing:
+                    # Update existing subscription record
+                    conn.execute("""
+                        UPDATE subscriptions
+                        SET status = ?, current_period_start = ?, current_period_end = ?,
+                            cancel_at_period_end = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE stripe_subscription_id = ?
+                    """, (status, current_period_start, current_period_end,
+                          1 if cancel_at_period_end else 0, stripe_subscription_id))
+                else:
+                    # Create new subscription record
+                    conn.execute("""
+                        INSERT INTO subscriptions (
+                            user_id, stripe_subscription_id, status,
+                            current_period_start, current_period_end, cancel_at_period_end
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                    """, (user_id, stripe_subscription_id, status,
+                          current_period_start, current_period_end,
+                          1 if cancel_at_period_end else 0))
 
             conn.commit()
             logger.info(f"Updated subscription for user {user_id}: {tier}/{status}")

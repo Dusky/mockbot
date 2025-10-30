@@ -796,7 +796,7 @@ def premium_page():
     subscription_status = user_db.get_subscription_status(user['id']) if user else None
     has_premium = user_db.has_tts_access(user['id']) if user else False
 
-    return render_template('premium.html',
+    return render_template('beta/premium.html',
                          user=user,
                          subscription_status=subscription_status,
                          has_premium=has_premium,
@@ -928,13 +928,29 @@ def stripe_webhook():
 
             app.logger.info(f"Checkout completed for user {user_id}, subscription {subscription_id}")
 
+            # Fetch full subscription details from Stripe
+            try:
+                import stripe
+                subscription = stripe.Subscription.retrieve(subscription_id)
+                current_period_start = subscription.current_period_start
+                current_period_end = subscription.current_period_end
+                cancel_at_period_end = subscription.cancel_at_period_end
+            except Exception as e:
+                app.logger.error(f"Error fetching subscription details: {e}")
+                current_period_start = None
+                current_period_end = None
+                cancel_at_period_end = False
+
             # Update user subscription status
             user_db.update_subscription(
                 user_id=user_id,
                 tier='premium',
                 status='active',
                 stripe_customer_id=customer_id,
-                stripe_subscription_id=subscription_id
+                stripe_subscription_id=subscription_id,
+                current_period_start=current_period_start,
+                current_period_end=current_period_end,
+                cancel_at_period_end=cancel_at_period_end
             )
 
         elif event_type == 'invoice.payment_succeeded':
@@ -954,11 +970,29 @@ def stripe_webhook():
                 user_id = user_row[0]
                 app.logger.info(f"Payment succeeded for user {user_id}, subscription {subscription_id}")
 
+                # Fetch subscription details from Stripe
+                try:
+                    import stripe
+                    subscription = stripe.Subscription.retrieve(subscription_id)
+                    current_period_start = subscription.current_period_start
+                    current_period_end = subscription.current_period_end
+                    cancel_at_period_end = subscription.cancel_at_period_end
+                except Exception as e:
+                    app.logger.error(f"Error fetching subscription details: {e}")
+                    current_period_start = None
+                    current_period_end = None
+                    cancel_at_period_end = False
+
                 # Ensure subscription is active
                 user_db.update_subscription(
                     user_id=user_id,
                     tier='premium',
-                    status='active'
+                    status='active',
+                    stripe_customer_id=customer_id,
+                    stripe_subscription_id=subscription_id,
+                    current_period_start=current_period_start,
+                    current_period_end=current_period_end,
+                    cancel_at_period_end=cancel_at_period_end
                 )
 
         elif event_type == 'invoice.payment_failed':
@@ -981,7 +1015,8 @@ def stripe_webhook():
                 user_db.update_subscription(
                     user_id=user_id,
                     tier='premium',
-                    status='past_due'
+                    status='past_due',
+                    stripe_subscription_id=subscription_id
                 )
 
         elif event_type == 'customer.subscription.deleted':
@@ -1004,7 +1039,8 @@ def stripe_webhook():
                 user_db.update_subscription(
                     user_id=user_id,
                     tier='free',
-                    status='cancelled'
+                    status='cancelled',
+                    stripe_subscription_id=subscription_id
                 )
 
         elif event_type == 'customer.subscription.updated':
@@ -1012,6 +1048,15 @@ def stripe_webhook():
             subscription = event['data']['object']
             subscription_id = subscription['id']
             cancel_at_period_end = subscription.get('cancel_at_period_end', False)
+            current_period_start = subscription.get('current_period_start')
+            current_period_end = subscription.get('current_period_end')
+            status_map = {
+                'active': 'active',
+                'past_due': 'past_due',
+                'canceled': 'cancelled',
+                'unpaid': 'cancelled'
+            }
+            status = status_map.get(subscription.get('status'), 'active')
 
             # Find user by subscription ID
             conn = user_db.get_connection()
@@ -1024,13 +1069,17 @@ def stripe_webhook():
                 user_id = user_row[0]
                 app.logger.info(f"Subscription updated for user {user_id}, cancel_at_period_end={cancel_at_period_end}")
 
-                # Update status - still active until period ends
-                if cancel_at_period_end:
-                    user_db.update_subscription(
-                        user_id=user_id,
-                        tier='premium',
-                        status='active'  # Still active until period ends
-                    )
+                # Update subscription with all details
+                tier = 'premium' if status in ['active', 'past_due'] else 'free'
+                user_db.update_subscription(
+                    user_id=user_id,
+                    tier=tier,
+                    status=status,
+                    stripe_subscription_id=subscription_id,
+                    current_period_start=current_period_start,
+                    current_period_end=current_period_end,
+                    cancel_at_period_end=cancel_at_period_end
+                )
 
         return jsonify({'success': True}), 200
 
@@ -1117,32 +1166,33 @@ def onboarding_settings_save():
 
         # Create channel config with user's settings
         conn = sqlite3.connect(db_file)
-        c = conn.cursor()
+        try:
+            c = conn.cursor()
 
-        # Check if channel config already exists
-        c.execute("SELECT channel_name FROM channel_configs WHERE channel_name = ?", (managed_channel,))
-        existing = c.fetchone()
+            # Check if channel config already exists
+            c.execute("SELECT channel_name FROM channel_configs WHERE channel_name = ?", (managed_channel,))
+            existing = c.fetchone()
 
-        if not existing:
-            # Create new channel config
-            c.execute("""
-                INSERT INTO channel_configs (
-                    channel_name, user_id, join_channel, voice_enabled,
-                    tts_enabled, lines_between_messages
-                ) VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                managed_channel,
-                user['id'],
-                data.get('join_channel', True),
-                data.get('voice_enabled', True),
-                False,  # TTS disabled by default (Premium only)
-                data.get('lines_between_messages', 100)
-            ))
-            conn.commit()
+            if not existing:
+                # Create new channel config
+                c.execute("""
+                    INSERT INTO channel_configs (
+                        channel_name, user_id, join_channel, voice_enabled,
+                        tts_enabled, lines_between_messages
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    managed_channel,
+                    user['id'],
+                    data.get('join_channel', True),
+                    data.get('voice_enabled', True),
+                    False,  # TTS disabled by default (Premium only)
+                    data.get('lines_between_messages', 100)
+                ))
+                conn.commit()
 
-        conn.close()
-
-        return jsonify({'success': True})
+            return jsonify({'success': True})
+        finally:
+            conn.close()
 
     except Exception as e:
         app.logger.error(f"Error saving settings: {e}")

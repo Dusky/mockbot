@@ -384,10 +384,19 @@ cmd_setup() {
 
     echo -e "\n${GREEN}✓ Setup complete!${NC}\n"
     echo -e "${YELLOW}Next steps:${NC}"
-    echo -e "1. Edit ${CYAN}$CONFIG_FILE${NC} with your credentials"
-    echo -e "2. Get Twitch credentials: ${BLUE}https://dev.twitch.tv/console${NC}"
-    echo -e "3. Configure Stripe keys for payments"
+    echo -e "1. Create Twitch OAuth app at: ${BLUE}https://dev.twitch.tv/console${NC}"
+    echo -e "   - Set redirect URL: http://localhost:5001/auth/twitch/callback"
+    echo -e "   - Copy Client ID and Client Secret"
+    echo -e ""
+    echo -e "2. Edit ${CYAN}$CONFIG_FILE${NC} and add in [oauth] section:"
+    echo -e "   - twitch_client_id = <your_client_id>"
+    echo -e "   - twitch_client_secret = <your_client_secret>"
+    echo -e ""
+    echo -e "3. (Optional) Configure Stripe in [stripe] section for payments"
+    echo -e ""
     echo -e "4. Run: ${CYAN}./launch.sh start${NC}"
+    echo -e ""
+    echo -e "See ${BLUE}SETUP.md${NC} for detailed instructions"
 }
 
 # Backup

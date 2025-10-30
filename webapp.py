@@ -577,12 +577,16 @@ def login():
 @app.route('/auth/twitch')
 def auth_twitch():
     """Initiate Twitch OAuth flow."""
-    client_id = os.getenv('TWITCH_CLIENT_ID')
-    redirect_uri = os.getenv('TWITCH_REDIRECT_URI', 'http://localhost:5001/auth/twitch/callback')
+    # Try to get from config first, fallback to environment variables
+    client_id = config.get('oauth', 'twitch_client_id', fallback=None) or os.getenv('TWITCH_CLIENT_ID')
+    redirect_uri = config.get('oauth', 'twitch_redirect_uri', fallback=None) or os.getenv('TWITCH_REDIRECT_URI', 'http://localhost:5001/auth/twitch/callback')
 
-    if not client_id:
-        app.logger.error("TWITCH_CLIENT_ID not configured")
-        return render_template('login.html', error='OAuth not configured. Please contact administrator.'), 500
+    if not client_id or client_id == 'your_oauth_client_id_here':
+        app.logger.error("Twitch OAuth not configured")
+        error_msg = ('Twitch OAuth not configured. '
+                    'Please set twitch_client_id and twitch_client_secret in settings.conf [oauth] section. '
+                    'Create an OAuth app at https://dev.twitch.tv/console')
+        return render_template('login.html', error=error_msg), 500
 
     # Generate random state for CSRF protection
     state = secrets.token_urlsafe(32)
@@ -620,13 +624,15 @@ def auth_twitch_callback():
         return render_template('login.html', error='Twitch authorization denied.'), 400
 
     # Exchange code for access token
-    client_id = os.getenv('TWITCH_CLIENT_ID')
-    client_secret = os.getenv('TWITCH_CLIENT_SECRET')
-    redirect_uri = os.getenv('TWITCH_REDIRECT_URI', 'http://localhost:5001/auth/twitch/callback')
+    client_id = config.get('oauth', 'twitch_client_id', fallback=None) or os.getenv('TWITCH_CLIENT_ID')
+    client_secret = config.get('oauth', 'twitch_client_secret', fallback=None) or os.getenv('TWITCH_CLIENT_SECRET')
+    redirect_uri = config.get('oauth', 'twitch_redirect_uri', fallback=None) or os.getenv('TWITCH_REDIRECT_URI', 'http://localhost:5001/auth/twitch/callback')
 
-    if not client_id or not client_secret:
+    if not client_id or not client_secret or client_id == 'your_oauth_client_id_here':
         app.logger.error("Twitch OAuth credentials not configured")
-        return render_template('login.html', error='OAuth not configured.'), 500
+        error_msg = ('Twitch OAuth not configured. '
+                    'Please set twitch_client_id and twitch_client_secret in settings.conf [oauth] section.')
+        return render_template('login.html', error=error_msg), 500
 
     token_url = 'https://id.twitch.tv/oauth2/token'
     token_data = {

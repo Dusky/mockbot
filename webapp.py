@@ -2942,11 +2942,6 @@ def beta_stats_page():
 @require_permission(Permissions.SYSTEM_SETTINGS)
 def beta_settings_page():
     """Render the redesigned beta settings page."""
-    # Redirect streamers to their channel instead of settings
-    streamer_redirect = redirect_streamers_to_channel()
-    if streamer_redirect:
-        return streamer_redirect
-        
     try:
         # Get current user and subscription status
         user = get_current_user()
@@ -2955,14 +2950,27 @@ def beta_settings_page():
 
         bot_running = is_bot_actually_running()
 
-        # Get channels data with additional info
+        # Get channels data based on user role
         conn = sqlite3.connect(db_file)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
-        c.execute("SELECT * FROM channel_configs ORDER BY channel_name")
-        channels_data = [dict(row) for row in c.fetchall()]
+
+        if user and user.get('role_name') == 'streamer':
+            # Streamers see only their managed channel
+            managed_channel = user.get('managed_channel')
+            if managed_channel:
+                c.execute("SELECT * FROM channel_configs WHERE channel_name = ?", (managed_channel,))
+                channel_row = c.fetchone()
+                channels_data = [dict(channel_row)] if channel_row else []
+            else:
+                channels_data = []
+        else:
+            # Super admins see all channels
+            c.execute("SELECT * FROM channel_configs ORDER BY channel_name")
+            channels_data = [dict(row) for row in c.fetchall()]
+
         conn.close()
-        
+
         # Get bot status for connection info
         bot_status = {}
         if bot_running and os.path.exists("bot_heartbeat.json"):
@@ -2971,21 +2979,22 @@ def beta_settings_page():
                     bot_status = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
-        
+
         # Add connection status to channels
         heartbeat_channels = []
         if bot_status.get('channels'):
             heartbeat_channels = [ch.lstrip('#').lower() for ch in bot_status.get('channels', [])]
-        
+
         for channel in channels_data:
             channel['currently_connected'] = channel['channel_name'].lower() in heartbeat_channels
-        
+
         return render_template("beta/settings.html",
                              bot_running=bot_running,
                              channels=channels_data,
                              bot_status=bot_status,
                              subscription_status=subscription_status,
-                             has_premium=has_premium)
+                             has_premium=has_premium,
+                             is_single_channel=(user and user.get('role_name') == 'streamer'))
         
     except Exception as e:
         app.logger.error(f"Error loading beta settings page: {e}")

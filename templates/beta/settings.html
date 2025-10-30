@@ -9,14 +9,22 @@
         <div class="hero-content">
             <h1 class="hero-title">
                 <i class="fas fa-cog me-3"></i>
-                Bot Settings & Configuration
+                {% if is_single_channel %}My Channel Settings{% else %}Bot Settings & Configuration{% endif %}
             </h1>
-            <p class="hero-subtitle">Manage channels, configure bot behavior, and customize TTS settings</p>
+            <p class="hero-subtitle">
+                {% if is_single_channel %}
+                    Configure your bot behavior and customize settings
+                {% else %}
+                    Manage channels, configure bot behavior, and customize TTS settings
+                {% endif %}
+            </p>
         </div>
         <div class="hero-actions">
+            {% if not is_single_channel %}
             <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addChannelModal">
                 <i class="fas fa-plus me-2"></i>Add Channel
             </button>
+            {% endif %}
             <button class="btn btn-outline-primary" id="saveAllBtn">
                 <i class="fas fa-save me-2"></i>Save All Changes
             </button>

@@ -237,8 +237,8 @@ def verify_migration(db_path: str = 'messages.db'):
         # Check roles exist
         roles = conn.execute("SELECT name FROM roles").fetchall()
         role_names = [role['name'] for role in roles]
-        expected_roles = ['super_admin', 'admin', 'moderator', 'viewer']
-        
+        expected_roles = ['super_admin', 'streamer']
+
         for role in expected_roles:
             if role in role_names:
                 logger.info(f"✅ Role '{role}' exists")

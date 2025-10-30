@@ -360,6 +360,15 @@ cmd_setup() {
         exit 1
     }
 
+    # Install TTS dependencies if available
+    if [[ -f "requirements-tts.txt" ]]; then
+        echo -e "${CYAN}Installing TTS dependencies...${NC}"
+        pip install -r requirements-tts.txt || {
+            echo -e "${YELLOW}Warning: Failed to install TTS dependencies${NC}"
+            echo -e "${YELLOW}TTS features may not work${NC}"
+        }
+    fi
+
     # Create config from example
     if [[ ! -f "$CONFIG_FILE" ]] && [[ -f "$EXAMPLE_CONFIG" ]]; then
         echo -e "${CYAN}Creating configuration file...${NC}"
@@ -507,6 +516,14 @@ cmd_update_deps() {
     echo -e "${CYAN}Updating Python dependencies...${NC}"
     pip install --upgrade pip
     pip install -r requirements.txt --upgrade
+
+    # Update TTS dependencies if available
+    if [[ -f "requirements-tts.txt" ]]; then
+        echo -e "${CYAN}Updating TTS dependencies...${NC}"
+        pip install -r requirements-tts.txt --upgrade || {
+            echo -e "${YELLOW}Warning: Failed to update TTS dependencies${NC}"
+        }
+    fi
 
     echo -e "${GREEN}✓ Dependencies updated${NC}"
 }

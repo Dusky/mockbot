@@ -182,16 +182,14 @@ def validate_channel_config_fields(fields):
 
 # Helper function to redirect streamers to their channel
 def redirect_streamers_to_channel():
-    """Redirect streamers to their channel page instead of other areas"""
+    """Redirect streamers to their managed channel page (1 account = 1 channel)"""
     user = get_current_user()
     if user and user.get('role_name') == 'streamer':
-        # Get their assigned channels
-        from utils.user_db import UserDatabase
-        user_db = UserDatabase('users.db')
-        user_channels = user_db.get_user_channels_from_db(user['id'])
-        if user_channels:
-            # Redirect to their first assigned channel
-            return redirect(f'/beta/channel/{user_channels[0]}')
+        # Get their managed channel (set during OAuth signup)
+        managed_channel = user.get('managed_channel')
+        if managed_channel:
+            # Redirect to their single managed channel
+            return redirect(f'/beta/channel/{managed_channel}')
     return None
 
 # Helper functions for is_bot_actually_running
@@ -2849,11 +2847,6 @@ def api_channel_generate_message(channel_name):
 @require_permission(Permissions.DASHBOARD_VIEW)
 def beta_dashboard():
     """Render the redesigned beta dashboard."""
-    # Redirect streamers to their channel instead of dashboard
-    streamer_redirect = redirect_streamers_to_channel()
-    if streamer_redirect:
-        return streamer_redirect
-
     try:
         # Get current user and subscription status
         user = get_current_user()
@@ -2863,12 +2856,25 @@ def beta_dashboard():
         # Get bot status and basic info for the beta dashboard
         bot_running = is_bot_actually_running()
 
-        # Get channels data
+        # Get channels data based on user role
         conn = sqlite3.connect(db_file)
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
-        c.execute("SELECT * FROM channel_configs ORDER BY channel_name")
-        channels_data = [dict(row) for row in c.fetchall()]
+
+        if user and user.get('role_name') == 'streamer':
+            # Streamers see only their managed channel
+            managed_channel = user.get('managed_channel')
+            if managed_channel:
+                c.execute("SELECT * FROM channel_configs WHERE channel_name = ?", (managed_channel,))
+                channel_row = c.fetchone()
+                channels_data = [dict(channel_row)] if channel_row else []
+            else:
+                channels_data = []
+        else:
+            # Super admins see all channels
+            c.execute("SELECT * FROM channel_configs ORDER BY channel_name")
+            channels_data = [dict(row) for row in c.fetchall()]
+
         conn.close()
 
         # Get recent TTS activity
@@ -2879,7 +2885,8 @@ def beta_dashboard():
                              channels=channels_data,
                              recent_tts=recent_tts[:5],  # Just show 5 most recent
                              subscription_status=subscription_status,
-                             has_premium=has_premium)
+                             has_premium=has_premium,
+                             is_single_channel=(user and user.get('role_name') == 'streamer'))
         
     except Exception as e:
         app.logger.error(f"Error loading beta dashboard: {e}")

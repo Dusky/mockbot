@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initSettingsToggles();
     initButtons();
     initTtsPopup();
+    initTrustedUsers();
     loadRecentMessages();
 
     // Auto-refresh every 30 seconds
@@ -414,4 +415,193 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// ===== TRUSTED USERS MANAGEMENT =====
+
+// Initialize trusted users functionality
+function initTrustedUsers() {
+    loadTrustedUsers();
+
+    const addBtn = document.getElementById('addTrustedUserBtn');
+    const input = document.getElementById('newTrustedUserInput');
+
+    if (addBtn) {
+        addBtn.addEventListener('click', addTrustedUser);
+    }
+
+    if (input) {
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                addTrustedUser();
+            }
+        });
+    }
+}
+
+// Load trusted users list
+function loadTrustedUsers() {
+    if (!channelName) return;
+
+    const listEl = document.getElementById('trustedUsersList');
+
+    fetch(`/api/channel/${channelName}/trusted_users`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.trusted_users) {
+                renderTrustedUsers(data.trusted_users);
+            } else {
+                listEl.innerHTML = `
+                    <div class="text-center py-2 text-muted">
+                        <p class="mb-0">No trusted members yet</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('[Streamer Dashboard] Error loading trusted users:', error);
+            listEl.innerHTML = `
+                <div class="text-center py-2 text-danger">
+                    <i class="fas fa-exclamation-triangle mb-1"></i>
+                    <p class="mb-0">Error loading trusted members</p>
+                </div>
+            `;
+        });
+}
+
+// Render trusted users list
+function renderTrustedUsers(users) {
+    const listEl = document.getElementById('trustedUsersList');
+
+    if (!users || users.length === 0) {
+        listEl.innerHTML = `
+            <div class="text-center py-2 text-muted">
+                <p class="mb-0">No trusted members yet</p>
+            </div>
+        `;
+        return;
+    }
+
+    const html = users.map(username => `
+        <div class="trusted-user-badge">
+            <i class="fas fa-user-shield text-primary"></i>
+            <span class="username">${escapeHtml(username)}</span>
+            <button class="remove-btn" onclick="removeTrustedUser('${escapeHtml(username)}')" title="Remove">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    `).join('');
+
+    listEl.innerHTML = html;
+}
+
+// Add trusted user
+function addTrustedUser() {
+    if (!channelName) {
+        showNotification('Error: Channel not found', 'error');
+        return;
+    }
+
+    const input = document.getElementById('newTrustedUserInput');
+    const username = input.value.trim().toLowerCase();
+
+    if (!username) {
+        showNotification('Please enter a username', 'warning');
+        return;
+    }
+
+    // Basic validation
+    if (!/^[a-z0-9_]+$/.test(username)) {
+        showNotification('Username can only contain letters, numbers, and underscores', 'error');
+        return;
+    }
+
+    // Get current list
+    fetch(`/api/channel/${channelName}/trusted_users`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to get current trusted users');
+            }
+
+            const currentUsers = data.trusted_users || [];
+
+            // Check if already in list
+            if (currentUsers.includes(username)) {
+                showNotification('User is already in the trusted list', 'warning');
+                return;
+            }
+
+            // Add to list
+            const updatedUsers = [...currentUsers, username];
+
+            // Update on server
+            return fetch(`/api/channel/${channelName}/trusted_users`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ trusted_users: updatedUsers })
+            });
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                input.value = '';
+                renderTrustedUsers(data.trusted_users);
+                showNotification(`Added ${username} to trusted members`, 'success');
+            } else {
+                throw new Error(data.error || 'Failed to add user');
+            }
+        })
+        .catch(error => {
+            console.error('[Streamer Dashboard] Error adding trusted user:', error);
+            showNotification('Error adding trusted member: ' + error.message, 'error');
+        });
+}
+
+// Remove trusted user
+function removeTrustedUser(username) {
+    if (!channelName) {
+        showNotification('Error: Channel not found', 'error');
+        return;
+    }
+
+    if (!confirm(`Remove ${username} from trusted members?`)) {
+        return;
+    }
+
+    // Get current list
+    fetch(`/api/channel/${channelName}/trusted_users`)
+        .then(response => response.json())
+        .then(data => {
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to get current trusted users');
+            }
+
+            // Remove from list
+            const updatedUsers = (data.trusted_users || []).filter(u => u !== username);
+
+            // Update on server
+            return fetch(`/api/channel/${channelName}/trusted_users`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ trusted_users: updatedUsers })
+            });
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderTrustedUsers(data.trusted_users);
+                showNotification(`Removed ${username} from trusted members`, 'success');
+            } else {
+                throw new Error(data.error || 'Failed to remove user');
+            }
+        })
+        .catch(error => {
+            console.error('[Streamer Dashboard] Error removing trusted user:', error);
+            showNotification('Error removing trusted member: ' + error.message, 'error');
+        });
 }

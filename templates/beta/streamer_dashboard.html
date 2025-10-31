@@ -165,7 +165,7 @@
             </div>
 
             <!-- Model Training Card -->
-            <div class="dashboard-panel">
+            <div class="dashboard-panel mb-4">
                 <div class="panel-header">
                     <h2 class="panel-title">
                         <i class="fas fa-brain me-2"></i>Model Training
@@ -186,6 +186,35 @@
                         </div>
                         <small class="text-muted">Rebuilding model...</small>
                     </div>
+                </div>
+            </div>
+
+            <!-- Trusted Members Card -->
+            <div class="dashboard-panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">
+                        <i class="fas fa-user-shield me-2"></i>Trusted Members
+                    </h2>
+                </div>
+                <div class="panel-body">
+                    <p class="text-muted mb-3">
+                        <small>Viewers who can use !ansv commands in your chat</small>
+                    </p>
+                    <div class="trusted-users-list mb-3" id="trustedUsersList">
+                        <div class="text-center py-2 text-muted">
+                            <i class="fas fa-spinner fa-spin"></i> Loading...
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="newTrustedUserInput"
+                               placeholder="Enter username" autocomplete="off">
+                        <button class="btn btn-success" id="addTrustedUserBtn">
+                            <i class="fas fa-plus me-1"></i>Add
+                        </button>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        <i class="fas fa-info-circle me-1"></i>Press Enter or click Add to add a user
+                    </small>
                 </div>
             </div>
         </div>
@@ -399,6 +428,40 @@
 
 .tts-meta {
     font-size: 0.75rem;
+}
+
+.trusted-users-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.trusted-user-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bs-secondary-bg);
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    margin: 0.25rem;
+}
+
+.trusted-user-badge .username {
+    font-weight: 500;
+}
+
+.trusted-user-badge .remove-btn {
+    background: none;
+    border: none;
+    color: var(--bs-danger);
+    cursor: pointer;
+    padding: 0;
+    font-size: 0.875rem;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.trusted-user-badge .remove-btn:hover {
+    opacity: 1;
 }
 
 @media (max-width: 768px) {

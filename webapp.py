@@ -1969,31 +1969,20 @@ def api_channel_recent_messages(channel_name):
         conn = sqlite3.connect(db_file)
         conn.row_factory = sqlite3.Row
 
-        # Get recent messages from the channel (last 20)
-        # Try to filter by is_bot_message if column exists, otherwise just get recent messages
-        try:
-            messages = conn.execute("""
-                SELECT message, timestamp
-                FROM messages
-                WHERE channel = ? AND is_bot_message = 1
-                ORDER BY timestamp DESC
-                LIMIT 20
-            """, (channel_name,)).fetchall()
-        except sqlite3.OperationalError as e:
-            # Column might not exist or table structure is different
-            # Fall back to just getting recent messages
-            app.logger.warning(f"Error with is_bot_message filter, falling back: {e}")
-            messages = conn.execute("""
-                SELECT message, timestamp
-                FROM messages
-                WHERE channel = ?
-                ORDER BY timestamp DESC
-                LIMIT 20
-            """, (channel_name,)).fetchall()
+        # Get recent bot-generated messages from the channel (last 20)
+        # The column is 'is_bot_response' not 'is_bot_message'
+        messages = conn.execute("""
+            SELECT message, timestamp, author_name
+            FROM messages
+            WHERE channel = ? AND is_bot_response = 1
+            ORDER BY id DESC
+            LIMIT 20
+        """, (channel_name,)).fetchall()
 
         conn.close()
 
-        messages_list = [dict(row) for row in messages]
+        # Reverse to show oldest first (chronological order)
+        messages_list = [dict(row) for row in reversed(messages)]
 
         return jsonify({
             'success': True,
@@ -2002,6 +1991,74 @@ def api_channel_recent_messages(channel_name):
 
     except Exception as e:
         app.logger.error(f"Error fetching recent messages for {channel_name}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/channel/<channel_name>/trusted_users', methods=['GET'])
+@require_channel_access('channel_name', 'view')
+def api_get_trusted_users(channel_name):
+    """Get list of trusted users for a channel."""
+    try:
+        conn = sqlite3.connect(db_file)
+        conn.row_factory = sqlite3.Row
+
+        channel_config = conn.execute("""
+            SELECT trusted_users
+            FROM channel_configs
+            WHERE channel_name = ?
+        """, (channel_name,)).fetchone()
+
+        conn.close()
+
+        if channel_config:
+            trusted_users_str = channel_config['trusted_users'] or ''
+            trusted_users = [u.strip() for u in trusted_users_str.split(',') if u.strip()]
+            return jsonify({
+                'success': True,
+                'trusted_users': trusted_users
+            })
+        else:
+            return jsonify({'success': False, 'error': 'Channel not found'}), 404
+
+    except Exception as e:
+        app.logger.error(f"Error fetching trusted users for {channel_name}: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/channel/<channel_name>/trusted_users', methods=['POST'])
+@require_channel_access('channel_name', 'edit')
+def api_update_trusted_users(channel_name):
+    """Update list of trusted users for a channel."""
+    try:
+        data = request.json
+        trusted_users = data.get('trusted_users', [])
+
+        # Validate and clean usernames
+        cleaned_users = []
+        for username in trusted_users:
+            username = username.strip().lower()
+            if username and username.isalnum() or '_' in username:
+                cleaned_users.append(username)
+
+        # Convert to comma-separated string
+        trusted_users_str = ','.join(cleaned_users)
+
+        conn = sqlite3.connect(db_file)
+        conn.execute("""
+            UPDATE channel_configs
+            SET trusted_users = ?
+            WHERE channel_name = ?
+        """, (trusted_users_str, channel_name))
+        conn.commit()
+        conn.close()
+
+        app.logger.info(f"Updated trusted users for {channel_name}: {cleaned_users}")
+
+        return jsonify({
+            'success': True,
+            'trusted_users': cleaned_users
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error updating trusted users for {channel_name}: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/channel/<channel_name>')

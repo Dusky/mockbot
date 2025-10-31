@@ -819,8 +819,8 @@ def premium_page():
     if not user:
         return redirect(url_for('login'))
 
-    subscription_status = user_db.get_subscription_status(user['id']) if user else None
-    has_premium = user_db.has_tts_access(user['id']) if user else False
+    subscription_status = user_db.get_subscription_status(user['user_id']) if user else None
+    has_premium = user_db.has_tts_access(user['user_id']) if user else False
 
     return render_template('beta/premium.html',
                          user=user,
@@ -837,7 +837,7 @@ def create_checkout():
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
 
     # Check if already has premium
-    if user_db.has_tts_access(user['id']):
+    if user_db.has_tts_access(user['user_id']):
         return jsonify({'success': False, 'error': 'Already subscribed to Premium'}), 400
 
     try:
@@ -849,7 +849,7 @@ def create_checkout():
         cancel_url = url_for('checkout_cancel', _external=True)
 
         result = stripe_service.create_checkout_session(
-            user_id=user['id'],
+            user_id=user['user_id'],
             user_email=user_email,
             success_url=success_url,
             cancel_url=cancel_url
@@ -897,7 +897,7 @@ def billing_portal():
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
 
     # Get subscription status to find customer ID
-    subscription_status = user_db.get_subscription_status(user['id'])
+    subscription_status = user_db.get_subscription_status(user['user_id'])
 
     if not subscription_status or not subscription_status.get('stripe_customer_id'):
         return jsonify({'success': False, 'error': 'No active subscription found'}), 400
@@ -1221,7 +1221,7 @@ def onboarding_settings_save():
                     ) VALUES (?, ?, ?, ?, ?, ?)
                 """, (
                     managed_channel,
-                    user['id'],
+                    user['user_id'],
                     data.get('join_channel', True),
                     data.get('voice_enabled', True),
                     False,  # TTS disabled by default (Premium only)
@@ -1262,11 +1262,12 @@ def onboarding_complete():
         # Mark onboarding as complete in database
         conn = user_db.get_connection()
         c = conn.cursor()
-        c.execute("UPDATE users SET onboarding_completed = 1 WHERE id = ?", (user['id'],))
+        # IMPORTANT: user['user_id'] is the actual user ID, user['id'] is the session ID!
+        c.execute("UPDATE users SET onboarding_completed = 1 WHERE id = ?", (user['user_id'],))
         conn.commit()
         conn.close()
 
-        app.logger.info(f"User {user['id']} completed onboarding")
+        app.logger.info(f"User {user['user_id']} (username: {user.get('username')}) completed onboarding")
 
         # Clear any cached user data in Flask's g object to force a refresh
         # This ensures the next get_current_user() call will fetch updated data from DB
@@ -1948,7 +1949,7 @@ def channel_page(channel_name):
     if user and user.get('role_name') == 'streamer':
         from utils.user_db import UserDatabase
         user_db = UserDatabase('users.db')
-        user_channels = user_db.get_user_channels_from_db(user['id'])
+        user_channels = user_db.get_user_channels_from_db(user['user_id'])
         if user_channels and channel_name in user_channels:
             # Redirect to beta channel page for their channel
             return redirect(f'/beta/channel/{channel_name}')
@@ -3111,8 +3112,8 @@ def beta_dashboard():
         if user and not user.get('onboarding_completed'):
             return redirect(url_for('onboarding_welcome'))
 
-        subscription_status = user_db.get_subscription_status(user['id']) if user else None
-        has_premium = user_db.has_tts_access(user['id']) if user else False
+        subscription_status = user_db.get_subscription_status(user['user_id']) if user else None
+        has_premium = user_db.has_tts_access(user['user_id']) if user else False
 
         # Get bot status and basic info for the beta dashboard
         bot_running = is_bot_actually_running()
@@ -3206,8 +3207,8 @@ def beta_settings_page():
     try:
         # Get current user and subscription status
         user = get_current_user()
-        subscription_status = user_db.get_subscription_status(user['id']) if user else None
-        has_premium = user_db.has_tts_access(user['id']) if user else False
+        subscription_status = user_db.get_subscription_status(user['user_id']) if user else None
+        has_premium = user_db.has_tts_access(user['user_id']) if user else False
 
         bot_running = is_bot_actually_running()
 
@@ -3287,8 +3288,8 @@ def beta_channel_page(channel_name):
     try:
         # Get current user and subscription status
         user = get_current_user()
-        subscription_status = user_db.get_subscription_status(user['id']) if user else None
-        has_premium = user_db.has_tts_access(user['id']) if user else False
+        subscription_status = user_db.get_subscription_status(user['user_id']) if user else None
+        has_premium = user_db.has_tts_access(user['user_id']) if user else False
 
         # Validate channel exists
         conn = sqlite3.connect(db_file)
@@ -3349,7 +3350,7 @@ def api_channel_tts(channel_name):
     """Generate TTS for a specific channel (Premium feature)."""
     # Check if user has TTS access (Premium subscription)
     user = get_current_user()
-    if user and not user_db.has_tts_access(user['id']):
+    if user and not user_db.has_tts_access(user['user_id']):
         app.logger.warning(f"User {user['username']} attempted TTS without Premium subscription")
         return jsonify({
             'success': False,

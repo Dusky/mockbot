@@ -11,7 +11,7 @@ import traceback
 import signal # Added import for signal
 import requests
 from urllib.parse import urlencode
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, make_response, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, make_response, session, g
 from flask_socketio import SocketIO # Import SocketIO
 from datetime import datetime, timedelta
 import configparser
@@ -1259,7 +1259,7 @@ def onboarding_complete():
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
 
     try:
-        # Mark onboarding as complete
+        # Mark onboarding as complete in database
         conn = user_db.get_connection()
         c = conn.cursor()
         c.execute("UPDATE users SET onboarding_completed = 1 WHERE id = ?", (user['id'],))
@@ -1267,6 +1267,11 @@ def onboarding_complete():
         conn.close()
 
         app.logger.info(f"User {user['id']} completed onboarding")
+
+        # Clear any cached user data in Flask's g object to force a refresh
+        # This ensures the next get_current_user() call will fetch updated data from DB
+        if hasattr(g, 'current_user'):
+            delattr(g, 'current_user')
 
         return jsonify({'success': True})
 

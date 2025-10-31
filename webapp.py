@@ -1729,6 +1729,21 @@ def rebuild_all_caches():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
+@app.route('/bot_status')
+@require_auth
+def bot_status():
+    """Get current bot status."""
+    try:
+        running = is_bot_actually_running()
+        return jsonify({
+            'success': True,
+            'running': running,
+            'timestamp': time.time()
+        })
+    except Exception as e:
+        app.logger.error(f"Error getting bot status: {e}")
+        return jsonify({'success': False, 'running': False, 'error': str(e)}), 500
+
 @app.route('/start_bot', methods=['POST'])
 @require_permission(Permissions.BOT_START)
 def start_bot_route():
@@ -1954,14 +1969,27 @@ def api_channel_recent_messages(channel_name):
         conn = sqlite3.connect(db_file)
         conn.row_factory = sqlite3.Row
 
-        # Get recent bot messages from the channel (last 20)
-        messages = conn.execute("""
-            SELECT message, timestamp, voice_enabled
-            FROM messages
-            WHERE channel_name = ? AND is_bot_message = 1
-            ORDER BY timestamp DESC
-            LIMIT 20
-        """, (channel_name,)).fetchall()
+        # Get recent messages from the channel (last 20)
+        # Try to filter by is_bot_message if column exists, otherwise just get recent messages
+        try:
+            messages = conn.execute("""
+                SELECT message, timestamp
+                FROM messages
+                WHERE channel = ? AND is_bot_message = 1
+                ORDER BY timestamp DESC
+                LIMIT 20
+            """, (channel_name,)).fetchall()
+        except sqlite3.OperationalError as e:
+            # Column might not exist or table structure is different
+            # Fall back to just getting recent messages
+            app.logger.warning(f"Error with is_bot_message filter, falling back: {e}")
+            messages = conn.execute("""
+                SELECT message, timestamp
+                FROM messages
+                WHERE channel = ?
+                ORDER BY timestamp DESC
+                LIMIT 20
+            """, (channel_name,)).fetchall()
 
         conn.close()
 

@@ -1150,10 +1150,23 @@ def onboarding_channel_confirm():
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
 
     try:
+        # DEBUG: Log what we have in the user object
+        app.logger.info(f"Onboarding channel check - User fields: {list(user.keys())}")
+        app.logger.info(f"Onboarding channel check - managed_channel value: {user.get('managed_channel')}")
+
         # Channel is already set from OAuth (managed_channel)
         # Just confirm it exists
         managed_channel = user.get('managed_channel')
         if not managed_channel:
+            # If managed_channel is missing from session, try to fetch from database directly
+            conn = user_db.get_connection()
+            db_user = conn.execute("SELECT managed_channel FROM users WHERE id = ?", (user['user_id'],)).fetchone()
+            conn.close()
+
+            if db_user and db_user['managed_channel']:
+                app.logger.info(f"Found managed_channel in DB but not in session: {db_user['managed_channel']}")
+                return jsonify({'success': False, 'error': 'Session outdated. Please log out and log in again.'}), 400
+
             return jsonify({'success': False, 'error': 'No managed channel found'}), 400
 
         return jsonify({'success': True})

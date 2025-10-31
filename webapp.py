@@ -697,10 +697,20 @@ def auth_twitch_callback():
             conn.commit()
             conn.close()
 
-            # Create session
+            # Create proper session in database (like login_user does)
+            session_id = user_db.create_session(
+                user_dict['id'],
+                request.remote_addr,
+                request.headers.get('User-Agent', 'Unknown'),
+                24  # 24 hours session duration
+            )
+
+            # Store in Flask session
+            session.permanent = False
+            session['session_id'] = session_id
             session['user_id'] = user_dict['id']
             session['username'] = user_dict['username']
-            session.permanent = False
+            session['role'] = user_dict.get('role_name', 'streamer')
 
             app.logger.info(f"Existing user logged in via OAuth: {user_dict['username']}")
 
@@ -758,10 +768,20 @@ def auth_twitch_callback():
                 if new_user:
                     user_dict = dict(new_user)
 
-                    # Create session
+                    # Create proper session in database (like login_user does)
+                    session_id = user_db.create_session(
+                        user_dict['id'],
+                        request.remote_addr,
+                        request.headers.get('User-Agent', 'Unknown'),
+                        24  # 24 hours session duration
+                    )
+
+                    # Store in Flask session
+                    session.permanent = False
+                    session['session_id'] = session_id
                     session['user_id'] = user_dict['id']
                     session['username'] = user_dict['username']
-                    session.permanent = False
+                    session['role'] = user_dict.get('role_name', 'streamer')
 
                     app.logger.info(f"New user created via OAuth: {twitch_username}")
 

@@ -16,7 +16,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
-
+/logs/*
 # Virtual environments
 .venv/
 env/

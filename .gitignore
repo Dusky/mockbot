@@ -50,7 +50,7 @@ wheels/
 logs/
 
 # Cache and models
-cache/
+cache/*
 models/
 .hf_cache/
 

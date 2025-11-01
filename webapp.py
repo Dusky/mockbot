@@ -2071,7 +2071,13 @@ def api_admin_generate_tts():
             request.remote_addr, request.headers.get('User-Agent', 'Unknown')
         )
 
-        return jsonify({'success': True, 'message': 'TTS generation started'})
+        # Note: TTS is generated asynchronously, so we can't return the exact file path
+        # The file will be available in the TTS logs table once complete
+        return jsonify({
+            'success': True,
+            'message': 'TTS generation started - check recent TTS files',
+            'file_path': '/static/outputs/' + (channel or 'admin') + '/latest.wav'
+        })
     except Exception as e:
         app.logger.error(f"Error generating TTS: {e}")
         return jsonify({'success': False, 'error': 'Error generating TTS'}), 500

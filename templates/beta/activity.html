@@ -1,0 +1,439 @@
+{% extends "beta/base.html" %}
+
+{% block title %}Activity Log - ANSV Bot{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/beta.css') }}">
+<style>
+.activity-container {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.activity-header {
+    margin-bottom: 2rem;
+}
+
+.activity-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+}
+
+.activity-header p {
+    color: var(--bs-secondary-color);
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--bs-primary);
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.activity-card {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.filter-section {
+    background: rgba(var(--bs-primary-rgb), 0.05);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.activity-timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.activity-timeline::before {
+    content: '';
+    position: absolute;
+    left: 0.5rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--bs-border-color);
+}
+
+.activity-item {
+    position: relative;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 10px;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+
+.activity-item:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    transform: translateX(4px);
+}
+
+.activity-item::before {
+    content: '';
+    position: absolute;
+    left: -1.5rem;
+    top: 1.5rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--bs-primary);
+    border: 2px solid var(--bs-body-bg);
+}
+
+.activity-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 1rem;
+    font-size: 1.125rem;
+}
+
+.activity-icon.settings { background: #d1ecf1; color: #0c5460; }
+.activity-icon.message { background: #d4edda; color: #155724; }
+.activity-icon.tts { background: #fff3cd; color: #856404; }
+.activity-icon.channel { background: #cce5ff; color: #004085; }
+.activity-icon.user { background: #e2e3e5; color: #383d41; }
+
+.activity-content {
+    flex: 1;
+}
+
+.activity-title {
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.activity-description {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+    margin-bottom: 0.25rem;
+}
+
+.activity-time {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+}
+
+.activity-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.badge-create { background: #d4edda; color: #155724; }
+.badge-update { background: #d1ecf1; color: #0c5460; }
+.badge-delete { background: #f8d7da; color: #721c24; }
+.badge-system { background: #e2e3e5; color: #383d41; }
+
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--bs-secondary-color);
+}
+
+.empty-state i {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.25;
+}
+
+@media (max-width: 768px) {
+    .activity-container {
+        padding: 1rem;
+    }
+
+    .stats-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="activity-container">
+    <!-- Header -->
+    <div class="activity-header">
+        <h1><i class="fas fa-history me-2"></i>Activity Log</h1>
+        <p>Track all actions and changes related to your channel</p>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="stats-row">
+        <div class="stat-card">
+            <div class="stat-value" id="totalActivities">-</div>
+            <div class="stat-label">Total Activities</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="todayActivities">-</div>
+            <div class="stat-label">Today</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="weekActivities">-</div>
+            <div class="stat-label">This Week</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="mostCommon">-</div>
+            <div class="stat-label">Most Common</div>
+        </div>
+    </div>
+
+    <!-- Main Activity Card -->
+    <div class="activity-card">
+        <!-- Filters -->
+        <div class="filter-section">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label"><i class="fas fa-filter me-1"></i>Action Type</label>
+                    <select class="form-select" id="filterAction" onchange="applyFilters()">
+                        <option value="">All Actions</option>
+                        <option value="channel">Channel Actions</option>
+                        <option value="settings">Settings Changes</option>
+                        <option value="message">Messages</option>
+                        <option value="tts">TTS Generation</option>
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label"><i class="fas fa-calendar me-1"></i>Time Period</label>
+                    <select class="form-select" id="filterTime" onchange="applyFilters()">
+                        <option value="all">All Time</option>
+                        <option value="today">Today</option>
+                        <option value="week">Last 7 Days</option>
+                        <option value="month">Last 30 Days</option>
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label class="form-label"><i class="fas fa-search me-1"></i>Search</label>
+                    <input type="text" class="form-control" id="filterSearch" placeholder="Search activities..." oninput="applyFilters()">
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Timeline -->
+        <div class="activity-timeline" id="activityTimeline">
+            <div class="text-center py-5">
+                <i class="fas fa-spinner fa-spin fa-3x mb-3"></i>
+                <p class="text-muted">Loading activities...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+let allActivities = [];
+let filteredActivities = [];
+
+// Load activities
+async function loadActivities() {
+    try {
+        const response = await fetch('/api/activity-logs');
+        const data = await response.json();
+
+        if (data.success) {
+            allActivities = data.logs;
+            filteredActivities = allActivities;
+
+            // Update stats
+            updateStats(data.stats);
+
+            // Render timeline
+            renderTimeline();
+        } else {
+            showError('Failed to load activities');
+        }
+    } catch (error) {
+        console.error('Error loading activities:', error);
+        showError('Error loading activities');
+    }
+}
+
+// Update stats cards
+function updateStats(stats) {
+    document.getElementById('totalActivities').textContent = stats.total.toLocaleString();
+    document.getElementById('todayActivities').textContent = stats.today.toLocaleString();
+    document.getElementById('weekActivities').textContent = stats.this_week.toLocaleString();
+
+    // Find most common action
+    const actions = stats.actions_count;
+    const mostCommon = Object.keys(actions).reduce((a, b) =>
+        actions[a] > actions[b] ? a : b, 'None');
+    document.getElementById('mostCommon').textContent = formatActionName(mostCommon);
+}
+
+// Apply filters
+function applyFilters() {
+    const actionFilter = document.getElementById('filterAction').value;
+    const timeFilter = document.getElementById('filterTime').value;
+    const searchFilter = document.getElementById('filterSearch').value.toLowerCase();
+
+    filteredActivities = allActivities.filter(activity => {
+        // Action filter
+        if (actionFilter) {
+            if (!activity.action.toLowerCase().includes(actionFilter)) return false;
+        }
+
+        // Time filter
+        if (timeFilter !== 'all') {
+            const activityDate = new Date(activity.timestamp);
+            const now = new Date();
+            const daysDiff = (now - activityDate) / (1000 * 60 * 60 * 24);
+
+            if (timeFilter === 'today' && daysDiff > 1) return false;
+            if (timeFilter === 'week' && daysDiff > 7) return false;
+            if (timeFilter === 'month' && daysDiff > 30) return false;
+        }
+
+        // Search filter
+        if (searchFilter) {
+            const searchableText = `${activity.action} ${activity.resource_type} ${activity.resource_id}`.toLowerCase();
+            if (!searchableText.includes(searchFilter)) return false;
+        }
+
+        return true;
+    });
+
+    renderTimeline();
+}
+
+// Render timeline
+function renderTimeline() {
+    const timeline = document.getElementById('activityTimeline');
+
+    if (filteredActivities.length === 0) {
+        timeline.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-history"></i>
+                <p>No activities found</p>
+            </div>
+        `;
+        return;
+    }
+
+    timeline.innerHTML = filteredActivities.map(activity => {
+        const { icon, type } = getActivityIcon(activity.action);
+        const badge = getActivityBadge(activity.action);
+        const timeAgo = formatTimeAgo(activity.timestamp);
+
+        return `
+            <div class="activity-item">
+                <div class="d-flex align-items-start">
+                    <div class="activity-icon ${type}">
+                        <i class="${icon}"></i>
+                    </div>
+                    <div class="activity-content">
+                        <div class="activity-title">
+                            ${formatActionName(activity.action)}
+                            <span class="activity-badge ${badge} ms-2">${activity.action.split('.')[0]}</span>
+                        </div>
+                        <div class="activity-description">
+                            ${activity.resource_type ? `${activity.resource_type}: ${activity.resource_id}` : 'System action'}
+                        </div>
+                        <div class="activity-time">
+                            <i class="fas fa-clock me-1"></i>${timeAgo}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Helper: Get icon for activity
+function getActivityIcon(action) {
+    if (action.includes('channel')) return { icon: 'fas fa-hashtag', type: 'channel' };
+    if (action.includes('message')) return { icon: 'fas fa-comment', type: 'message' };
+    if (action.includes('tts')) return { icon: 'fas fa-volume-up', type: 'tts' };
+    if (action.includes('settings')) return { icon: 'fas fa-cog', type: 'settings' };
+    return { icon: 'fas fa-user', type: 'user' };
+}
+
+// Helper: Get badge class
+function getActivityBadge(action) {
+    if (action.includes('created')) return 'badge-create';
+    if (action.includes('updated')) return 'badge-update';
+    if (action.includes('deleted')) return 'badge-delete';
+    return 'badge-system';
+}
+
+// Helper: Format action name
+function formatActionName(action) {
+    return action.replace(/_/g, ' ').replace(/\./g, ' - ').split(' ')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
+// Helper: Format time ago
+function formatTimeAgo(timestamp) {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diff = Math.floor((now - time) / 1000);
+
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)} minutes ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} hours ago`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)} days ago`;
+    return time.toLocaleDateString();
+}
+
+// Show error
+function showError(message) {
+    document.getElementById('activityTimeline').innerHTML = `
+        <div class="empty-state text-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+            <p>${message}</p>
+        </div>
+    `;
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', loadActivities);
+
+// Auto-refresh every 60 seconds
+setInterval(loadActivities, 60000);
+</script>
+{% endblock %}

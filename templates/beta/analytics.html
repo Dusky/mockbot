@@ -1,0 +1,665 @@
+{% extends "beta/base.html" %}
+
+{% block title %}Analytics - ANSV Bot{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/beta.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.analytics-container {
+    padding: 2rem;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+.analytics-header {
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.analytics-header h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 0;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+}
+
+.stat-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--bs-body-color);
+    line-height: 1;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-change {
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-top: 0.5rem;
+}
+
+.stat-change.positive {
+    color: #28a745;
+}
+
+.stat-change.negative {
+    color: #dc3545;
+}
+
+.chart-card {
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+}
+
+.chart-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.chart-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chart-container {
+    position: relative;
+    height: 350px;
+}
+
+.charts-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.insights-card {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.insight-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.insight-item:last-child {
+    margin-bottom: 0;
+}
+
+.insight-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--bs-primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.insight-content h4 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.insight-content p {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color);
+    margin: 0;
+}
+
+@media (max-width: 768px) {
+    .analytics-container {
+        padding: 1rem;
+    }
+
+    .analytics-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+
+    .charts-row {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-container {
+        height: 250px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="analytics-container">
+    <!-- Header -->
+    <div class="analytics-header">
+        <div>
+            <h1><i class="fas fa-chart-line me-2"></i>Analytics Dashboard</h1>
+            <p class="text-muted">Comprehensive insights into your bot performance</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-primary" onclick="exportAnalytics()">
+                <i class="fas fa-download me-2"></i>Export Data
+            </button>
+            <button class="btn btn-primary" onclick="refreshAnalytics()">
+                <i class="fas fa-sync-alt me-2"></i>Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon">
+                    <i class="fas fa-comments"></i>
+                </div>
+            </div>
+            <div class="stat-value" id="totalMessages">-</div>
+            <div class="stat-label">Total Messages</div>
+            <div class="stat-change" id="messagesChange">
+                <i class="fas fa-arrow-up"></i> Loading...
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);">
+                    <i class="fas fa-volume-up"></i>
+                </div>
+            </div>
+            <div class="stat-value" id="totalTTS">-</div>
+            <div class="stat-label">TTS Generated</div>
+            <div class="stat-change" id="ttsChange">
+                <i class="fas fa-arrow-up"></i> Loading...
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <i class="fas fa-brain"></i>
+                </div>
+            </div>
+            <div class="stat-value" id="totalModels">-</div>
+            <div class="stat-label">AI Models</div>
+            <div class="stat-change" id="modelsChange">
+                <i class="fas fa-arrow-up"></i> Loading...
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-header">
+                <div class="stat-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                    <i class="fas fa-hashtag"></i>
+                </div>
+            </div>
+            <div class="stat-value" id="totalChannels">-</div>
+            <div class="stat-label">Active Channels</div>
+            <div class="stat-change" id="channelsChange">
+                <i class="fas fa-check-circle"></i> Loading...
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Insights -->
+    <div class="insights-card">
+        <h3 class="mb-3"><i class="fas fa-lightbulb me-2"></i>Key Insights</h3>
+        <div id="insightsContainer">
+            <div class="text-center text-muted">
+                <i class="fas fa-spinner fa-spin me-2"></i>Analyzing data...
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="charts-row">
+        <!-- Message Frequency Chart -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title"><i class="fas fa-chart-area me-2"></i>Message Frequency</h3>
+                <div class="chart-controls">
+                    <select class="form-select form-select-sm" id="messageTimeRange" onchange="updateMessageChart()">
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d" selected>Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                    </select>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="messageChart"></canvas>
+            </div>
+        </div>
+
+        <!-- TTS Usage Chart -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title"><i class="fas fa-volume-up me-2"></i>TTS Usage</h3>
+                <div class="chart-controls">
+                    <select class="form-select form-select-sm" id="ttsTimeRange" onchange="updateTTSChart()">
+                        <option value="24h">Last 24 Hours</option>
+                        <option value="7d" selected>Last 7 Days</option>
+                        <option value="30d">Last 30 Days</option>
+                    </select>
+                </div>
+            </div>
+            <div class="chart-container">
+                <canvas id="ttsChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="charts-row">
+        <!-- Channel Activity Chart -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title"><i class="fas fa-hashtag me-2"></i>Channel Activity</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="channelChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Model Performance Chart -->
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3 class="chart-title"><i class="fas fa-brain me-2"></i>Model Performance</h3>
+            </div>
+            <div class="chart-container">
+                <canvas id="modelChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Peak Times Heatmap -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <h3 class="chart-title"><i class="fas fa-fire me-2"></i>Peak Activity Times</h3>
+        </div>
+        <div class="chart-container">
+            <canvas id="heatmapChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+let charts = {};
+let analyticsData = {};
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    loadAnalytics();
+});
+
+// Load analytics data
+async function loadAnalytics() {
+    try {
+        const response = await fetch('/api/analytics');
+        const data = await response.json();
+
+        if (data.success) {
+            analyticsData = data;
+            updateStats(data.stats);
+            generateInsights(data);
+            createCharts(data);
+        }
+    } catch (error) {
+        console.error('Error loading analytics:', error);
+    }
+}
+
+// Update stats cards
+function updateStats(stats) {
+    document.getElementById('totalMessages').textContent = stats.total_messages.toLocaleString();
+    document.getElementById('totalTTS').textContent = stats.total_tts.toLocaleString();
+    document.getElementById('totalModels').textContent = stats.total_models;
+    document.getElementById('totalChannels').textContent = stats.total_channels;
+
+    // Update changes
+    updateChange('messagesChange', stats.messages_change);
+    updateChange('ttsChange', stats.tts_change);
+    document.getElementById('modelsChange').innerHTML = `<i class="fas fa-database"></i> ${(stats.models_size / 1024).toFixed(2)} MB`;
+    document.getElementById('channelsChange').innerHTML = `<i class="fas fa-check-circle"></i> ${stats.active_channels} active`;
+}
+
+function updateChange(id, change) {
+    const el = document.getElementById(id);
+    if (change > 0) {
+        el.className = 'stat-change positive';
+        el.innerHTML = `<i class="fas fa-arrow-up"></i> +${change}% this week`;
+    } else if (change < 0) {
+        el.className = 'stat-change negative';
+        el.innerHTML = `<i class="fas fa-arrow-down"></i> ${change}% this week`;
+    } else {
+        el.className = 'stat-change';
+        el.innerHTML = `<i class="fas fa-minus"></i> No change`;
+    }
+}
+
+// Generate AI insights
+function generateInsights(data) {
+    const insights = [];
+
+    // Peak time insight
+    if (data.peak_hour) {
+        insights.push({
+            icon: 'fa-clock',
+            title: 'Peak Activity Time',
+            description: `Most messages occur around ${data.peak_hour}:00. Consider scheduling important announcements during this time.`
+        });
+    }
+
+    // TTS usage insight
+    if (data.stats.tts_change > 20) {
+        insights.push({
+            icon: 'fa-volume-up',
+            title: 'TTS Usage Increasing',
+            description: `TTS generation is up ${data.stats.tts_change}% this week. Your audience loves voice interactions!`
+        });
+    }
+
+    // Model performance insight
+    if (data.stats.total_models > 3) {
+        insights.push({
+            icon: 'fa-brain',
+            title: 'Rich Model Library',
+            description: `You have ${data.stats.total_models} trained models. Consider consolidating or updating older models.`
+        });
+    }
+
+    // Channel activity insight
+    if (data.most_active_channel) {
+        insights.push({
+            icon: 'fa-hashtag',
+            title: 'Most Active Channel',
+            description: `#${data.most_active_channel} generates the most engagement. Apply successful strategies to other channels.`
+        });
+    }
+
+    const container = document.getElementById('insightsContainer');
+    if (insights.length > 0) {
+        container.innerHTML = insights.map(insight => `
+            <div class="insight-item">
+                <div class="insight-icon">
+                    <i class="fas ${insight.icon}"></i>
+                </div>
+                <div class="insight-content">
+                    <h4>${insight.title}</h4>
+                    <p>${insight.description}</p>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        container.innerHTML = '<p class="text-muted text-center">No insights available yet. Keep using the bot to generate insights!</p>';
+    }
+}
+
+// Create all charts
+function createCharts(data) {
+    createMessageChart(data.message_frequency);
+    createTTSChart(data.tts_frequency);
+    createChannelChart(data.channel_activity);
+    createModelChart(data.model_performance);
+    createHeatmapChart(data.hourly_activity);
+}
+
+// Message Frequency Chart
+function createMessageChart(data) {
+    const ctx = document.getElementById('messageChart');
+    if (charts.messageChart) charts.messageChart.destroy();
+
+    charts.messageChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Messages',
+                data: data.values,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+// TTS Usage Chart
+function createTTSChart(data) {
+    const ctx = document.getElementById('ttsChart');
+    if (charts.ttsChart) charts.ttsChart.destroy();
+
+    charts.ttsChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'TTS Generated',
+                data: data.values,
+                backgroundColor: 'rgba(17, 153, 142, 0.8)',
+                borderColor: '#11998e',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+// Channel Activity Chart
+function createChannelChart(data) {
+    const ctx = document.getElementById('channelChart');
+    if (charts.channelChart) charts.channelChart.destroy();
+
+    charts.channelChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                data: data.values,
+                backgroundColor: [
+                    '#667eea', '#764ba2', '#11998e', '#38ef7d',
+                    '#f093fb', '#f5576c', '#fa709a', '#fee140'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right' }
+            }
+        }
+    });
+}
+
+// Model Performance Chart
+function createModelChart(data) {
+    const ctx = document.getElementById('modelChart');
+    if (charts.modelChart) charts.modelChart.destroy();
+
+    charts.modelChart = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Performance Score',
+                data: data.values,
+                backgroundColor: 'rgba(240, 147, 251, 0.2)',
+                borderColor: '#f093fb',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100
+                }
+            }
+        }
+    });
+}
+
+// Heatmap Chart
+function createHeatmapChart(data) {
+    const ctx = document.getElementById('heatmapChart');
+    if (charts.heatmapChart) charts.heatmapChart.destroy();
+
+    charts.heatmapChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: 'Messages per Hour',
+                data: data.values,
+                backgroundColor: data.values.map(v => {
+                    const intensity = v / Math.max(...data.values);
+                    return `rgba(102, 126, 234, ${intensity})`;
+                }),
+                borderColor: '#667eea',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+// Refresh analytics
+function refreshAnalytics() {
+    const btn = event.target.closest('button');
+    const icon = btn.querySelector('i');
+    icon.classList.add('fa-spin');
+
+    loadAnalytics().then(() => {
+        icon.classList.remove('fa-spin');
+    });
+}
+
+// Export analytics
+function exportAnalytics() {
+    // TODO: Implement export
+    alert('Export functionality coming soon!');
+}
+
+// Update individual charts based on time range
+function updateMessageChart() {
+    // TODO: Fetch data for selected time range
+}
+
+function updateTTSChart() {
+    // TODO: Fetch data for selected time range
+}
+</script>
+{% endblock %}

@@ -65,6 +65,7 @@ show_help() {
     echo "  deploy            Pull updates, migrate, restart"
     echo "  migrate           Run database migrations"
     echo "  setup             Initial installation (first time only)"
+    echo "  setup-tts         Install TTS dependencies (PyTorch, transformers)"
     echo ""
     echo -e "${CYAN}Maintenance:${NC}"
     echo "  backup            Backup databases and config"
@@ -403,6 +404,141 @@ cmd_setup() {
     echo -e "See ${BLUE}SETUP.md${NC} for detailed instructions"
 }
 
+# Setup TTS dependencies
+cmd_setup_tts() {
+    print_banner
+    echo -e "${CYAN}=== TTS Dependencies Setup ===${NC}\n"
+
+    if [[ ! -d "$VENV_DIR" ]]; then
+        echo -e "${RED}Virtual environment not found${NC}"
+        echo -e "${YELLOW}Run: ./launch.sh setup${NC}"
+        exit 1
+    fi
+
+    source "$VENV_DIR/bin/activate"
+
+    # Check if dependencies are already installed
+    echo -e "${CYAN}Checking current TTS dependencies...${NC}"
+    local has_torch=false
+    local has_transformers=false
+    local has_scipy=false
+
+    if python -c "import torch" 2>/dev/null; then
+        local torch_version=$(python -c "import torch; print(torch.__version__)" 2>/dev/null)
+        echo -e "${GREEN}✓ PyTorch ${torch_version} already installed${NC}"
+        has_torch=true
+    else
+        echo -e "${YELLOW}✗ PyTorch not installed${NC}"
+    fi
+
+    if python -c "import transformers" 2>/dev/null; then
+        local transformers_version=$(python -c "import transformers; print(transformers.__version__)" 2>/dev/null)
+        echo -e "${GREEN}✓ Transformers ${transformers_version} already installed${NC}"
+        has_transformers=true
+    else
+        echo -e "${YELLOW}✗ Transformers not installed${NC}"
+    fi
+
+    if python -c "import scipy" 2>/dev/null; then
+        local scipy_version=$(python -c "import scipy; print(scipy.__version__)" 2>/dev/null)
+        echo -e "${GREEN}✓ SciPy ${scipy_version} already installed${NC}"
+        has_scipy=true
+    else
+        echo -e "${YELLOW}✗ SciPy not installed${NC}"
+    fi
+
+    # If all dependencies exist, ask if user wants to reinstall
+    if $has_torch && $has_transformers && $has_scipy; then
+        echo -e "\n${GREEN}All TTS dependencies are already installed!${NC}"
+        read -p "Reinstall/upgrade anyway? (y/N): " confirm
+        if [[ "$confirm" != "y" ]] && [[ "$confirm" != "Y" ]]; then
+            echo -e "${BLUE}TTS dependencies are ready to use${NC}"
+            exit 0
+        fi
+    fi
+
+    # Warn about download size
+    echo -e "\n${YELLOW}⚠️  WARNING: Large Download Ahead!${NC}"
+    echo -e "TTS dependencies will download approximately:"
+    echo -e "  - PyTorch: ~2GB"
+    echo -e "  - Transformers + models: ~500MB"
+    echo -e "  - Other dependencies: ~200MB"
+    echo -e "${YELLOW}Total: ~2.7GB download + ~8GB disk space required${NC}"
+    echo -e ""
+    read -p "Continue with installation? (yes/no): " confirm
+
+    if [[ "$confirm" != "yes" ]]; then
+        echo "Installation cancelled"
+        exit 0
+    fi
+
+    # Install dependencies
+    echo -e "\n${CYAN}Installing TTS dependencies...${NC}"
+    echo -e "${BLUE}This may take 10-30 minutes depending on your internet speed${NC}\n"
+
+    # Install PyTorch (CPU version for compatibility)
+    if ! $has_torch; then
+        echo -e "${CYAN}[1/4] Installing PyTorch (CPU)...${NC}"
+        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu || {
+            echo -e "${RED}Failed to install PyTorch${NC}"
+            exit 1
+        }
+        echo -e "${GREEN}✓ PyTorch installed${NC}\n"
+    fi
+
+    # Install transformers
+    if ! $has_transformers; then
+        echo -e "${CYAN}[2/4] Installing Transformers...${NC}"
+        pip install transformers accelerate || {
+            echo -e "${RED}Failed to install Transformers${NC}"
+            exit 1
+        }
+        echo -e "${GREEN}✓ Transformers installed${NC}\n"
+    fi
+
+    # Install scipy and other scientific libs
+    if ! $has_scipy; then
+        echo -e "${CYAN}[3/4] Installing SciPy...${NC}"
+        pip install scipy || {
+            echo -e "${RED}Failed to install SciPy${NC}"
+            exit 1
+        }
+        echo -e "${GREEN}✓ SciPy installed${NC}\n"
+    fi
+
+    # Install additional TTS dependencies
+    echo -e "${CYAN}[4/4] Installing additional TTS dependencies...${NC}"
+    pip install nltk numpy || {
+        echo -e "${YELLOW}Warning: Some additional dependencies failed${NC}"
+    }
+    echo -e "${GREEN}✓ Additional dependencies installed${NC}\n"
+
+    # Download NLTK data
+    echo -e "${CYAN}Downloading NLTK data...${NC}"
+    python -c "import nltk; nltk.download('punkt', quiet=True); nltk.download('averaged_perceptron_tagger', quiet=True)" || {
+        echo -e "${YELLOW}Warning: NLTK data download had issues${NC}"
+    }
+    echo -e "${GREEN}✓ NLTK data downloaded${NC}\n"
+
+    # Verify installation
+    echo -e "${CYAN}Verifying TTS installation...${NC}"
+    if python -c "import torch; import transformers; import scipy; import nltk; print('TTS dependencies OK')" 2>/dev/null; then
+        echo -e "${GREEN}✓ All TTS dependencies verified successfully!${NC}\n"
+
+        echo -e "${GREEN}TTS Setup Complete!${NC}"
+        echo -e "${BLUE}You can now use Text-to-Speech features in the web interface${NC}"
+        echo -e ""
+        echo -e "${YELLOW}Next steps:${NC}"
+        echo -e "1. Restart the service: ${CYAN}./launch.sh restart${NC}"
+        echo -e "2. Enable TTS for your channel in the dashboard"
+        echo -e "3. Try generating TTS from the web interface"
+    else
+        echo -e "${RED}✗ Verification failed${NC}"
+        echo -e "${YELLOW}Some dependencies may not have installed correctly${NC}"
+        exit 1
+    fi
+}
+
 # Backup
 cmd_backup() {
     echo -e "${CYAN}Creating backup...${NC}"
@@ -633,6 +769,7 @@ main() {
         deploy) cmd_deploy ;;
         migrate) cmd_migrate ;;
         setup) cmd_setup ;;
+        setup-tts) cmd_setup_tts ;;
         backup) cmd_backup ;;
         restore) cmd_restore "$2" ;;
         clean) cmd_clean ;;

@@ -2352,3 +2352,200 @@ body {
 .model-warning i {
   color: var(--beta-warning);
 }
+
+/* ====================================================================
+   Additional Mobile Improvements
+   ================================================================== */
+
+/* Touch-friendly buttons and interactive elements */
+@media (max-width: 768px) {
+  /* Minimum touch target size (44px x 44px per Apple/Google guidelines) */
+  .btn,
+  .nav-link,
+  .dropdown-toggle,
+  button,
+  a.btn {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0.625rem 1rem;
+  }
+
+  /* Smaller buttons get proper touch targets */
+  .btn-sm {
+    min-height: 40px;
+    min-width: 40px;
+    padding: 0.5rem 0.875rem;
+  }
+
+  /* Make navbar more compact on mobile */
+  .beta-navbar {
+    padding: 0.5rem 1rem;
+  }
+
+  .navbar-brand {
+    font-size: 1rem;
+  }
+
+  /* Improve card spacing on mobile */
+  .card {
+    margin-bottom: 1rem;
+  }
+
+  .card-body {
+    padding: 1rem;
+  }
+
+  /* Stack button groups vertically on mobile */
+  .btn-group {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .btn-group .btn {
+    border-radius: var(--beta-border-radius-sm) !important;
+    margin-bottom: 0.5rem;
+  }
+
+  .btn-group .btn:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Improve form spacing */
+  .form-group,
+  .mb-3 {
+    margin-bottom: 1rem;
+  }
+
+  .form-control {
+    font-size: 1rem; /* Prevents zoom on iOS */
+    min-height: 44px;
+  }
+
+  /* Make modals full-screen on mobile */
+  .modal-dialog {
+    margin: 0;
+    max-width: 100%;
+    height: 100vh;
+  }
+
+  .modal-content {
+    height: 100%;
+    border-radius: 0;
+  }
+
+  /* Improve dropdown menus */
+  .dropdown-menu {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  /* Make notification dropdown full-width on mobile */
+  .notification-dropdown {
+    width: 100vw;
+    max-width: 100vw;
+    left: 0 !important;
+    right: 0 !important;
+    transform: none !important;
+  }
+
+  /* Better table handling */
+  .table-responsive {
+    border-radius: var(--beta-border-radius-sm);
+    margin-bottom: 1rem;
+  }
+
+  .table {
+    font-size: 0.875rem;
+  }
+
+  .table td,
+  .table th {
+    padding: 0.5rem;
+  }
+
+  /* Stack stats cards on mobile */
+  .stats-grid,
+  .channels-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Improve hero sections */
+  .hero-section {
+    padding: 1.5rem 0;
+  }
+
+  .hero-title {
+    font-size: 1.75rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+  }
+
+  /* Better spacing for action buttons */
+  .hero-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .hero-actions .btn {
+    width: 100%;
+  }
+}
+
+/* Very small screens (phones in portrait) */
+@media (max-width: 480px) {
+  /* Further reduce font sizes */
+  body {
+    font-size: 0.9375rem;
+  }
+
+  h1, .h1 {
+    font-size: 1.5rem;
+  }
+
+  h2, .h2 {
+    font-size: 1.25rem;
+  }
+
+  h3, .h3 {
+    font-size: 1.125rem;
+  }
+
+  /* Make cards more compact */
+  .card-body {
+    padding: 0.75rem;
+  }
+
+  /* Reduce padding throughout */
+  .main-content,
+  .container,
+  .container-fluid {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  /* Stack all grids to single column */
+  .row > [class*="col-"] {
+    margin-bottom: 1rem;
+  }
+
+  /* Make badges smaller */
+  .badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  /* Improve status cards */
+  .status-card {
+    padding: 0.75rem;
+  }
+
+  .status-card-icon {
+    font-size: 1.5rem;
+  }
+
+  .status-card-value {
+    font-size: 1.25rem;
+  }
+}

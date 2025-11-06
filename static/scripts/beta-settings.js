@@ -922,19 +922,255 @@ async function addNewChannel() {
 // Helper function to format uptime
 function formatUptime(seconds) {
     if (!seconds || seconds < 0) return 'Unknown';
-    
+
     const days = Math.floor(seconds / (24 * 3600));
     const hours = Math.floor((seconds % (24 * 3600)) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
-    
+
     let result = '';
     if (days > 0) result += `${days}d `;
     if (hours > 0 || days > 0) result += `${hours}h `;
     if (minutes > 0 || hours > 0 || days > 0) result += `${minutes}m `;
     result += `${secs}s`;
-    
+
     return result.trim();
+}
+
+// ========================================
+// Export Functionality
+// ========================================
+
+async function exportData(type) {
+    try {
+        const response = await fetch(`/api/export/${type}`);
+
+        if (!response.ok) throw new Error('Export failed');
+
+        const blob = await response.blob();
+        const contentDisposition = response.headers.get('Content-Disposition');
+        let filename = `ansv-bot-${type}-${new Date().toISOString().split('T')[0]}`;
+
+        if (contentDisposition) {
+            const matches = /filename="?([^"]+)"?/.exec(contentDisposition);
+            if (matches) filename = matches[1];
+        } else {
+            filename += type === 'settings' ? '.json' : '.csv';
+        }
+
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        showToast(`Exported ${type} successfully`, 'success');
+    } catch (error) {
+        console.error('Error exporting data:', error);
+        showToast(`Failed to export ${type}`, 'error');
+    }
+}
+
+// ========================================
+// Bulk Operations
+// ========================================
+
+// Toggle select all channels
+function toggleAllChannels() {
+    const selectAll = document.getElementById('selectAllChannels');
+    const checkboxes = document.querySelectorAll('.channel-select');
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAll.checked;
+    });
+
+    updateBulkActionsBar();
+}
+
+// Update bulk actions bar visibility
+function updateBulkActionsBar() {
+    const checkboxes = document.querySelectorAll('.channel-select:checked');
+    const bulkBar = document.getElementById('bulkActionsBar');
+    const selectedCount = document.getElementById('selectedCount');
+
+    if (checkboxes.length > 0) {
+        bulkBar.style.display = 'block';
+        selectedCount.textContent = `${checkboxes.length} channel${checkboxes.length > 1 ? 's' : ''} selected`;
+    } else {
+        bulkBar.style.display = 'none';
+    }
+}
+
+// Add event listeners to channel checkboxes
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = document.querySelectorAll('.channel-select');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateBulkActionsBar);
+    });
+});
+
+// Get selected channel names
+function getSelectedChannels() {
+    const checkboxes = document.querySelectorAll('.channel-select:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+// Bulk enable TTS
+async function bulkEnableTTS() {
+    const channels = getSelectedChannels();
+    if (channels.length === 0) {
+        showToast('No channels selected', 'warning');
+        return;
+    }
+
+    if (!confirm(`Enable TTS for ${channels.length} channel(s)?`)) return;
+
+    try {
+        const response = await fetch('/api/bulk/tts/enable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channels })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showToast(`TTS enabled for ${channels.length} channel(s)`, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Failed to enable TTS', 'error');
+        }
+    } catch (error) {
+        console.error('Error enabling TTS:', error);
+        showToast('Error enabling TTS', 'error');
+    }
+}
+
+// Bulk disable TTS
+async function bulkDisableTTS() {
+    const channels = getSelectedChannels();
+    if (channels.length === 0) {
+        showToast('No channels selected', 'warning');
+        return;
+    }
+
+    if (!confirm(`Disable TTS for ${channels.length} channel(s)?`)) return;
+
+    try {
+        const response = await fetch('/api/bulk/tts/disable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channels })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showToast(`TTS disabled for ${channels.length} channel(s)`, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Failed to disable TTS', 'error');
+        }
+    } catch (error) {
+        console.error('Error disabling TTS:', error);
+        showToast('Error disabling TTS', 'error');
+    }
+}
+
+// Bulk enable auto-join
+async function bulkEnableAutoJoin() {
+    const channels = getSelectedChannels();
+    if (channels.length === 0) {
+        showToast('No channels selected', 'warning');
+        return;
+    }
+
+    if (!confirm(`Enable auto-join for ${channels.length} channel(s)?`)) return;
+
+    try {
+        const response = await fetch('/api/bulk/autojoin/enable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channels })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showToast(`Auto-join enabled for ${channels.length} channel(s)`, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Failed to enable auto-join', 'error');
+        }
+    } catch (error) {
+        console.error('Error enabling auto-join:', error);
+        showToast('Error enabling auto-join', 'error');
+    }
+}
+
+// Bulk disable auto-join
+async function bulkDisableAutoJoin() {
+    const channels = getSelectedChannels();
+    if (channels.length === 0) {
+        showToast('No channels selected', 'warning');
+        return;
+    }
+
+    if (!confirm(`Disable auto-join for ${channels.length} channel(s)?`)) return;
+
+    try {
+        const response = await fetch('/api/bulk/autojoin/disable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channels })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showToast(`Auto-join disabled for ${channels.length} channel(s)`, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Failed to disable auto-join', 'error');
+        }
+    } catch (error) {
+        console.error('Error disabling auto-join:', error);
+        showToast('Error disabling auto-join', 'error');
+    }
+}
+
+// Bulk delete channels
+async function bulkDeleteChannels() {
+    const channels = getSelectedChannels();
+    if (channels.length === 0) {
+        showToast('No channels selected', 'warning');
+        return;
+    }
+
+    const confirmation = prompt(`Type DELETE to confirm deletion of ${channels.length} channel(s):`);
+    if (confirmation !== 'DELETE') {
+        showToast('Deletion cancelled', 'info');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/bulk/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channels })
+        });
+
+        const data = await response.json();
+        if (data.success) {
+            showToast(`Deleted ${channels.length} channel(s)`, 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Failed to delete channels', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting channels:', error);
+        showToast('Error deleting channels', 'error');
+    }
 }
 
 // Set up periodic status updates (every 30 seconds)

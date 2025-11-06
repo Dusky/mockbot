@@ -24,6 +24,27 @@
             <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addChannelModal">
                 <i class="fas fa-plus me-2"></i>Add Channel
             </button>
+            <!-- Export Dropdown -->
+            <div class="btn-group">
+                <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                    <i class="fas fa-download me-2"></i>Export
+                </button>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="#" onclick="exportData('settings')">
+                        <i class="fas fa-cog me-2"></i>Channel Settings (JSON)
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="exportData('tts')">
+                        <i class="fas fa-volume-up me-2"></i>TTS History (CSV)
+                    </a></li>
+                    <li><a class="dropdown-item" href="#" onclick="exportData('messages')">
+                        <i class="fas fa-comments me-2"></i>Bot Messages (CSV)
+                    </a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" onclick="exportData('all')">
+                        <i class="fas fa-file-archive me-2"></i>Export Everything
+                    </a></li>
+                </ul>
+            </div>
             {% endif %}
             <button class="btn btn-outline-primary" id="saveAllBtn">
                 <i class="fas fa-save me-2"></i>Save All Changes
@@ -88,6 +109,30 @@
                                                 <i class="fas fa-toggle-off me-1"></i>Disable All
                                             </button>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bulk Actions -->
+                            <div class="bulk-actions-bar" id="bulkActionsBar" style="display: none; margin-bottom: 1rem; padding: 1rem; background: rgba(var(--bs-primary-rgb), 0.1); border-radius: 8px;">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <span id="selectedCount">0 channels selected</span>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-success" onclick="bulkEnableTTS()">
+                                            <i class="fas fa-volume-up me-1"></i>Enable TTS
+                                        </button>
+                                        <button class="btn btn-sm btn-secondary" onclick="bulkDisableTTS()">
+                                            <i class="fas fa-volume-mute me-1"></i>Disable TTS
+                                        </button>
+                                        <button class="btn btn-sm btn-primary" onclick="bulkEnableAutoJoin()">
+                                            <i class="fas fa-sign-in-alt me-1"></i>Enable Auto-Join
+                                        </button>
+                                        <button class="btn btn-sm btn-secondary" onclick="bulkDisableAutoJoin()">
+                                            <i class="fas fa-sign-out-alt me-1"></i>Disable Auto-Join
+                                        </button>
+                                        <button class="btn btn-sm btn-danger" onclick="bulkDeleteChannels()">
+                                            <i class="fas fa-trash me-1"></i>Delete Selected
+                                        </button>
                                     </div>
                                 </div>
                             </div>

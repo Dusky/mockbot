@@ -3101,6 +3101,480 @@ def api_get_analytics():
         app.logger.error(f"Error getting analytics: {e}")
         return jsonify({'success': False, 'error': 'Error getting analytics'}), 500
 
+# ============================================================================
+# Export API Routes
+# ============================================================================
+
+@app.route('/api/export/<export_type>')
+@require_auth
+def api_export_data(export_type):
+    """Export data in various formats (CSV/JSON)."""
+    try:
+        user = get_current_user()
+        username = user.get('username', 'unknown')
+
+        if export_type == 'settings':
+            # Export channel settings as JSON
+            channels = get_all_channel_configs()
+
+            # Filter by role
+            if user.get('role_name') == 'streamer' and user.get('managed_channel'):
+                channels = [ch for ch in channels if ch['channel_name'] == user['managed_channel']]
+
+            output = json.dumps(channels, indent=2)
+            filename = f'ansv-bot-settings-{datetime.now().strftime("%Y%m%d-%H%M%S")}.json'
+
+            response = app.response_class(
+                response=output,
+                status=200,
+                mimetype='application/json'
+            )
+            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            # Log export
+            user_db.log_audit_action(
+                username=username,
+                action='export_settings',
+                resource_type='settings',
+                details=f'Exported {len(channels)} channel settings',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            )
+
+            return response
+
+        elif export_type == 'tts':
+            # Export TTS history as CSV
+            conn = sqlite3.connect(db_file)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            query = "SELECT * FROM tts_files ORDER BY timestamp DESC LIMIT 10000"
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            conn.close()
+
+            # Create CSV
+            from io import StringIO
+            import csv
+
+            output = StringIO()
+            writer = csv.writer(output)
+
+            # Write header
+            writer.writerow(['ID', 'Username', 'Message', 'Model', 'Timestamp', 'File Path'])
+
+            # Write rows
+            for row in rows:
+                writer.writerow([
+                    row['id'],
+                    row['username'],
+                    row['message_text'],
+                    row['model'],
+                    row['timestamp'],
+                    row['file_path']
+                ])
+
+            csv_data = output.getvalue()
+            filename = f'ansv-bot-tts-{datetime.now().strftime("%Y%m%d-%H%M%S")}.csv'
+
+            response = app.response_class(
+                response=csv_data,
+                status=200,
+                mimetype='text/csv'
+            )
+            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            # Log export
+            user_db.log_audit_action(
+                username=username,
+                action='export_tts',
+                resource_type='tts',
+                details=f'Exported {len(rows)} TTS records',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            )
+
+            return response
+
+        elif export_type == 'messages':
+            # Export bot messages as CSV
+            conn = sqlite3.connect(db_file)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            query = "SELECT * FROM messages ORDER BY timestamp DESC LIMIT 10000"
+            cursor.execute(query)
+            rows = cursor.fetchall()
+            conn.close()
+
+            # Create CSV
+            from io import StringIO
+            import csv
+
+            output = StringIO()
+            writer = csv.writer(output)
+
+            # Write header
+            writer.writerow(['ID', 'Username', 'Message', 'Channel', 'Timestamp'])
+
+            # Write rows
+            for row in rows:
+                writer.writerow([
+                    row['id'],
+                    row['username'],
+                    row['message'],
+                    row.get('channel', 'N/A'),
+                    row['timestamp']
+                ])
+
+            csv_data = output.getvalue()
+            filename = f'ansv-bot-messages-{datetime.now().strftime("%Y%m%d-%H%M%S")}.csv'
+
+            response = app.response_class(
+                response=csv_data,
+                status=200,
+                mimetype='text/csv'
+            )
+            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            # Log export
+            user_db.log_audit_action(
+                username=username,
+                action='export_messages',
+                resource_type='messages',
+                details=f'Exported {len(rows)} message records',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            )
+
+            return response
+
+        elif export_type == 'all':
+            # Export everything as a ZIP file
+            from io import BytesIO
+            import zipfile
+
+            # Create in-memory ZIP
+            zip_buffer = BytesIO()
+
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                # Add settings JSON
+                channels = get_all_channel_configs()
+                if user.get('role_name') == 'streamer' and user.get('managed_channel'):
+                    channels = [ch for ch in channels if ch['channel_name'] == user['managed_channel']]
+
+                settings_json = json.dumps(channels, indent=2)
+                zip_file.writestr('settings.json', settings_json)
+
+                # Add TTS CSV
+                conn = sqlite3.connect(db_file)
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
+
+                cursor.execute("SELECT * FROM tts_files ORDER BY timestamp DESC LIMIT 10000")
+                tts_rows = cursor.fetchall()
+
+                from io import StringIO
+                import csv
+
+                tts_output = StringIO()
+                tts_writer = csv.writer(tts_output)
+                tts_writer.writerow(['ID', 'Username', 'Message', 'Model', 'Timestamp', 'File Path'])
+                for row in tts_rows:
+                    tts_writer.writerow([row['id'], row['username'], row['message_text'], row['model'], row['timestamp'], row['file_path']])
+
+                zip_file.writestr('tts_history.csv', tts_output.getvalue())
+
+                # Add messages CSV
+                cursor.execute("SELECT * FROM messages ORDER BY timestamp DESC LIMIT 10000")
+                msg_rows = cursor.fetchall()
+
+                msg_output = StringIO()
+                msg_writer = csv.writer(msg_output)
+                msg_writer.writerow(['ID', 'Username', 'Message', 'Channel', 'Timestamp'])
+                for row in msg_rows:
+                    msg_writer.writerow([row['id'], row['username'], row['message'], row.get('channel', 'N/A'), row['timestamp']])
+
+                zip_file.writestr('messages.csv', msg_output.getvalue())
+                conn.close()
+
+            zip_buffer.seek(0)
+            filename = f'ansv-bot-export-{datetime.now().strftime("%Y%m%d-%H%M%S")}.zip'
+
+            response = app.response_class(
+                response=zip_buffer.getvalue(),
+                status=200,
+                mimetype='application/zip'
+            )
+            response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+            # Log export
+            user_db.log_audit_action(
+                username=username,
+                action='export_all',
+                resource_type='export',
+                details='Exported all data (settings, TTS, messages)',
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
+            )
+
+            return response
+
+        else:
+            return jsonify({'success': False, 'error': 'Invalid export type'}), 400
+
+    except Exception as e:
+        app.logger.error(f"Error exporting data: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ============================================================================
+# Bulk Operations API Routes
+# ============================================================================
+
+@app.route('/api/bulk/tts/enable', methods=['POST'])
+@require_auth
+def api_bulk_enable_tts():
+    """Bulk enable TTS for multiple channels."""
+    try:
+        user = get_current_user()
+        username = user.get('username', 'unknown')
+
+        # Only admins can bulk update
+        if user.get('role_name') not in ['admin', 'super_admin']:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
+        data = request.get_json()
+        channels = data.get('channels', [])
+
+        if not channels:
+            return jsonify({'success': False, 'error': 'No channels provided'}), 400
+
+        # Update each channel
+        success_count = 0
+        failed_channels = []
+
+        for channel in channels:
+            try:
+                update_channel_config(channel, {'tts_enabled': True})
+                success_count += 1
+            except Exception as e:
+                app.logger.error(f"Failed to enable TTS for {channel}: {e}")
+                failed_channels.append(channel)
+
+        # Log bulk action
+        user_db.log_audit_action(
+            username=username,
+            action='bulk_enable_tts',
+            resource_type='channel',
+            details=f'Enabled TTS for {success_count}/{len(channels)} channels',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+
+        return jsonify({
+            'success': True,
+            'updated': success_count,
+            'failed': len(failed_channels),
+            'failed_channels': failed_channels
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error in bulk enable TTS: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/bulk/tts/disable', methods=['POST'])
+@require_auth
+def api_bulk_disable_tts():
+    """Bulk disable TTS for multiple channels."""
+    try:
+        user = get_current_user()
+        username = user.get('username', 'unknown')
+
+        if user.get('role_name') not in ['admin', 'super_admin']:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
+        data = request.get_json()
+        channels = data.get('channels', [])
+
+        if not channels:
+            return jsonify({'success': False, 'error': 'No channels provided'}), 400
+
+        success_count = 0
+        failed_channels = []
+
+        for channel in channels:
+            try:
+                update_channel_config(channel, {'tts_enabled': False})
+                success_count += 1
+            except Exception as e:
+                app.logger.error(f"Failed to disable TTS for {channel}: {e}")
+                failed_channels.append(channel)
+
+        user_db.log_audit_action(
+            username=username,
+            action='bulk_disable_tts',
+            resource_type='channel',
+            details=f'Disabled TTS for {success_count}/{len(channels)} channels',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+
+        return jsonify({
+            'success': True,
+            'updated': success_count,
+            'failed': len(failed_channels),
+            'failed_channels': failed_channels
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error in bulk disable TTS: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/bulk/autojoin/enable', methods=['POST'])
+@require_auth
+def api_bulk_enable_autojoin():
+    """Bulk enable auto-join for multiple channels."""
+    try:
+        user = get_current_user()
+        username = user.get('username', 'unknown')
+
+        if user.get('role_name') not in ['admin', 'super_admin']:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
+        data = request.get_json()
+        channels = data.get('channels', [])
+
+        if not channels:
+            return jsonify({'success': False, 'error': 'No channels provided'}), 400
+
+        success_count = 0
+        failed_channels = []
+
+        for channel in channels:
+            try:
+                update_channel_config(channel, {'auto_join': True})
+                success_count += 1
+            except Exception as e:
+                app.logger.error(f"Failed to enable auto-join for {channel}: {e}")
+                failed_channels.append(channel)
+
+        user_db.log_audit_action(
+            username=username,
+            action='bulk_enable_autojoin',
+            resource_type='channel',
+            details=f'Enabled auto-join for {success_count}/{len(channels)} channels',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+
+        return jsonify({
+            'success': True,
+            'updated': success_count,
+            'failed': len(failed_channels),
+            'failed_channels': failed_channels
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error in bulk enable auto-join: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/bulk/autojoin/disable', methods=['POST'])
+@require_auth
+def api_bulk_disable_autojoin():
+    """Bulk disable auto-join for multiple channels."""
+    try:
+        user = get_current_user()
+        username = user.get('username', 'unknown')
+
+        if user.get('role_name') not in ['admin', 'super_admin']:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
+        data = request.get_json()
+        channels = data.get('channels', [])
+
+        if not channels:
+            return jsonify({'success': False, 'error': 'No channels provided'}), 400
+
+        success_count = 0
+        failed_channels = []
+
+        for channel in channels:
+            try:
+                update_channel_config(channel, {'auto_join': False})
+                success_count += 1
+            except Exception as e:
+                app.logger.error(f"Failed to disable auto-join for {channel}: {e}")
+                failed_channels.append(channel)
+
+        user_db.log_audit_action(
+            username=username,
+            action='bulk_disable_autojoin',
+            resource_type='channel',
+            details=f'Disabled auto-join for {success_count}/{len(channels)} channels',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+
+        return jsonify({
+            'success': True,
+            'updated': success_count,
+            'failed': len(failed_channels),
+            'failed_channels': failed_channels
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error in bulk disable auto-join: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/bulk/delete', methods=['POST'])
+@require_auth
+def api_bulk_delete_channels():
+    """Bulk delete multiple channels."""
+    try:
+        user = get_current_user()
+        username = user.get('username', 'unknown')
+
+        if user.get('role_name') not in ['admin', 'super_admin']:
+            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
+        data = request.get_json()
+        channels = data.get('channels', [])
+
+        if not channels:
+            return jsonify({'success': False, 'error': 'No channels provided'}), 400
+
+        success_count = 0
+        failed_channels = []
+
+        for channel in channels:
+            try:
+                delete_channel_config(channel)
+                success_count += 1
+            except Exception as e:
+                app.logger.error(f"Failed to delete {channel}: {e}")
+                failed_channels.append(channel)
+
+        user_db.log_audit_action(
+            username=username,
+            action='bulk_delete_channels',
+            resource_type='channel',
+            details=f'Deleted {success_count}/{len(channels)} channels',
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+
+        return jsonify({
+            'success': True,
+            'deleted': success_count,
+            'failed': len(failed_channels),
+            'failed_channels': failed_channels
+        })
+
+    except Exception as e:
+        app.logger.error(f"Error in bulk delete: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/')
 def index():
     """Landing page for public visitors, redirect to dashboard for authenticated users."""

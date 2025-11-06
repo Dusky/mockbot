@@ -350,14 +350,88 @@
             color: var(--bs-secondary-color);
         }
 
+        /* Mobile Menu Button */
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--bs-body-color);
+            cursor: pointer;
+            padding: 0.5rem;
+            margin-right: 0.5rem;
+        }
+
+        .mobile-menu-btn:hover {
+            color: var(--bs-primary);
+        }
+
+        /* Overlay for mobile sidebar */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .sidebar-overlay.show {
+            opacity: 1;
+        }
+
+        /* Responsive Tables */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: var(--bs-border-color);
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: var(--bs-secondary-color);
+            border-radius: 4px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: var(--bs-secondary);
+        }
+
+        /* Touch-friendly buttons */
+        .btn, .nav-link, .sidebar-toggle {
+            min-height: 44px;
+            min-width: 44px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
+            .mobile-menu-btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
             .admin-sidebar {
                 transform: translateX(-100%);
             }
 
             .admin-sidebar.show {
                 transform: translateX(0);
+                box-shadow: 4px 0 15px rgba(0, 0, 0, 0.5);
             }
 
             .admin-content {
@@ -368,8 +442,83 @@
                 padding: 0 1rem;
             }
 
+            .topbar-left h1 {
+                font-size: 1.25rem;
+            }
+
             .admin-container {
                 padding: 1rem;
+            }
+
+            .quick-actions {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            /* Make user menu more compact on mobile */
+            .user-menu {
+                padding: 0.25rem 0.5rem;
+                gap: 0.5rem;
+            }
+
+            .user-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 0.875rem;
+            }
+
+            /* Hide non-essential elements on mobile */
+            .bot-status-indicator span {
+                display: none;
+            }
+
+            .bot-status-indicator {
+                padding: 0.5rem;
+            }
+
+            /* Responsive font sizes */
+            body {
+                font-size: 0.9375rem;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+
+            h2 {
+                font-size: 1.25rem;
+            }
+
+            h3 {
+                font-size: 1.125rem;
+            }
+
+            /* Ensure tables are scrollable */
+            table {
+                min-width: 700px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+
+            .topbar-left h1 {
+                font-size: 1.1rem;
+            }
+
+            .admin-container {
+                padding: 0.75rem;
+            }
+
+            /* Stack form elements on very small screens */
+            .form-row {
+                flex-direction: column;
+            }
+
+            /* Reduce spacing on small screens */
+            .card {
+                margin-bottom: 0.75rem;
             }
         }
 
@@ -474,11 +623,17 @@
         </nav>
     </aside>
 
+    <!-- Sidebar Overlay (Mobile) -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
     <!-- Main Content -->
     <div class="admin-content">
         <!-- Top Bar -->
         <div class="admin-topbar">
             <div class="topbar-left">
+                <button class="mobile-menu-btn" id="mobileMenuBtn">
+                    <i class="fas fa-bars"></i>
+                </button>
                 <h1>{% block page_title %}Admin Dashboard{% endblock %}</h1>
             </div>
             <div class="topbar-right">
@@ -521,17 +676,47 @@
     <script src="{{ url_for('static', filename='scripts/notification.js') }}"></script>
 
     <script>
-        // Sidebar toggle
-        document.getElementById('sidebarToggle').addEventListener('click', function() {
-            document.getElementById('adminSidebar').classList.toggle('collapsed');
+        const sidebar = document.getElementById('adminSidebar');
+        const sidebarOverlay = document.getElementById('sidebarOverlay');
+        const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+
+        // Function to toggle mobile sidebar
+        function toggleMobileSidebar() {
+            sidebar.classList.toggle('show');
+            if (sidebar.classList.contains('show')) {
+                sidebarOverlay.style.display = 'block';
+                setTimeout(() => sidebarOverlay.classList.add('show'), 10);
+            } else {
+                sidebarOverlay.classList.remove('show');
+                setTimeout(() => sidebarOverlay.style.display = 'none', 300);
+            }
+        }
+
+        // Desktop sidebar toggle (collapse/expand)
+        sidebarToggle.addEventListener('click', function() {
+            if (window.innerWidth > 768) {
+                sidebar.classList.toggle('collapsed');
+            } else {
+                toggleMobileSidebar();
+            }
         });
 
-        // Mobile sidebar toggle
-        if (window.innerWidth <= 768) {
-            document.getElementById('sidebarToggle').addEventListener('click', function() {
-                document.getElementById('adminSidebar').classList.toggle('show');
+        // Mobile menu button
+        mobileMenuBtn.addEventListener('click', toggleMobileSidebar);
+
+        // Close sidebar when clicking overlay
+        sidebarOverlay.addEventListener('click', toggleMobileSidebar);
+
+        // Close mobile sidebar when clicking a link
+        const sidebarLinks = sidebar.querySelectorAll('.nav-link');
+        sidebarLinks.forEach(link => {
+            link.addEventListener('click', function() {
+                if (window.innerWidth <= 768 && sidebar.classList.contains('show')) {
+                    toggleMobileSidebar();
+                }
             });
-        }
+        });
 
         // Bot status checker
         async function checkBotStatus() {

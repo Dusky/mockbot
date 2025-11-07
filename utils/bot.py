@@ -1263,17 +1263,12 @@ class Bot(commands.Bot):
         # Calculate the elapsed time since the last message in the current channel.
         elapsed_time = time.time() - self.channel_last_message_time.get(channel_name, 0)
 
-        # Don't auto-respond if this message was a command
-        # Commands start with ! and should not trigger auto-responses
-        is_command = message.content.strip().startswith('!')
-
         # Determine if a message should be sent based on the lines_between and time_between settings.
         should_send_message = False
-        if not is_command:  # Only auto-respond if this wasn't a command
-            if lines_between > 0 and self.channel_chat_line_count[channel_name] >= lines_between:
-                should_send_message = True
-            elif time_between > 0 and elapsed_time >= time_between * 60:
-                should_send_message = True
+        if lines_between > 0 and self.channel_chat_line_count[channel_name] >= lines_between:
+            should_send_message = True
+        elif time_between > 0 and elapsed_time >= time_between * 60:
+            should_send_message = True
 
         # If a message should be sent and voice is enabled for the current channel.
         if should_send_message and voice_enabled:

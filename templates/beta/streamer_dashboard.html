@@ -147,7 +147,7 @@
                         <div class="setting-item">
                             <div class="setting-info">
                                 <div class="setting-label">
-                                    <i class="fas fa-clock me-2 text-info"></i>
+                                    <i class="fas fa-list-ol me-2 text-info"></i>
                                     Lines Between Messages
                                 </div>
                                 <div class="setting-description">How many chat lines before bot responds</div>
@@ -160,6 +160,45 @@
                                 </button>
                             </div>
                         </div>
+
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">
+                                    <i class="fas fa-clock me-2 text-info"></i>
+                                    Time Between Messages
+                                </div>
+                                <div class="setting-description">Minutes before bot responds automatically</div>
+                            </div>
+                            <div class="input-group input-group-sm" style="max-width: 150px;">
+                                <input type="number" class="form-control" id="timeBetweenInput"
+                                       value="{{ channel.time_between_messages or 0 }}" min="0" max="60">
+                                <button class="btn btn-outline-primary" id="updateTimeBtn">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        {% if has_premium %}
+                        <div class="setting-item">
+                            <div class="setting-info">
+                                <div class="setting-label">
+                                    <i class="fas fa-microphone-alt me-2 text-warning"></i>
+                                    TTS Voice {% if has_premium %}(Premium){% endif %}
+                                </div>
+                                <div class="setting-description">Select your preferred TTS voice</div>
+                            </div>
+                            <div style="max-width: 150px;">
+                                <select class="form-select form-select-sm" id="voicePresetSelect">
+                                    {% for i in range(10) %}
+                                    <option value="v2/en_speaker_{{ i }}"
+                                            {% if channel.voice_preset == 'v2/en_speaker_' ~ i %}selected{% endif %}>
+                                        Voice {{ i }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>

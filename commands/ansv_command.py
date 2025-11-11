@@ -292,8 +292,8 @@ async def ansv_command(self, ctx, setting=None, new_value=None, **kwargs):
         # Determine the target channel
         target_channel = ctx.channel.name
 
-        # Retrieve the owner of the target channel from the database
-        c.execute("SELECT owner FROM channel_configs WHERE channel_name = ?", (target_channel,))
+        # Retrieve the owner and user_id of the target channel from the database
+        c.execute("SELECT owner, user_id FROM channel_configs WHERE channel_name = ?", (target_channel,))
         channel_config = c.fetchone()
 
         if channel_config is None:
@@ -302,12 +302,32 @@ async def ansv_command(self, ctx, setting=None, new_value=None, **kwargs):
             return
 
         channel_owner = channel_config[0]
+        user_id = channel_config[1]
 
         # Check if the user is the bot owner or the channel owner
         if ctx.author.name != bot_owner and ctx.author.name != channel_owner:
             await ctx.send("You do not have permission to change TTS settings for this channel.")
             conn.close()
             return
+
+        # Check if the channel owner has TTS access (Premium subscription)
+        # Bot owner bypasses this check
+        if ctx.author.name != bot_owner:
+            if user_id is None:
+                await ctx.send("TTS is a Premium feature. Please link your Twitch account on the dashboard to upgrade.")
+                conn.close()
+                return
+
+            # Check user's subscription status
+            c.execute("""
+                SELECT subscription_tier FROM users WHERE user_id = ?
+            """, (user_id,))
+            user_result = c.fetchone()
+
+            if not user_result or user_result[0] != 'premium':
+                await ctx.send("TTS is a Premium feature. Upgrade to Premium ($2/month) at https://your-domain.com/premium to unlock TTS.")
+                conn.close()
+                return
 
         # Determine the new TTS status based on the command
         if new_value.lower() == "on":

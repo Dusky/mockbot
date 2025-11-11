@@ -98,15 +98,18 @@ function initSettingsToggles() {
 }
 
 // Update channel setting
-function updateChannelSetting(setting, value) {
+function updateChannelSetting(setting, value, customMessage = null) {
     if (!channelName) {
         showNotification('Error: Channel not found', 'error');
         return;
     }
 
-    const data = { [setting]: value };
+    const data = {
+        channel_name: channelName,
+        [setting]: value
+    };
 
-    fetch(`/api/channel/${channelName}/settings`, {
+    fetch('/update-channel-settings', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -116,9 +119,10 @@ function updateChannelSetting(setting, value) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showNotification(`Setting updated: ${setting}`, 'success');
+            const message = customMessage || `Setting updated: ${setting}`;
+            showNotification(message, 'success');
         } else {
-            showNotification('Failed to update setting: ' + (data.error || 'Unknown error'), 'error');
+            showNotification('Failed to update setting: ' + (data.message || data.error || 'Unknown error'), 'error');
         }
     })
     .catch(error => {
@@ -163,6 +167,18 @@ function initButtons() {
     const updateLinesBtn = document.getElementById('updateLinesBtn');
     if (updateLinesBtn) {
         updateLinesBtn.addEventListener('click', updateLinesBetween);
+    }
+
+    // Update time between messages
+    const updateTimeBtn = document.getElementById('updateTimeBtn');
+    if (updateTimeBtn) {
+        updateTimeBtn.addEventListener('click', updateTimeBetween);
+    }
+
+    // Voice preset selector
+    const voicePresetSelect = document.getElementById('voicePresetSelect');
+    if (voicePresetSelect) {
+        voicePresetSelect.addEventListener('change', updateVoicePreset);
     }
 
     // Refresh messages button
@@ -339,6 +355,41 @@ function updateLinesBetween() {
     }
 
     updateChannelSetting('lines_between_messages', value);
+}
+
+function updateTimeBetween() {
+    if (!channelName) {
+        showNotification('Error: Channel not found', 'error');
+        return;
+    }
+
+    const input = document.getElementById('timeBetweenInput');
+    const value = parseInt(input.value);
+
+    if (isNaN(value) || value < 0 || value > 60) {
+        showNotification('Please enter a value between 0 and 60 minutes', 'error');
+        return;
+    }
+
+    updateChannelSetting('time_between_messages', value);
+}
+
+function updateVoicePreset() {
+    if (!channelName) {
+        showNotification('Error: Channel not found', 'error');
+        return;
+    }
+
+    const select = document.getElementById('voicePresetSelect');
+    const value = select.value;
+
+    if (!value) {
+        showNotification('Please select a voice', 'error');
+        return;
+    }
+
+    const voiceNumber = value.split('_').pop();
+    updateChannelSetting('voice_preset', value, `Voice updated to Voice ${voiceNumber}`);
 }
 
 // Load recent bot messages

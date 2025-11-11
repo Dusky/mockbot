@@ -435,6 +435,7 @@ def send_message_via_pid(channel, message):
         return False
 
 @app.route('/send_markov_message/<channel_name>', methods=['POST'])
+@require_channel_access('channel_name', 'edit')
 def send_markov_message(channel_name):
     global bot_instance # bot_instance might not be set if webapp runs standalone
     
@@ -3622,7 +3623,8 @@ def legacy_main():
     return render_template("index.html", tts_files=tts_files_data,
                            last_id=last_id_val, bot_status=bot_status_info) # No need to pass theme explicitly
 
-@app.route("/generate-message/<channel_name>") 
+@app.route("/generate-message/<channel_name>")
+@require_channel_access('channel_name', 'view')
 def generate_message_get(channel_name): 
     try:
         message = markov_handler.generate_message(channel_name, max_attempts=8, max_fallbacks=2)
@@ -3635,6 +3637,7 @@ def generate_message_get(channel_name):
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/generate-message", methods=["POST"])
+@require_auth
 def generate_message_post():
     try:
         data = request.get_json(silent=True) or {}
@@ -3657,6 +3660,7 @@ def generate_message_post():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/available-models')
+@require_auth
 def available_models():
     try:
         models = markov_handler.get_available_models()
@@ -3665,6 +3669,7 @@ def available_models():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/rebuild-general-cache', methods=['POST'])
+@require_role('admin')
 def rebuild_general_cache():
     try:
         success = markov_handler.rebuild_general_cache('logs')
@@ -3732,6 +3737,7 @@ def rebuild_model(channel_name):
         }), 500
 
 @app.route('/rebuild-all-caches', methods=['POST'])
+@require_role('admin')
 def rebuild_all_caches():
     try:
         success = markov_handler.rebuild_all_caches()
@@ -4332,6 +4338,7 @@ def update_channel_settings_route():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 @app.route('/add-channel', methods=['POST'])
+@require_role('admin')
 def add_channel_route(): 
     try:
         data = request.json
@@ -4372,6 +4379,7 @@ def add_channel_route():
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/delete-channel', methods=['POST'])
+@require_role('admin')
 def delete_channel_route(): 
     try:
         data = request.json
@@ -4388,6 +4396,7 @@ def delete_channel_route():
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/list-voices')
+@require_auth
 def list_voices_route(): 
     try:
         voices_dir = "voices"
@@ -4850,6 +4859,7 @@ def api_bot_response_stats():
         return jsonify({"error": str(e), "total_responses": 0}), 500
 
 @app.route('/api/channel/<channel_name>/toggle-join', methods=['POST'])
+@require_channel_access('channel_name', 'edit')
 def toggle_channel_join_route(channel_name):
     try:
         if not re.match(r"^[a-zA-Z0-9_]{1,25}$", channel_name):
@@ -4879,6 +4889,7 @@ def toggle_channel_join_route(channel_name):
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/api/channel/<channel_name>/toggle-tts', methods=['POST'])
+@require_channel_access('channel_name', 'edit')
 def toggle_channel_tts_route(channel_name):
     try:
         if not re.match(r"^[a-zA-Z0-9_]{1,25}$", channel_name):
@@ -5208,6 +5219,7 @@ def api_channel_activity(channel_name):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/channel/<channel_name>/generate', methods=['POST'])
+@require_channel_access('channel_name', 'edit')
 def api_channel_generate_message(channel_name):
     """Generate a message for a specific channel."""
     try:
@@ -5609,6 +5621,7 @@ def api_channel_tts(channel_name):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/system-info')
+@require_role('admin')
 def api_system_info():
     """Get system information for the stats dashboard."""
     try:
@@ -5685,6 +5698,7 @@ def api_system_info():
         }), 500
 
 @app.route('/api/clear-cache', methods=['POST'])
+@require_role('admin')
 def api_clear_cache():
     """Clear all cached data."""
     try:

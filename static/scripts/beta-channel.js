@@ -104,10 +104,16 @@ function initializeControls() {
     
     // Initialize Model Selector
     initializeModelSelector();
-    
+
     // Initialize trusted users management
     initializeTrustedUsers();
-    
+
+    // Voice Preset Selector
+    const voicePresetSelect = document.getElementById('voicePresetSelect');
+    if (voicePresetSelect) {
+        voicePresetSelect.addEventListener('change', handleVoicePresetChange);
+    }
+
     // Message Generation
     const generateBtn = document.getElementById('generateMessageBtn');
     if (generateBtn) {
@@ -268,16 +274,43 @@ async function handleUseGeneralModelToggle() {
     }
 }
 
+async function handleVoicePresetChange() {
+    const select = document.getElementById('voicePresetSelect');
+    const voicePreset = select.value;
+    const channelName = window.channelData.name;
+
+    try {
+        await betaUtils.apiRequest('/update-channel-settings', {
+            method: 'POST',
+            body: JSON.stringify({
+                channel_name: channelName,
+                voice_preset: voicePreset
+            })
+        });
+
+        const voiceNumber = voicePreset.split('_').pop();
+        showToast(`TTS voice updated to Voice ${voiceNumber}`, 'success');
+
+    } catch (error) {
+        console.error('[Beta Channel] Error updating voice preset:', error);
+        // Revert to previous value
+        if (window.channelData.voice_preset) {
+            select.value = window.channelData.voice_preset;
+        }
+        showToast('Failed to update voice preset', 'error');
+    }
+}
+
 function checkMessageCountWarning() {
     const toggle = document.getElementById('useGeneralModelToggle');
     const warning = document.getElementById('modelWarning');
-    
+
     if (!toggle || !warning) return;
-    
+
     // Show warning if general model is disabled (channel model selected) and channel has < 1000 messages
     const channelMessages = window.channelData.messages_sent || 0;
     const shouldShowWarning = !toggle.checked && channelMessages < 1000;
-    
+
     warning.style.display = shouldShowWarning ? 'block' : 'none';
 }
 

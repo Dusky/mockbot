@@ -478,14 +478,35 @@
                         <div class="mb-3">
                             <label class="form-label">Time Between Messages (seconds)</label>
                             <div class="input-group">
-                                <input type="number" class="form-control" id="timeBetweenInput" 
+                                <input type="number" class="form-control" id="timeBetweenInput"
                                        value="{{ channel.time_between_messages or 0 }}" min="0" max="3600">
                                 <button class="btn btn-outline-primary" id="saveTimeBtn">
                                     <i class="fas fa-save"></i>
                                 </button>
                             </div>
                         </div>
-                        
+
+                        <!-- Voice Preset Selection -->
+                        {% if has_premium %}
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-microphone-alt me-1"></i>TTS Voice
+                                <small class="text-muted">(Premium)</small>
+                            </label>
+                            <select class="form-select" id="voicePresetSelect">
+                                {% for i in range(10) %}
+                                <option value="v2/en_speaker_{{ i }}"
+                                        {% if channel.voice_preset == 'v2/en_speaker_' ~ i %}selected{% endif %}>
+                                    Voice {{ i }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>Choose the TTS voice for your channel
+                            </small>
+                        </div>
+                        {% endif %}
+
                         <!-- Trusted Users Management -->
                         <div class="mb-3">
                             <label class="form-label">
@@ -568,7 +589,8 @@ window.channelData = {
     bot_running: {{ channel.bot_running|tojson }},
     use_general_model: {{ channel.use_general_model|tojson }},
     messages_sent: {{ channel.messages_sent|tojson }},
-    has_premium: {{ has_premium|tojson }}
+    has_premium: {{ has_premium|tojson }},
+    voice_preset: "{{ channel.voice_preset or 'v2/en_speaker_5' }}"
 };
 
 </script>

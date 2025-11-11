@@ -435,6 +435,7 @@ def send_message_via_pid(channel, message):
         return False
 
 @app.route('/send_markov_message/<channel_name>', methods=['POST'])
+@require_channel_access('channel_name', 'edit')
 def send_markov_message(channel_name):
     global bot_instance # bot_instance might not be set if webapp runs standalone
     
@@ -1810,19 +1811,44 @@ def api_bot_status():
         bot_running = is_bot_actually_running()
 
         if bot_running:
-            # Try to read heartbeat file
-            heartbeat_data = {}
-            if os.path.exists('bot_heartbeat.json'):
-                with open('bot_heartbeat.json', 'r') as f:
-                    heartbeat_data = json.load(f)
+            # Read heartbeat from database instead of JSON file
+            conn = sqlite3.connect(db_file)
+            c = conn.cursor()
+
+            # Get last heartbeat
+            c.execute("SELECT value, timestamp FROM bot_status WHERE key = 'last_heartbeat'")
+            heartbeat_row = c.fetchone()
+            last_heartbeat = heartbeat_row[0] if heartbeat_row else None
+
+            # Get connected channels
+            c.execute("SELECT value FROM bot_status WHERE key = 'connected_channels'")
+            channels_row = c.fetchone()
+            connected_channels = channels_row[0].split(',') if channels_row and channels_row[0] else []
+
+            # Get TTS status from channel configs (check if any channel has TTS enabled)
+            c.execute("SELECT COUNT(*) FROM channel_configs WHERE tts_enabled = 1")
+            tts_count = c.fetchone()[0]
+            tts_enabled = tts_count > 0
+
+            conn.close()
+
+            # Calculate uptime if possible
+            uptime = 0
+            if last_heartbeat:
+                try:
+                    heartbeat_time = datetime.strptime(last_heartbeat, '%Y-%m-%d %H:%M:%S')
+                    # Rough uptime estimate (this isn't accurate without start time, but better than nothing)
+                    uptime = (datetime.now() - heartbeat_time).total_seconds()
+                except:
+                    pass
 
             return jsonify({
                 'success': True,
                 'bot_running': True,
-                'uptime': heartbeat_data.get('uptime', 0),
-                'connected_channels': heartbeat_data.get('channels', []),
-                'tts_enabled': heartbeat_data.get('tts_enabled', False),
-                'last_heartbeat': heartbeat_data.get('timestamp')
+                'uptime': uptime,
+                'connected_channels': connected_channels,
+                'tts_enabled': tts_enabled,
+                'last_heartbeat': last_heartbeat
             })
         else:
             return jsonify({
@@ -1962,18 +1988,40 @@ def api_bot_logs():
     """Get recent bot logs"""
     try:
         logs = []
-        log_file = 'ansv_bot.log'
+        # Check multiple possible log file locations
+        log_files = ['app.log', 'ansv_bot.log', 'bot.log']
+        log_file = None
 
-        if os.path.exists(log_file):
+        for filename in log_files:
+            if os.path.exists(filename):
+                log_file = filename
+                break
+
+        if log_file:
             with open(log_file, 'r') as f:
                 lines = f.readlines()[-50:]  # Last 50 lines
                 for line in lines:
-                    # Parse log line
+                    # Parse log line - try to extract level
+                    level = 'info'
+                    if 'ERROR' in line.upper():
+                        level = 'error'
+                    elif 'WARNING' in line.upper() or 'WARN' in line.upper():
+                        level = 'warning'
+                    elif 'DEBUG' in line.upper():
+                        level = 'debug'
+
                     logs.append({
                         'timestamp': datetime.now().isoformat(),
-                        'level': 'info',
+                        'level': level,
                         'message': line.strip()
                     })
+        else:
+            # No log file found - add informative message
+            logs.append({
+                'timestamp': datetime.now().isoformat(),
+                'level': 'info',
+                'message': 'No bot log file found. Bot may not be running or logs are not being written.'
+            })
 
         return jsonify({'success': True, 'logs': logs})
     except Exception as e:
@@ -3333,16 +3381,12 @@ def api_export_data(export_type):
 # ============================================================================
 
 @app.route('/api/bulk/tts/enable', methods=['POST'])
-@require_auth
+@require_role('admin')
 def api_bulk_enable_tts():
     """Bulk enable TTS for multiple channels."""
     try:
         user = get_current_user()
         username = user.get('username', 'unknown')
-
-        # Only admins can bulk update
-        if user.get('role_name') not in ['admin', 'super_admin']:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
         data = request.get_json()
         channels = data.get('channels', [])
@@ -3384,15 +3428,12 @@ def api_bulk_enable_tts():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/bulk/tts/disable', methods=['POST'])
-@require_auth
+@require_role('admin')
 def api_bulk_disable_tts():
     """Bulk disable TTS for multiple channels."""
     try:
         user = get_current_user()
         username = user.get('username', 'unknown')
-
-        if user.get('role_name') not in ['admin', 'super_admin']:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
         data = request.get_json()
         channels = data.get('channels', [])
@@ -3432,15 +3473,12 @@ def api_bulk_disable_tts():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/bulk/autojoin/enable', methods=['POST'])
-@require_auth
+@require_role('admin')
 def api_bulk_enable_autojoin():
     """Bulk enable auto-join for multiple channels."""
     try:
         user = get_current_user()
         username = user.get('username', 'unknown')
-
-        if user.get('role_name') not in ['admin', 'super_admin']:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
         data = request.get_json()
         channels = data.get('channels', [])
@@ -3480,15 +3518,12 @@ def api_bulk_enable_autojoin():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/bulk/autojoin/disable', methods=['POST'])
-@require_auth
+@require_role('admin')
 def api_bulk_disable_autojoin():
     """Bulk disable auto-join for multiple channels."""
     try:
         user = get_current_user()
         username = user.get('username', 'unknown')
-
-        if user.get('role_name') not in ['admin', 'super_admin']:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
         data = request.get_json()
         channels = data.get('channels', [])
@@ -3528,15 +3563,12 @@ def api_bulk_disable_autojoin():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/bulk/delete', methods=['POST'])
-@require_auth
+@require_role('admin')
 def api_bulk_delete_channels():
     """Bulk delete multiple channels."""
     try:
         user = get_current_user()
         username = user.get('username', 'unknown')
-
-        if user.get('role_name') not in ['admin', 'super_admin']:
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 403
 
         data = request.get_json()
         channels = data.get('channels', [])
@@ -3622,7 +3654,8 @@ def legacy_main():
     return render_template("index.html", tts_files=tts_files_data,
                            last_id=last_id_val, bot_status=bot_status_info) # No need to pass theme explicitly
 
-@app.route("/generate-message/<channel_name>") 
+@app.route("/generate-message/<channel_name>")
+@require_channel_access('channel_name', 'view')
 def generate_message_get(channel_name): 
     try:
         message = markov_handler.generate_message(channel_name, max_attempts=8, max_fallbacks=2)
@@ -3635,6 +3668,7 @@ def generate_message_get(channel_name):
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/generate-message", methods=["POST"])
+@require_auth
 def generate_message_post():
     try:
         data = request.get_json(silent=True) or {}
@@ -3657,6 +3691,7 @@ def generate_message_post():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/available-models')
+@require_auth
 def available_models():
     try:
         models = markov_handler.get_available_models()
@@ -3665,6 +3700,7 @@ def available_models():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/rebuild-general-cache', methods=['POST'])
+@require_role('admin')
 def rebuild_general_cache():
     try:
         success = markov_handler.rebuild_general_cache('logs')
@@ -3732,6 +3768,7 @@ def rebuild_model(channel_name):
         }), 500
 
 @app.route('/rebuild-all-caches', methods=['POST'])
+@require_role('admin')
 def rebuild_all_caches():
     try:
         success = markov_handler.rebuild_all_caches()
@@ -4167,29 +4204,60 @@ def channel_page(channel_name):
 
 @app.route('/api/channels')
 @require_auth
-def api_channels_list(): 
+def api_channels_list():
     try:
+        # SECURITY: Filter channels by user role
+        user = get_current_user()
+        user_role = user.get('role_name')
+
         # PERFORMANCE OPTIMIZATION: Use optimized database queries with connection pooling
         # Single query to get both channel configs and last activity in one operation
-        optimized_query = """
-        SELECT 
-            cc.*,
-            COALESCE(msg_stats.last_activity_ts, NULL) as last_activity,
-            COALESCE(msg_stats.message_count, 0) as message_count
-        FROM channel_configs cc
-        LEFT JOIN (
-            SELECT 
-                channel,
-                MAX(timestamp) as last_activity_ts,
-                COUNT(*) as message_count
-            FROM messages 
-            GROUP BY channel
-        ) msg_stats ON cc.channel_name = msg_stats.channel
-        ORDER BY cc.channel_name
-        """
-        
+        if user_role in ['admin', 'super_admin']:
+            # Admins see all channels
+            optimized_query = """
+            SELECT
+                cc.*,
+                COALESCE(msg_stats.last_activity_ts, NULL) as last_activity,
+                COALESCE(msg_stats.message_count, 0) as message_count
+            FROM channel_configs cc
+            LEFT JOIN (
+                SELECT
+                    channel,
+                    MAX(timestamp) as last_activity_ts,
+                    COUNT(*) as message_count
+                FROM messages
+                GROUP BY channel
+            ) msg_stats ON cc.channel_name = msg_stats.channel
+            ORDER BY cc.channel_name
+            """
+            query_params = ()
+        else:
+            # Streamers only see their own channel
+            managed_channel = user.get('managed_channel')
+            if not managed_channel:
+                return jsonify([])  # No channel to manage
+
+            optimized_query = """
+            SELECT
+                cc.*,
+                COALESCE(msg_stats.last_activity_ts, NULL) as last_activity,
+                COALESCE(msg_stats.message_count, 0) as message_count
+            FROM channel_configs cc
+            LEFT JOIN (
+                SELECT
+                    channel,
+                    MAX(timestamp) as last_activity_ts,
+                    COUNT(*) as message_count
+                FROM messages
+                GROUP BY channel
+            ) msg_stats ON cc.channel_name = msg_stats.channel
+            WHERE cc.channel_name = ?
+            ORDER BY cc.channel_name
+            """
+            query_params = (managed_channel,)
+
         # Use pooled connection for better performance
-        raw_channels_data = execute_query_sync(optimized_query, (), db_file)
+        raw_channels_data = execute_query_sync(optimized_query, query_params, db_file)
 
         # Get heartbeat data (file I/O optimization can be added later)
         heartbeat_joined_channels = []
@@ -4332,6 +4400,7 @@ def update_channel_settings_route():
         return jsonify({"success": False, "message": f"Server error: {str(e)}"}), 500
 
 @app.route('/add-channel', methods=['POST'])
+@require_role('admin')
 def add_channel_route(): 
     try:
         data = request.json
@@ -4372,6 +4441,7 @@ def add_channel_route():
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/delete-channel', methods=['POST'])
+@require_role('admin')
 def delete_channel_route(): 
     try:
         data = request.json
@@ -4388,6 +4458,7 @@ def delete_channel_route():
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/list-voices')
+@require_auth
 def list_voices_route(): 
     try:
         voices_dir = "voices"
@@ -4452,18 +4523,37 @@ def server_error_handler(e):
 @require_auth
 def api_recent_tts():
     try:
+        # SECURITY: Filter by user's channel for non-admins
+        user = get_current_user()
+        user_role = user.get('role_name')
+
         conn = sqlite3.connect(db_file)
         conn.row_factory = sqlite3.Row # To access columns by name
         c = conn.cursor()
         # Fetch necessary fields, including channel and voice_preset
         # Order by message_id DESC as it's likely the primary key and indicates insertion order.
-        # The 'created_at' column caused an error, indicating it might not exist or is named differently.
-        c.execute("""
-            SELECT message_id, channel, file_path, message, timestamp, voice_preset 
-            FROM tts_logs 
-            ORDER BY message_id DESC 
-            LIMIT 10
-        """)
+
+        if user_role not in ['admin', 'super_admin']:
+            # Streamers can only see their own channel's TTS
+            managed_channel = user.get('managed_channel')
+            if not managed_channel:
+                conn.close()
+                return jsonify([])
+            c.execute("""
+                SELECT message_id, channel, file_path, message, timestamp, voice_preset
+                FROM tts_logs
+                WHERE channel = ?
+                ORDER BY message_id DESC
+                LIMIT 10
+            """, (managed_channel,))
+        else:
+            # Admins see all recent TTS
+            c.execute("""
+                SELECT message_id, channel, file_path, message, timestamp, voice_preset
+                FROM tts_logs
+                ORDER BY message_id DESC
+                LIMIT 10
+            """)
         rows = c.fetchall()
         conn.close()
         
@@ -4535,6 +4625,18 @@ def api_tts_logs():
         channel_filter_input = request.args.get('channel_filter', None, type=str)
         message_filter_input = request.args.get('message_filter', None, type=str)
         id_filter = request.args.get('id', None, type=str)
+
+        # SECURITY: Filter by user's channel for non-admins
+        user = get_current_user()
+        user_role = user.get('role_name')
+
+        if user_role not in ['admin', 'super_admin']:
+            # Streamers can only see their own channel's TTS logs
+            managed_channel = user.get('managed_channel')
+            if not managed_channel:
+                return jsonify({"logs": [], "page": page, "per_page": per_page, "total_items": 0, "total_pages": 0})
+            # Override channel filter to user's channel
+            channel_filter_input = managed_channel
 
         # Validate sort_order
         sort_order = "ASC" if sort_order_input == "asc" else "DESC"
@@ -4850,6 +4952,7 @@ def api_bot_response_stats():
         return jsonify({"error": str(e), "total_responses": 0}), 500
 
 @app.route('/api/channel/<channel_name>/toggle-join', methods=['POST'])
+@require_channel_access('channel_name', 'edit')
 def toggle_channel_join_route(channel_name):
     try:
         if not re.match(r"^[a-zA-Z0-9_]{1,25}$", channel_name):
@@ -4879,6 +4982,7 @@ def toggle_channel_join_route(channel_name):
         return jsonify({"success": False, "message": str(e)}), 500
 
 @app.route('/api/channel/<channel_name>/toggle-tts', methods=['POST'])
+@require_channel_access('channel_name', 'edit')
 def toggle_channel_tts_route(channel_name):
     try:
         if not re.match(r"^[a-zA-Z0-9_]{1,25}$", channel_name):
@@ -4999,6 +5103,18 @@ def api_chat_logs():
         channel_filter = request.args.get('channel', None, type=str)
         offset = (page - 1) * per_page
 
+        # SECURITY: Filter by user's channel for non-admins
+        user = get_current_user()
+        user_role = user.get('role_name')
+
+        if user_role not in ['admin', 'super_admin']:
+            # Streamers can only see their own channel's logs
+            managed_channel = user.get('managed_channel')
+            if not managed_channel:
+                return jsonify({"logs": [], "page": page, "per_page": per_page, "total_items": 0, "total_pages": 0})
+            # Override channel filter to user's channel
+            channel_filter = managed_channel
+
         # --- REAL DATABASE LOGIC ---
         try:
             conn = sqlite3.connect(db_file)
@@ -5016,8 +5132,8 @@ def api_chat_logs():
             if channel_filter:
                 conditions.append("channel = ?")
                 params.append(channel_filter)
-            
-            if conditions: # This will always be true now due to is_bot_response
+
+            if conditions:
                 base_query += " WHERE " + " AND ".join(conditions)
 
             # Get total count
@@ -5073,6 +5189,11 @@ def api_chat_logs():
 
 @app.route('/new-audio-notification', methods=['POST'])
 def new_audio_notification():
+    # SECURITY: Only allow requests from localhost (internal TTS processor)
+    if request.remote_addr not in ['127.0.0.1', 'localhost', '::1']:
+        app.logger.warning(f"[TTS NOTIFY] ⚠️ Blocked external request from {request.remote_addr}")
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+
     data = request.json
     app.logger.info(f"[TTS NOTIFY] 🔔 Received new audio notification: {data}")
     channel_name = data.get('channel_name')
@@ -5096,7 +5217,7 @@ def new_audio_notification():
         return jsonify({"success": False, "message": "Missing channel_name or message_id"}), 400
 
 @app.route('/api/channel/<channel_name>/stats')
-@require_auth
+@require_channel_access('channel_name', 'view')
 def api_channel_stats(channel_name):
     """Get channel-specific statistics."""
     try:
@@ -5159,7 +5280,7 @@ def api_channel_stats(channel_name):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/channel/<channel_name>/activity')
-@require_auth
+@require_channel_access('channel_name', 'view')
 def api_channel_activity(channel_name):
     """Get recent activity for a specific channel."""
     try:
@@ -5208,6 +5329,7 @@ def api_channel_activity(channel_name):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/channel/<channel_name>/generate', methods=['POST'])
+@require_channel_access('channel_name', 'edit')
 def api_channel_generate_message(channel_name):
     """Generate a message for a specific channel."""
     try:
@@ -5609,6 +5731,7 @@ def api_channel_tts(channel_name):
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/system-info')
+@require_role('admin')
 def api_system_info():
     """Get system information for the stats dashboard."""
     try:
@@ -5685,6 +5808,7 @@ def api_system_info():
         }), 500
 
 @app.route('/api/clear-cache', methods=['POST'])
+@require_role('admin')
 def api_clear_cache():
     """Clear all cached data."""
     try:

@@ -26,16 +26,13 @@
                 </div>
             </div>
         </div>
+        {% if current_user and current_user.role_name in ['admin', 'super_admin'] %}
         <div class="hero-actions">
-            <button class="btn btn-outline-primary" onclick="history.back()">
-                <i class="fas fa-arrow-left me-2"></i>Back
-            </button>
-            {% if current_user and current_user.role_name in ['admin', 'super_admin'] %}
             <a href="/channel/{{ channel.name }}" class="btn btn-outline-secondary">
                 <i class="fas fa-cog me-2"></i>Legacy View
             </a>
-            {% endif %}
         </div>
+        {% endif %}
     </div>
 
     <!-- Subscription Status Banner -->

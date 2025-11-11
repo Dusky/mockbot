@@ -5,7 +5,7 @@ import asyncio
 import configparser
 import time
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 import os
 import math
 from functools import lru_cache
@@ -701,11 +701,11 @@ class Bot(commands.Bot):
         conn = sqlite3.connect(self.db_file)
         c = conn.cursor()
         c.execute(
-            """INSERT INTO messages (message, timestamp, channel, state_size, message_length, author_name, is_bot_response) 
+            """INSERT INTO messages (message, timestamp, channel, state_size, message_length, author_name, is_bot_response)
                     VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (
                 message,
-                datetime.now().isoformat(), # Store timestamp as ISO string
+                datetime.now(timezone.utc).isoformat(), # Store timestamp as ISO string in UTC
                 channel_name,
                 self.general_model.state_size if hasattr(self.general_model, 'state_size') else None, # Ensure general_model exists
                 len(message),

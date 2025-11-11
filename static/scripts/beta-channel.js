@@ -464,11 +464,11 @@ function updateChatDisplay(messages) {
     const messageCount = document.getElementById('messageCount');
     const chatStream = document.getElementById('chatStream');
 
-    // Check if user is already at the top (where new messages are) before updating
-    let wasAtTop = false;
+    // Check if user is already at the bottom (where new messages are) before updating
+    let wasAtBottom = false;
     if (chatStream) {
-        const scrollThreshold = 100; // pixels from top
-        wasAtTop = chatStream.scrollTop < scrollThreshold;
+        const scrollThreshold = 100; // pixels from bottom
+        wasAtBottom = chatStream.scrollTop + chatStream.clientHeight >= chatStream.scrollHeight - scrollThreshold;
     }
 
     // Hide loading
@@ -489,11 +489,11 @@ function updateChatDisplay(messages) {
 
         // Only auto-scroll if:
         // 1. Auto-scroll toggle is enabled AND
-        // 2. User was already at the top (where new messages appear)
-        if (autoScroll && wasAtTop) {
+        // 2. User was already at the bottom (where new messages appear)
+        if (autoScroll && wasAtBottom) {
             requestAnimationFrame(() => {
                 if (chatStream) {
-                    chatStream.scrollTop = 0; // Scroll to TOP where new messages are
+                    chatStream.scrollTop = chatStream.scrollHeight; // Scroll to BOTTOM where new messages are
                 }
             });
         }

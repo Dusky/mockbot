@@ -4,234 +4,66 @@
 
 {% block content %}
 <!-- Hero Section -->
-<section class="hero-section">
-    <div class="hero-overlay"></div>
+<section class="hero">
     <div class="container">
-        <div class="row align-items-center min-vh-100">
-            <div class="col-lg-6">
-                <div class="hero-content">
-                    <h1 class="hero-title">
-                        Turn Your Chat Into
-                        <span class="gradient-text">Comedy Gold</span>
-                    </h1>
-                    <p class="hero-subtitle">
-                        AI-powered Markov chain bot that learns from your chat and speaks with intentionally janky TTS voices.
-                        Hilarious, automated, and perfect for streamers.
-                    </p>
-                    <div class="hero-cta">
-                        <a href="/auth/twitch" class="btn btn-hero btn-lg">
-                            <i class="fab fa-twitch me-2"></i>
-                            Get Started Free
-                        </a>
-                        <a href="#features" class="btn btn-outline-light btn-lg ms-3">
-                            Learn More
-                            <i class="fas fa-arrow-down ms-2"></i>
-                        </a>
-                    </div>
-                    <div class="hero-stats mt-4">
-                        <div class="stat-item">
-                            <i class="fas fa-robot"></i>
-                            <span>Free Forever</span>
-                        </div>
-                        <div class="stat-item">
-                            <i class="fas fa-dollar-sign"></i>
-                            <span>TTS for $2/mo</span>
-                        </div>
-                        <div class="stat-item">
-                            <i class="fas fa-infinity"></i>
-                            <span>Unlimited Channels</span>
-                        </div>
-                    </div>
-                </div>
+        <div class="hero-content">
+            <h1>ANSV Bot</h1>
+            <p class="subtitle">A Markov chain bot for Twitch that learns from your chat history and generates messages automatically.</p>
+            <a href="/auth/twitch" class="btn-primary">Sign in with Twitch</a>
+        </div>
+    </div>
+</section>
+
+<!-- What it does -->
+<section class="section">
+    <div class="container">
+        <h2>What it does</h2>
+        <div class="feature-list">
+            <div class="feature-item">
+                <h3>Learns from chat</h3>
+                <p>Analyzes your chat history using Markov chains to generate messages that mimic your community's style.</p>
             </div>
-            <div class="col-lg-6">
-                <div class="hero-visual">
-                    <div class="bot-preview">
-                        <div class="chat-bubble bot-message">
-                            <i class="fas fa-robot me-2"></i>
-                            "i love this stream kappa pogchamp lol"
-                        </div>
-                        <div class="tts-indicator">
-                            <i class="fas fa-volume-up me-2"></i>
-                            <span class="tts-wave"></span>
-                            <span class="tts-wave"></span>
-                            <span class="tts-wave"></span>
-                            <span>TTS Playing...</span>
-                        </div>
-                    </div>
-                </div>
+            <div class="feature-item">
+                <h3>Posts automatically</h3>
+                <p>Can send generated messages at configurable intervals. You control the frequency and message length.</p>
+            </div>
+            <div class="feature-item">
+                <h3>Text-to-speech (optional)</h3>
+                <p>Reads messages aloud using TTS. Requires premium ($2/month) because inference costs money.</p>
             </div>
         </div>
     </div>
 </section>
 
-<!-- Features Section -->
-<section id="features" class="features-section py-5">
+<!-- Pricing -->
+<section class="section-alt" id="pricing">
     <div class="container">
-        <div class="text-center mb-5">
-            <h2 class="section-title">How ANSV Works</h2>
-            <p class="section-subtitle">Everything you need to add automated comedy to your stream</p>
-        </div>
-
-        <div class="row g-4">
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-brain"></i>
-                    </div>
-                    <h3>AI Chat Learning</h3>
-                    <p>Markov chain AI learns from your chat history to generate messages that sound just like your community.</p>
-                </div>
+        <h2>Pricing</h2>
+        <div class="pricing-grid">
+            <div class="pricing-tier">
+                <h3>Free</h3>
+                <p class="price">$0</p>
+                <ul>
+                    <li>Markov chain message generation</li>
+                    <li>Automatic posting</li>
+                    <li>Web dashboard</li>
+                    <li>Unlimited channels</li>
+                </ul>
+                <a href="/auth/twitch" class="btn-secondary">Get started</a>
             </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-robot"></i>
-                    </div>
-                    <h3>Auto-Reply Mode</h3>
-                    <p>Bot automatically generates and posts messages to your chat at customizable intervals. Set it and forget it.</p>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card featured">
-                    <div class="feature-icon">
-                        <i class="fas fa-volume-up"></i>
-                    </div>
-                    <h3>Janky TTS <span class="badge bg-warning">Premium</span></h3>
-                    <p>Intentionally lo-fi text-to-speech reads bot messages aloud. The jankiness is part of the charm!</p>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-sliders-h"></i>
-                    </div>
-                    <h3>Full Control</h3>
-                    <p>Customize message frequency, generation length, voice presets, and more from the dashboard.</p>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-user-shield"></i>
-                    </div>
-                    <h3>Twitch OAuth</h3>
-                    <p>Sign up instantly with your Twitch account. One click and you're ready to go.</p>
-                </div>
-            </div>
-
-            <div class="col-md-6 col-lg-4">
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-tachometer-alt"></i>
-                    </div>
-                    <h3>Real-time Dashboard</h3>
-                    <p>Monitor bot activity, view TTS history, and manage settings from a modern web interface.</p>
-                </div>
+            <div class="pricing-tier">
+                <h3>Premium</h3>
+                <p class="price">$2<span>/month</span></p>
+                <ul>
+                    <li>Everything in Free</li>
+                    <li>Text-to-speech</li>
+                    <li>Multiple voice presets</li>
+                    <li>TTS history</li>
+                </ul>
+                <a href="/auth/twitch" class="btn-primary">Get started</a>
             </div>
         </div>
-    </div>
-</section>
-
-<!-- Pricing Section -->
-<section id="pricing" class="pricing-section py-5">
-    <div class="container">
-        <div class="text-center mb-5">
-            <h2 class="section-title">Simple, Honest Pricing</h2>
-            <p class="section-subtitle">Free bot features forever. Only pay for TTS if you want it.</p>
-        </div>
-
-        <div class="row g-4 justify-content-center">
-            <!-- Free Plan -->
-            <div class="col-lg-5">
-                <div class="pricing-card">
-                    <div class="pricing-header">
-                        <h3>Free</h3>
-                        <div class="pricing-amount">
-                            <span class="amount">$0</span>
-                            <span class="period">/forever</span>
-                        </div>
-                    </div>
-                    <ul class="pricing-features">
-                        <li><i class="fas fa-check text-success me-2"></i>Markov Chat Bot</li>
-                        <li><i class="fas fa-check text-success me-2"></i>Auto-Reply Mode</li>
-                        <li><i class="fas fa-check text-success me-2"></i>Unlimited Channels</li>
-                        <li><i class="fas fa-check text-success me-2"></i>Custom Commands</li>
-                        <li><i class="fas fa-check text-success me-2"></i>Web Dashboard</li>
-                        <li><i class="fas fa-check text-success me-2"></i>Model Customization</li>
-                        <li class="text-muted"><i class="fas fa-times me-2"></i>Text-to-Speech</li>
-                        <li class="text-muted"><i class="fas fa-times me-2"></i>Voice Presets</li>
-                    </ul>
-                    <a href="/auth/twitch" class="btn btn-outline-primary btn-lg w-100 mt-4">
-                        Get Started Free
-                    </a>
-                </div>
-            </div>
-
-            <!-- Premium Plan -->
-            <div class="col-lg-5">
-                <div class="pricing-card premium">
-                    <div class="pricing-badge">Most Popular</div>
-                    <div class="pricing-header">
-                        <h3>Premium</h3>
-                        <div class="pricing-amount">
-                            <span class="amount">$2</span>
-                            <span class="period">/month</span>
-                        </div>
-                    </div>
-                    <ul class="pricing-features">
-                        <li><i class="fas fa-check text-success me-2"></i>Everything in Free</li>
-                        <li><i class="fas fa-check text-success me-2"></i><strong>Text-to-Speech</strong></li>
-                        <li><i class="fas fa-check text-success me-2"></i><strong>Multiple Voice Presets</strong></li>
-                        <li><i class="fas fa-check text-success me-2"></i><strong>TTS History & Playback</strong></li>
-                        <li><i class="fas fa-check text-success me-2"></i><strong>Auto-play TTS</strong></li>
-                        <li><i class="fas fa-check text-success me-2"></i><strong>Voice Customization</strong></li>
-                        <li class="text-muted fst-italic">More features coming soon</li>
-                    </ul>
-                    <a href="/auth/twitch" class="btn btn-primary btn-lg w-100 mt-4">
-                        <i class="fas fa-star me-2"></i>Start Premium Trial
-                    </a>
-                    <p class="text-center text-muted mt-2 small">Cancel anytime. No long-term commitment.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Why TTS is Premium -->
-        <div class="row mt-5">
-            <div class="col-lg-8 mx-auto">
-                <div class="why-premium-box">
-                    <h4><i class="fas fa-question-circle me-2"></i>Why is TTS Premium?</h4>
-                    <p class="mb-0">
-                        Running AI text-to-speech models is computationally expensive. The $2/month helps cover server costs
-                        so we can keep the core bot features free for everyone. You get all the Markov chat features forever -
-                        TTS is just the cherry on top!
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>
-</section>
-
-<!-- CTA Section -->
-<section class="cta-section py-5">
-    <div class="container">
-        <div class="cta-box">
-            <div class="row align-items-center">
-                <div class="col-lg-8">
-                    <h2 class="cta-title">Ready to Make Your Chat Hilarious?</h2>
-                    <p class="cta-subtitle">Sign up with Twitch OAuth in seconds. No credit card required.</p>
-                </div>
-                <div class="col-lg-4 text-lg-end">
-                    <a href="/auth/twitch" class="btn btn-light btn-lg">
-                        <i class="fab fa-twitch me-2"></i>Get Started Now
-                    </a>
-                </div>
-            </div>
-        </div>
+        <p class="pricing-note">TTS costs $2/month because running inference is expensive. The free tier covers everything else.</p>
     </div>
 </section>
 {% endblock %}

@@ -1,6 +1,11 @@
 # Configuration files
 settings.conf
 *.local.conf
+.flask_secret_key
+.env
+
+# Session storage
+flask_session/
 
 # Databases
 *.db

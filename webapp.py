@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+from flask_session import Session
 from utils.markov_handler import MarkovHandler
 from utils.logger import Logger
 from utils.tts import start_tts_processing # Import for TTS generation
@@ -29,6 +30,7 @@ from utils.db_setup import ensure_db_setup
 from utils.db_manager import get_db_manager, execute_query_sync, execute_update_sync
 from utils.user_db import UserDatabase
 from utils.stripe_service import stripe_service
+from utils.config import ConfigManager
 from utils.auth import (
     init_auth, require_auth, require_permission, require_role, require_channel_access,
     login_user, logout_user, is_authenticated, get_current_user,
@@ -44,15 +46,25 @@ from utils.security import (
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
 
-# SECURITY: Generate a secret key for session management
-# In production, this should be set via environment variable
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
+# SECURITY: Use persistent secret key for session management
+# This ensures sessions persist across server restarts
+app.secret_key = ConfigManager.get_secret_key()
 
-# Security configuration
+# Flask-Session configuration for persistent server-side sessions
+app.config['SESSION_TYPE'] = 'filesystem'  # Store sessions on disk
+app.config['SESSION_FILE_DIR'] = ConfigManager.get_session_dir()  # Session storage directory
+app.config['SESSION_PERMANENT'] = True  # Make sessions permanent (persist on browser close)
+app.config['SESSION_USE_SIGNER'] = True  # Sign session cookies for extra security
+app.config['SESSION_KEY_PREFIX'] = 'ansv_bot:'  # Prefix for session files
+
+# Security configuration for session cookies
 app.config['SESSION_COOKIE_SECURE'] = not app.debug  # HTTPS only in production
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent XSS
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=SecurityConfig.SESSION_TIMEOUT_MINUTES)
+
+# Initialize Flask-Session
+Session(app)
 
 socketio = SocketIO(app) # Initialize SocketIO with the Flask app
 

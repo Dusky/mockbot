@@ -4987,9 +4987,37 @@ def toggle_channel_tts_route(channel_name):
     try:
         if not re.match(r"^[a-zA-Z0-9_]{1,25}$", channel_name):
             return jsonify({"success": False, "message": "Invalid channel name format"}), 400
-            
+
         conn = sqlite3.connect(db_file)
         c = conn.cursor()
+
+        # Premium check: TTS is a Premium feature
+        # Super admins can bypass this check
+        user = get_current_user()
+        if user and user['role_name'] != 'super_admin':
+            # Get the user_id for this channel
+            c.execute("SELECT user_id FROM channel_configs WHERE channel_name = ?", (channel_name,))
+            config = c.fetchone()
+
+            if config and config[0]:
+                # Check subscription tier
+                c.execute("SELECT subscription_tier FROM users WHERE user_id = ?", (config[0],))
+                user_result = c.fetchone()
+
+                if not user_result or user_result[0] != 'premium':
+                    conn.close()
+                    return jsonify({
+                        "success": False,
+                        "message": "TTS is a Premium feature. Upgrade to Premium to unlock TTS."
+                    }), 403
+            else:
+                # No user_id linked to channel - cannot use TTS
+                conn.close()
+                return jsonify({
+                    "success": False,
+                    "message": "TTS is a Premium feature. Please link your Twitch account to upgrade."
+                }), 403
+
         c.execute("SELECT tts_enabled FROM channel_configs WHERE channel_name = ?", (channel_name,))
         row = c.fetchone()
         if not row:

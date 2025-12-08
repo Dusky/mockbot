@@ -457,9 +457,16 @@ def send_markov_message(channel_name):
             app.logger.info(f"Force send parameters detected for {channel_name}. Assuming bot is available.")
             # If forcing, we act as if the bot is running for the purpose of attempting to send.
             # The actual send might still fail if the bot is truly down.
-            server_verified_running = True 
-            
-        generated_message = markov_handler.generate_message(channel_name, max_attempts=8, max_fallbacks=2)
+            server_verified_running = True
+
+        # Check if a custom message was provided (from "Send to Chat" button)
+        custom_message = data.get('custom_message')
+        if custom_message:
+            generated_message = custom_message
+            app.logger.info(f"Using custom message for {channel_name}: {generated_message[:50]}...")
+        else:
+            # Generate a new message
+            generated_message = markov_handler.generate_message(channel_name, max_attempts=8, max_fallbacks=2)
         
         if not generated_message:
             app.logger.error(f"Failed to generate Markov message for {channel_name}.")

@@ -55,6 +55,7 @@ show_help() {
     echo "  restart           Restart the bot"
     echo "  status            Check if running"
     echo "  cli [tts]         Start interactive CLI (add 'tts' to enable voice)"
+    echo "  tui [tts]         Start TUI Mode (add 'tts' to enable voice)"
     echo "  logs [lines]      View logs"
     echo "  setup-tts         Install TTS dependencies"
     echo "  clean             Remove temporary files"
@@ -96,11 +97,6 @@ cmd_start() {
     fi
 
     local tts_flag=""
-    # Check settings for TTS enabled? Or just pass --tts if user asks?
-    # Simple start runs without TTS args by default here, or we can add optional arg.
-    # For now, let's assume config handles it or we pass flags.
-    # The old script passed --web --tts. We dropped web.
-    # Let's just run main.py.
     
     nohup python main.py --tts > "$LOG_DIR/mockbot.log" 2>&1 &
     echo $! > "$PID_FILE"

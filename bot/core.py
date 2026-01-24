@@ -1430,6 +1430,14 @@ class Bot(commands.Bot):
             return  # Ignore CommandNotFound exceptions
         raise error  # Re-raise other exceptions
 
+    async def event_ready(self):
+        # Notify TUI if attached
+        if self.tui_callback:
+            await self.tui_callback('active', self.nick)
+            
+        self.logger.info(f'Logged in as | {self.nick}')
+        self.logger.info(f'User id | {self.user_id}')
+
     async def send_message(self, message):
         # Iterate over all channels
         for channel_name in self.channels:
@@ -1439,8 +1447,14 @@ class Bot(commands.Bot):
                 # Send the message to the channel
                 await channel.send(message)
 
-    # The function event_message is called whenever a new message is received in a channel.
     async def event_message(self, message):
+        # Notify TUI immediately
+        if self.tui_callback:
+            try:
+                await self.tui_callback('message', message)
+            except Exception as e:
+                self.logger.error(f"TUI Callback Error: {e}")
+
         # Ignore messages from the bot itself or messages with no author.
         if message.author is None or message.author.name.lower() == self.nick.lower():
             return
@@ -2175,7 +2189,7 @@ def setup_bot(db_file, rebuild_cache=False, enable_tts=False):
     channels = [f"#{ch.strip()}" if not ch.strip().startswith('#') else ch.strip() 
                 for ch in channels_str.split(',')]
     
-    # print(f"Bot will join these channels: {channels}")
+    self.logger.info(f"Bot will join these channels: {channels}")
     
     # Initialize bot instance
     bot = Bot(

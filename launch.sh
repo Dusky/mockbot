@@ -179,7 +179,25 @@ cmd_setup_tts() {
 cmd_tui() {
     echo -e "${CYAN}Starting TUI Mode...${NC}"
     source "$VENV_DIR/bin/activate" 2>/dev/null || true
-    python main.py --tui "$@"
+    
+    local use_tts=false
+    local args=()
+    
+    # Parse args similar to CLI (allow 'tts' without dashes)
+    for arg in "$@"; do
+        if [[ "$arg" == "tts" || "$arg" == "--tts" ]]; then
+            use_tts=true
+        else
+            args+=("$arg")
+        fi
+    done
+    
+    if [ "$use_tts" = true ]; then
+        echo -e "${GREEN}🔊 TUI + TTS Enabled${NC}"
+        python main.py --tui --tts "${args[@]}"
+    else
+        python main.py --tui "${args[@]}"
+    fi
 }
 
 cmd_clean() {

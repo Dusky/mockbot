@@ -172,30 +172,6 @@ cmd_setup_tts() {
     fi
 }
 
-cmd_tui() {
-    echo -e "${CYAN}Starting TUI Mode...${NC}"
-    source "$VENV_DIR/bin/activate" 2>/dev/null || true
-    
-    local use_tts=false
-    local args=()
-    
-    # Parse args similar to CLI (allow 'tts' without dashes)
-    for arg in "$@"; do
-        if [[ "$arg" == "tts" || "$arg" == "--tts" ]]; then
-            use_tts=true
-        else
-            args+=("$arg")
-        fi
-    done
-    
-    if [ "$use_tts" = true ]; then
-        echo -e "${GREEN}🔊 TUI + TTS Enabled${NC}"
-        python main.py --tui --tts "${args[@]}"
-    else
-        python main.py --tui "${args[@]}"
-    fi
-}
-
 cmd_clean() {
     echo -e "${YELLOW}Cleaning temp files...${NC}"
     rm -f *.log *.pid bot_heartbeat.json
@@ -210,7 +186,6 @@ case "${1:-}" in
     restart) cmd_restart ;;
     status) cmd_status ;;
     cli) cmd_cli "${@:2}" ;; # Pass remaining args
-    tui) cmd_tui "${@:2}" ;; 
     logs) cmd_logs "${2:-50}" ;;
     setup-tts) cmd_setup_tts ;;
     clean) cmd_clean ;;

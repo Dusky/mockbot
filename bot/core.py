@@ -1431,10 +1431,8 @@ class Bot(commands.Bot):
         raise error  # Re-raise other exceptions
 
     async def event_ready(self):
-        # Notify TUI if attached
-        if self.tui_callback:
-            await self.tui_callback('active', self.nick)
-            
+        print(f'Logged in as | {self.nick}')
+        print(f'User id | {self.user_id}')
         self.logger.info(f'Logged in as | {self.nick}')
         self.logger.info(f'User id | {self.user_id}')
 
@@ -1448,12 +1446,8 @@ class Bot(commands.Bot):
                 await channel.send(message)
 
     async def event_message(self, message):
-        # Notify TUI immediately
-        if self.tui_callback:
-            try:
-                await self.tui_callback('message', message)
-            except Exception as e:
-                self.logger.error(f"TUI Callback Error: {e}")
+        # Print chat to console for CLI visibility
+        print(f"[{message.channel.name}] {message.author.name}: {message.content}")
 
         # Ignore messages from the bot itself or messages with no author.
         if message.author is None or message.author.name.lower() == self.nick.lower():
@@ -2189,7 +2183,8 @@ def setup_bot(db_file, rebuild_cache=False, enable_tts=False):
     channels = [f"#{ch.strip()}" if not ch.strip().startswith('#') else ch.strip() 
                 for ch in channels_str.split(',')]
     
-    self.logger.info(f"Bot will join these channels: {channels}")
+    # Logging channels here requires a logger instance, which we don't have via 'self'
+    print(f"Bot will join these channels: {channels}")
     
     # Initialize bot instance
     bot = Bot(

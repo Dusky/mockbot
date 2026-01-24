@@ -123,29 +123,23 @@ def main():
         # print("Database setup complete.")
             
         # Execution Mode
-        if args.tui:
-            # TUI Mode
-            # We defer bot creation to Textual's loop
-            import bot.tui
-            bot.tui.start_tui(db_file, args.rebuild_cache, enable_tts_global)
-        else:
-            # CLI Mode
-            print("Setting up bot...")
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            bot_instance = setup_bot(db_file, rebuild_cache=args.rebuild_cache, enable_tts=enable_tts_global)
-            print("Bot setup complete.")
-            
-            # Create PID file
-            try:
-                with open("bot.pid", "w") as f:
-                    f.write(str(os.getpid()))
-            except IOError:
-                pass
+        # CLI Mode
+        print("Setting up bot...")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        bot_instance = setup_bot(db_file, rebuild_cache=args.rebuild_cache, enable_tts=enable_tts_global)
+        print("Bot setup complete.")
+        
+        # Create PID file
+        try:
+            with open("bot.pid", "w") as f:
+                f.write(str(os.getpid()))
+        except IOError:
+            pass
 
-            # Simple CLI mode - direct output
-            sys.stdout.flush()
-            bot_instance.run()
+        # Simple CLI mode - direct output
+        sys.stdout.flush()
+        bot_instance.run()
 
         print("Bot run loop has exited.")
         

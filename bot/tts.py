@@ -691,24 +691,16 @@ def notify_new_audio_available(channel_name, message_id):
     # config.read('settings.conf')
     # webapp_port = config.get('webapp', 'port', fallback='8347')
 
-    # Define the URL of the Flask endpoint
-    # url = f'http://localhost:{webapp_port}/new-audio-notification'
-
-    # Data to send (optional, you can customize this)
-    data = {
-        'channel_name': channel_name,
-        'message_id': message_id
-    }
-
-    # Send POST request
-    try:
-        response = requests.post(url, json=data)
-        if response.status_code == 200:
-            logging.debug("Notification sent successfully to webapp for new audio.")
-        else:
-            logging.warning(f"Failed to send new audio notification to webapp (status: {response.status_code})")
-    except requests.exceptions.ConnectionError:
-        # Expected if running in CLI mode without webapp
-        logging.debug(f"Webapp notification skipped: Connection to {url} refused (Webapp likely offline).")
-    except requests.exceptions.RequestException as e:
-        logging.warning(f"Error sending new audio notification: {e}")
+    # Webapp removed, notification disabled
+    pass
+    # Original logic commented out to prevent NameError since 'url' is not defined.
+    # To re-enable, uncomment config loading and url definition.
+    
+    # try:
+    #     response = requests.post(url, json=data)
+    #     if response.status_code == 200:
+    #         logging.debug("Notification sent successfully to webapp for new audio.")
+    #     else:
+    #         logging.warning(f"Failed to send new audio notification to webapp (status: {response.status_code})")
+    # except Exception as e:
+    #     logging.warning(f"Notification error: {e}")

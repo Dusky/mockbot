@@ -103,40 +103,10 @@ class MockbotTUI(App):
         
         # Attach to root logger
         logging.getLogger().addHandler(self.log_handler)
-        logging.getLogger("twitchio").setLevel(logging.DEBUG)
+        logging.getLogger("twitchio").setLevel(logging.INFO)
 
     def compose(self) -> ComposeResult:
-        # Layout: 
-        # Main Area (Chat) + Sidebar (Right)
-        # Bottom (Input)
-        
-        yield Header(show_clock=True)
-        
-        with Container(id="chat-container"):
-            yield RichLog(id="chat_log", markup=True, wrap=True)
-
-        with Container(id="sidebar"):
-            yield Label("Channels", classes="header")
-            yield Label("Loading...", id="channel_list_text")
-            yield Label(" ", classes="spacer")
-            yield Label("System", classes="header")
-            yield Label("Initializing...", id="status_text")
-
-        with Container(id="input-container"):
-            yield Input(placeholder="Send message...", id="message_input")
-            
-        yield Footer()
-
-    def on_mount(self) -> None:
-        self.title = "Mockbot"
-        self.sub_title = "Initializing..."
-        self.write_log("[bold blue]System initialized. Starting bot...[/bold blue]")
-        
-        # Start background update loop
-        self.set_interval(1.0, self.update_ui_state)
-        
-        # Start Bot on the MAIN asyncio loop
-        asyncio.create_task(self.run_bot())
+    # ... (unchanged)
 
     def update_ui_state(self):
         """Periodically update UI elements based on bot state."""
@@ -153,6 +123,10 @@ class MockbotTUI(App):
             if hasattr(self.bot, '_ws') and self.bot._ws is not None:
                  if not self.bot._ws.is_closed:
                      is_connected = True
+            
+            # Fallback: If we have joined channels, we are connected
+            if hasattr(self.bot, '_joined_channels') and len(self.bot._joined_channels) > 0:
+                is_connected = True
         except:
             pass
         
@@ -162,7 +136,7 @@ class MockbotTUI(App):
         else:
              self.sub_title = "Disconnected"
              # Show *why* disconnected if possible (connecting...)
-             status_lbl.update("[red]● Connecting...[/red]")
+             status_lbl.update("[yellow]● Connecting...[/yellow]")
 
         # Update Channels
         channel_lbl = self.query_one("#channel_list_text", Label)

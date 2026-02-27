@@ -8,7 +8,7 @@ import sqlite3
 import requests
 import threading
 import sys
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout, redirect_stderr
 import nltk
 import numpy as np
 from nltk.tokenize import sent_tokenize
@@ -20,9 +20,8 @@ import configparser
 VOICES_DIRECTORY = './voices'
 db_file = 'messages.db'
 
-# Define original stdout and stderr globals
-original_stdout = sys.stdout
-original_stderr = sys.stderr
+# Define database file
+db_file = 'messages.db'
 
 # Add lock to prevent concurrent TTS processing for Bark model
 bark_tts_lock = threading.Lock() # For process_text_thread
@@ -236,15 +235,9 @@ def initialize_tts():
     import torch
     import scipy.io.wavfile
 
-def silence_output():
-    # Only silence during model loading/generation to reduce Bark's verbose output
-    # but allow progress bars during initial downloads
-    sys.stdout = open(os.devnull, 'w')
-    sys.stderr = open(os.devnull, 'w')
-
 def process_text_thread(input_text, channel_name, db_file='./messages.db', full_path=None, timestamp=None, message_id=None, voice_preset=None, bark_model=None):
     """Process TTS in a separate thread with silenced output"""
-    global original_stdout, original_stderr, bark_tts_lock
+    global bark_tts_lock
     
     # Log parameters *before* silencing, for critical debugging
     logging.info(f"[TTS THREAD ENTRY] Params: input_text='{str(input_text)[:30]}...', channel='{channel_name}', db_file='{db_file}', full_path='{full_path}', timestamp='{timestamp}', message_id='{message_id}', voice_preset='{voice_preset}', bark_model='{bark_model}'")
@@ -271,11 +264,8 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
             from transformers import AutoProcessor, BarkModel
             from nltk.tokenize import sent_tokenize
         except ImportError as import_err:
-            # Restore output for error logging if imports fail
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
             logging.error(f"[TTS THREAD FATAL ERROR] Failed to import critical TTS dependencies: {import_err}", exc_info=True)
-            # Re-raise the error to be caught by the outer try-except in process_text_thread, which will restore stdout/stderr again
+            # Re-raise the error to be caught by the outer try-except in process_text_thread
             # and return None, None, preventing further execution in this thread.
             raise
         
@@ -310,9 +300,6 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
             # PERFORMANCE: Get model from cache instead of loading each time
             cached_model_data = tts_model_cache.get_model(model_path, device)
             if not cached_model_data:
-                # Restore output for error logging if model loading fails
-                sys.stdout = original_stdout
-                sys.stderr = original_stderr
                 logging.error(f"[TTS THREAD FATAL ERROR] Failed to load or cache model: {model_path}")
                 raise RuntimeError(f"Model loading failed: {model_path}")
             
@@ -323,22 +310,13 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
                 pass  # Model loading is now handled by cache
             except AttributeError as ae:
                 if 'get_default_device' in str(ae):
-                    # Restore stdout/stderr to ensure this critical message is visible via standard print/logging
-                    sys.stdout = original_stdout
-                    sys.stderr = original_stderr
                     logging.error(f"[TTS FATAL ERROR] AttributeError: {ae}. This strongly suggests your PyTorch version is too old (e.g., < 1.9) for the installed 'transformers' version.")
                     logging.error("[TTS FATAL ERROR] Please upgrade PyTorch to 1.9+ or align your 'transformers' library version with your PyTorch version.")
                     raise # Re-raise the error to be caught by the outer try-except in process_text_thread
                 else:
-                    # Restore stdout/stderr for other AttributeErrors too
-                    sys.stdout = original_stdout
-                    sys.stderr = original_stderr
                     logging.error(f"[TTS FATAL ERROR] AttributeError during model loading: {ae}")
                     raise # Re-raise other AttributeErrors
             except Exception as model_load_exc:
-                # Restore stdout/stderr for general exceptions during model loading
-                sys.stdout = original_stdout
-                sys.stderr = original_stderr
                 logging.error(f"[TTS FATAL ERROR] Failed to load or prepare BarkModel: {model_load_exc}", exc_info=True)
                 raise # Re-raise the error
             
@@ -359,38 +337,38 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
                     logging.info(f"Using fallback voice preset: {voice_preset} for channel {channel_name}") # Keep as info
 
             # Silence output only during generation to reduce Bark's verbose output
-            silence_output()
-            
-            # Process text in chunks for better performance
-            all_audio_pieces = []
-            sentences = sent_tokenize(input_text)
-            
-            for sentence in sentences:
-                pieces = split_sentence(sentence, 165)  # Split long sentences
-                for piece in pieces:
-                    # Generate speech with the selected voice preset
-                    # Removed padding=True as it caused TypeError with BarkProcessor.
-                    # The processor should handle padding and attention_mask with return_tensors="pt".
-                    inputs = processor(text=piece, voice_preset=voice_preset, return_tensors="pt").to(device)
+            with open(os.devnull, 'w') as fnull:
+                with redirect_stdout(fnull), redirect_stderr(fnull):
+                    # Process text in chunks for better performance
+                    all_audio_pieces = []
+                    sentences = sent_tokenize(input_text)
                     
-                    # The model.generate call should now use the attention_mask from inputs.
-                    # Explicitly passing pad_token_id can also help, using the model's config.
-                    # Bark's EOS token ID (10000) is often used as pad_token_id for generation.
-                    pad_token_id_for_generation = model.generation_config.pad_token_id or model.generation_config.eos_token_id or 10000
-                    
-                    # Ensure attention_mask is explicitly passed to avoid the warning
-                    attention_mask = inputs.get("attention_mask")
-                    if attention_mask is not None:
-                        audio_array = model.generate(
-                            inputs.input_ids,
-                            attention_mask=attention_mask,
-                            pad_token_id=pad_token_id_for_generation
-                        )
-                    else:
-                        audio_array = model.generate(**inputs, pad_token_id=pad_token_id_for_generation)
-                        
-                    audio_array = audio_array.cpu().numpy().squeeze()
-                    all_audio_pieces.append(audio_array)
+                    for sentence in sentences:
+                        pieces = split_sentence(sentence, 165)  # Split long sentences
+                        for piece in pieces:
+                            # Generate speech with the selected voice preset
+                            # Removed padding=True as it caused TypeError with BarkProcessor.
+                            # The processor should handle padding and attention_mask with return_tensors="pt".
+                            inputs = processor(text=piece, voice_preset=voice_preset, return_tensors="pt").to(device)
+                            
+                            # The model.generate call should now use the attention_mask from inputs.
+                            # Explicitly passing pad_token_id can also help, using the model's config.
+                            # Bark's EOS token ID (10000) is often used as pad_token_id for generation.
+                            pad_token_id_for_generation = model.generation_config.pad_token_id or model.generation_config.eos_token_id or 10000
+                            
+                            # Ensure attention_mask is explicitly passed to avoid the warning
+                            attention_mask = inputs.get("attention_mask")
+                            if attention_mask is not None:
+                                audio_array = model.generate(
+                                    inputs.input_ids,
+                                    attention_mask=attention_mask,
+                                    pad_token_id=pad_token_id_for_generation
+                                )
+                            else:
+                                audio_array = model.generate(**inputs, pad_token_id=pad_token_id_for_generation)
+                                
+                            audio_array = audio_array.cpu().numpy().squeeze()
+                            all_audio_pieces.append(audio_array)
 
             # Combine all audio pieces and save
             final_audio_array = np.concatenate(all_audio_pieces)
@@ -463,9 +441,8 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
             if logged_tts_table_id is not None:
                 notify_new_audio_available(channel_name, message_id, full_path, input_text) 
             
-            # Restore output to print to CLI
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
+            # Print status update directly — because we used contextlib earlier, 
+            # this will hit the prompt_toolkit patched stdout successfully!
             print(f"✅ TTS audio ready! ({full_path})")
             
             # Log internally without printing to console (already done above with [TTS DB LOG])
@@ -474,18 +451,12 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
             return full_path, logged_tts_table_id # Return the ID of the tts_logs table entry
             
         except Exception as e:
-            # Ensure output is restored before printing error from this broad catch-all
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
             # This is a fatal error for this thread, so logging.error is appropriate
             logging.error(f"[TTS THREAD FATAL ERROR] Uncaught exception in process_text_thread: {e}", exc_info=True)
             # import traceback # exc_info=True handles this
             # traceback.print_exc()
             return None, None # Ensure two values are returned as expected if caller unpacks
         finally:
-            # Always restore original stdout and stderr
-            sys.stdout = original_stdout
-            sys.stderr = original_stderr
             logging.info(f"[TTS THREAD] Released Bark TTS lock for message_id: {message_id}")
 
 @lru_cache(maxsize=20)

@@ -147,7 +147,7 @@ def main():
         async def run_concurrently():
             # Start the OBS overlay web server
             # start_server returns an AppRunner but doesn't block
-            await start_server(port=5050)
+            runner = await start_server(port=5050)
             
             # Create tasks for both the bot and the shell
             # bot.start() is the coroutine version of bot.run()
@@ -163,6 +163,10 @@ def main():
             # If shell finished (quit), cancel bot
             for task in pending:
                 task.cancel()
+                
+            # Clean up the web server port
+            if runner:
+                await runner.cleanup()
         
         # Run the concurrent loop
         loop.run_until_complete(run_concurrently())

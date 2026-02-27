@@ -7,6 +7,9 @@ from pathlib import Path
 # connected_clients maps a channel_name to a set of WebSocketResponse objects
 connected_clients = {}
 
+# Global reference to the main event loop
+main_loop = None
+
 async def serve_overlay(request):
     """Serve the static HTML for the OBS browser source."""
     channel = request.match_info.get('channel', '').lower()
@@ -281,6 +284,7 @@ def broadcast_audio(channel: str, file_path: str):
     Called by the TTS thread to notify all connected overlays to play a file.
     Note: Can be called from a synchronous thread, so we schedule the async broadcast.
     """
+    global main_loop
     clean_channel = channel.lstrip('#').lower()
     
     # Static files are mounted at /audio/, so we take everything from static/outputs onwards
@@ -298,18 +302,22 @@ def broadcast_audio(channel: str, file_path: str):
         "file": audio_url
     })
 
-    if clean_channel in connected_clients:
+    if clean_channel in connected_clients and main_loop is not None:
         # Create tasks to send to all clients
         for ws in connected_clients[clean_channel]:
             try:
-                # We use asyncio.create_task to fire and forget since this might be called from another event loop
-                loop = asyncio.get_event_loop()
-                loop.create_task(ws.send_str(payload))
+                # We use asyncio.run_coroutine_threadsafe to fire from the background thread
+                asyncio.run_coroutine_threadsafe(ws.send_str(payload), main_loop)
             except Exception as e:
                 logging.error(f"Failed to send WS message to overlay: {e}")
+    elif main_loop is None:
+        logging.warning("Cannot broadcast_audio: main_loop is not active.")
 
 async def start_server(host='0.0.0.0', port=5050):
     """Start the aiohttp web server."""
+    global main_loop
+    main_loop = asyncio.get_event_loop()
+    
     app = web.Application()
     
     # Routes

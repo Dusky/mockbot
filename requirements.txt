@@ -11,6 +11,9 @@ numpy>=1.26.0
 # CLI Interface
 prompt_toolkit>=3.0.36
 
+# OBS Overlay
+aiohttp>=3.9.0
+
 # NLTK (also needed for TTS)
 nltk>=3.8.1
 textual>=0.47.1

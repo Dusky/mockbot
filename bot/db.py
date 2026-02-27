@@ -76,8 +76,22 @@ def ensure_db_setup(db_file):
                         voice_preset TEXT DEFAULT 'v2/en_speaker_5',
                         bark_model TEXT DEFAULT 'regular',
                         currently_connected BOOLEAN DEFAULT 0,
-                        tts_delay_enabled BOOLEAN DEFAULT 0
+                        tts_delay_enabled BOOLEAN DEFAULT 0,
+                        random_chance REAL DEFAULT 0.0,
+                        log_dice BOOLEAN DEFAULT 0
                     )''')
+
+        # Add random_chance column to channel_configs if it doesn't exist (migration)
+        channel_configs_columns = [row[1] for row in c.execute("PRAGMA table_info(channel_configs)").fetchall()]
+        if 'random_chance' not in channel_configs_columns:
+            c.execute("ALTER TABLE channel_configs ADD COLUMN random_chance REAL DEFAULT 0.0")
+            logging.info("Column 'random_chance' added to 'channel_configs'.")
+            
+        # Add log_dice column to channel_configs if it doesn't exist (migration)
+        if 'log_dice' not in channel_configs_columns:
+            c.execute("ALTER TABLE channel_configs ADD COLUMN log_dice BOOLEAN DEFAULT 0")
+            logging.info("Column 'log_dice' added to 'channel_configs'.")
+        conn.commit()
 
         # Create 'user_colors' table
         c.execute('''CREATE TABLE IF NOT EXISTS user_colors (

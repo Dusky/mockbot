@@ -410,6 +410,10 @@ class Bot(commands.Bot):
                 # 2. Make sure it's in self.channels list (also with # prefix)
                 if channel_name not in self.channels:
                     self.channels.append(channel_name)
+                    
+                # Initialize timers for new channels so they don't instant-fire
+                if channel_name not in self.channel_last_message_time:
+                    self.channel_last_message_time[channel_name] = time.time()
                 
                 # 3. Update database to mark channel as connected
                 try:
@@ -584,14 +588,14 @@ class Bot(commands.Bot):
                 if channel_filter:
                     await c.execute('''
                         SELECT channel_name, owner, trusted_users, ignored_users, voice_enabled, tts_enabled, 
-                               join_channel, time_between_messages, lines_between_messages, use_general_model
+                               join_channel, time_between_messages, lines_between_messages, use_general_model, random_chance, log_dice
                         FROM channel_configs
                         WHERE channel_name = ?
                     ''', (channel_filter,))
                 else:
                     await c.execute('''
                         SELECT channel_name, owner, trusted_users, ignored_users, voice_enabled, tts_enabled, 
-                               join_channel, time_between_messages, lines_between_messages, use_general_model
+                               join_channel, time_between_messages, lines_between_messages, use_general_model, random_chance, log_dice
                         FROM channel_configs
                     ''')
                 
@@ -601,7 +605,7 @@ class Bot(commands.Bot):
                     return
 
                 for row in rows:
-                    channel, owner, trusted, ignored, voice, tts, join_enabled, time_between, lines_between, use_general = row
+                    channel, owner, trusted, ignored, voice, tts, join_enabled, time_between, lines_between, use_general, random_chance, log_dice = row
                     
                     # Format owner with color
                     owner_display = f"\033[38;5;{self.get_user_color(owner)}m{owner}\033[0m" if owner else "None"
@@ -628,6 +632,12 @@ class Bot(commands.Bot):
                     time_status = f"{GREEN}{time_between}{RESET}" if time_between > 0 else f"{RED}0{RESET}"
                     lines_status = f"{GREEN}{lines_between}{RESET}" if lines_between > 0 else f"{RED}0{RESET}"
                     
+                    # Format chance
+                    chance_status = f"\033[0;36m{random_chance}%\033[0m" if random_chance > 0 else f"\033[1;33m0.0%\033[0m"
+                    
+                    # Format log dice
+                    log_dice_status = f"{GREEN}on{RESET}" if log_dice else f"{RED}off{RESET}"
+                    
                     # Add to table
                     table_data.append([
                         f"\033[38;5;{self.get_channel_color(channel)}m#{channel}\033[0m", 
@@ -639,15 +649,17 @@ class Bot(commands.Bot):
                         model_status,
                         time_status,
                         lines_status,
+                        chance_status,
+                        log_dice_status
                     ])
             
-            headers = ["Channel", "Owner", "Trusted Users", "Voice", "TTS", "Autojoin", "Model", "Time", "Lines"]
+            headers = ["Channel", "Owner", "Trusted Users", "Voice", "TTS", "Autojoin", "Model", "Time", "Lines", "Chance", "Log_Dice"]
             print(tabulate(table_data, headers=headers, tablefmt="pretty"))
         
         except Exception as e:
             print(f"Error printing channel status: {e}")
 
-    async def print_brain_status(self):
+    async def print_brain_status(self, channel_filter=None):
         """Print a status table showing the number of lines loaded for each channel's Markov brain and cache metadata."""
         try:
             async with aiosqlite.connect(self.db_file) as conn:
@@ -658,6 +670,73 @@ class Bot(commands.Bot):
                 channel_models = {row[0]: row[1] for row in await c.fetchall()}
                 
                 table_data = []
+                import os
+                import datetime
+
+                if channel_filter:
+                    clean_channel = channel_filter.lstrip('#')
+                    use_general = channel_models.get(clean_channel, 1) # Default to 1 (general) if not found
+                    model_type = "General" if use_general else "Individual"
+                    
+                    if use_general:
+                        cache_file_path = os.path.join("cache", "general_markov_model.json")
+                        model_name = "general_markov_model"
+                    else:
+                        cache_file_path = os.path.join("cache", f"{clean_channel}_model.json")
+                        model_name = f"{clean_channel}_model"
+                    
+                    await c.execute('SELECT COUNT(*) FROM messages WHERE is_bot_response = 0 AND channel = ?', (clean_channel,))
+                    row = await c.fetchone()
+                    msg_count = row[0] if row else 0
+                    
+                    print(f"\n🧠 \033[1mDetailed Brain Stats for \033[38;5;{self.get_channel_color(clean_channel)}m#{clean_channel}\033[0m\033[1m:\033[0m")
+                    print(f"  • Raw Messages in DB: {msg_count:,}")
+                    print(f"  • Source Model:       {model_type} ({model_name})")
+                    
+                    if os.path.exists(cache_file_path):
+                        size_bytes = os.path.getsize(cache_file_path)
+                        cache_size_str = f"{size_bytes / 1024:.1f} KB"
+                        mtime = os.path.getmtime(cache_file_path)
+                        dt = datetime.datetime.fromtimestamp(mtime)
+                        
+                        print(f"  • Cache File Size:    {cache_size_str}")
+                        print(f"  • Last Compiled:      {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                        
+                        try:
+                            with open(cache_file_path, 'r', encoding='utf-8') as f:
+                                json_str = f.read()
+                            import markovify
+                            import json
+                            model = markovify.Text.from_json(json_str)
+                            
+                            state_size = model.state_size
+                            num_parsed_sentences = len(model.parsed_sentences) if model.parsed_sentences else 0
+                            
+                            # Dictionary representation of the chain
+                            chain_model = model.chain.model
+                            num_states = len(chain_model) if isinstance(chain_model, dict) else "Unknown"
+                            
+                            # Top start words
+                            try:
+                                starts = chain_model.get((markovify.chain.BEGIN,) * state_size, {})
+                                top_starts = sorted(starts.items(), key=lambda x: x[1], reverse=True)[:5]
+                                top_starts_str = ", ".join([f"'{w[0]}': {c}" if isinstance(w, tuple) else f"'{w}': {c}" for w, c in top_starts])
+                            except Exception:
+                                top_starts_str = "Unavailable"
+                                
+                            print(f"  • State Size:         {state_size}")
+                            print(f"  • Sentences Parsed:   {num_parsed_sentences:,}")
+                            print(f"  • Unique States:      {num_states:,}" if isinstance(num_states, int) else f"  • Unique States:      {num_states}")
+                            print(f"  • Top Start Words:    {top_starts_str}")
+
+                        except Exception as e:
+                            print(f"  • Error parsing cache: {str(e)}")
+                    else:
+                        print(f"  • Cache Status:       Not generated yet")
+                    
+                    print("")
+                    return
+                
                 # Get total counts per channel from DB
                 await c.execute('''
                     SELECT channel, COUNT(*) as count 
@@ -668,8 +747,6 @@ class Bot(commands.Bot):
                 ''')
                 
                 total_lines = 0
-                import os
-                import datetime
                 
                 for row in await c.fetchall():
                     channel, count = row
@@ -1137,17 +1214,19 @@ class Bot(commands.Bot):
             async with aiosqlite.connect(self.db_file) as conn:
                 c = await conn.cursor()
                 await c.execute(
-                    "SELECT lines_between_messages, time_between_messages, tts_enabled, voice_enabled FROM channel_configs WHERE channel_name = ?",
+                    "SELECT lines_between_messages, time_between_messages, tts_enabled, voice_enabled, random_chance, log_dice FROM channel_configs WHERE channel_name = ?",
                     (channel_name,)
                 )
                 row = await c.fetchone()
                 if row:
-                    return row[0], row[1], row[2], row[3]  # returns lines_between, time_between, tts_enabled, voice_enabled
+                    random_chance = float(row[4]) if len(row) > 4 and row[4] is not None else 0.0
+                    log_dice = bool(row[5]) if len(row) > 5 and row[5] is not None else False
+                    return row[0], row[1], row[2], row[3], random_chance, log_dice  # lines, time, tts, voice, chance, log_dice
                 else:
-                    return 0, 0, False, False  # Default values if channel settings not found
+                    return 0, 0, False, False, 0.0, False  # Default values
         except Exception as e:
             print(f"SQLite error in fetch_channel_settings: {e}")
-            return 0, 0, False, False
+            return 0, 0, False, False, 0.0, False
 
     def get_channel_voice_preset(self, channel_name):
         """Fetch the voice_preset for a given channel from the database."""
@@ -1248,10 +1327,7 @@ class Bot(commands.Bot):
 
     async def event_ready(self):
         """Handle the bot ready event."""
-        print(f"{GREEN}==================================================={RESET}")
-        print(f"{GREEN}Bot is ready! | {self.nick}{RESET}")
-        print(f"{GREEN}==================================================={RESET}")
-        
+        # Use verbose flag for detailed output        
         # Use verbose flag for detailed output
         verbose = os.environ.get('VERBOSE', '').lower() in ('true', '1', 'yes')
         
@@ -1364,11 +1440,12 @@ class Bot(commands.Bot):
         except Exception as e:
             print(f"{RED}❌ Error setting up heartbeat: {e}{RESET}")
             
-        # Final verification - always show
-        print(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
-        print(f"{GREEN}==================================================={RESET}")
-        print(f"{GREEN}Bot initialization complete!{RESET}")
-        print(f"{GREEN}==================================================={RESET}")
+        # Final verification
+        if verbose:
+            print(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
+            print(f"{GREEN}==================================================={RESET}")
+            print(f"{GREEN}Bot initialization complete!{RESET}")
+            print(f"{GREEN}==================================================={RESET}")
         
         # Extra verification for channels of interest
         for channel in self.channels:
@@ -1542,7 +1619,7 @@ class Bot(commands.Bot):
 
     def log_message(self, message):
         msg = f"{message.author.name}: {message.content}"
-        self.my_logger.info(msg)
+        return self.my_logger.info(msg)
 
     async def on_command_error(self, ctx, error):
         if isinstance(error, commands.CommandNotFound):
@@ -1565,11 +1642,13 @@ class Bot(commands.Bot):
             return
 
         channel_name = message.channel.name.lower()
-        # Log the message.
-        self.my_logger.log_message(channel_name, message.author.name, message.content)
+        # Log the message and check for bad words.
+        message_clean = self.my_logger.log_message(channel_name, message.author.name, message.content)
+        if not message_clean:
+            return
 
         # Fetch the channel settings and ignored users for the current channel.
-        lines_between, time_between, tts_enabled, voice_enabled = await self.fetch_channel_settings(channel_name)
+        lines_between, time_between, tts_enabled, voice_enabled, random_chance, log_dice = await self.fetch_channel_settings(channel_name)
         ignored_users = [user.lower() for user in self.channel_settings[channel_name]['ignored_users']] if channel_name in self.channel_settings else []
 
         # Ignore messages from ignored users.
@@ -1611,12 +1690,25 @@ class Bot(commands.Bot):
         # Calculate the elapsed time since the last message in the current channel.
         elapsed_time = time.time() - self.channel_last_message_time.get(channel_name, 0)
 
-        # Determine if a message should be sent based on the lines_between and time_between settings.
+        # Determine if a message should be sent based on the chat_mode, lines_between and time_between
         should_send_message = False
-        if lines_between > 0 and self.channel_chat_line_count[channel_name] >= lines_between:
-            should_send_message = True
-        elif time_between > 0 and elapsed_time >= time_between * 60:
-            should_send_message = True
+        
+        # Check independent random chance first
+        if random_chance > 0.0:
+            import random
+            roll = random.uniform(0.0, 100.0)
+            if log_dice:
+                if not self.my_logger.active_channel_filter or self.my_logger.active_channel_filter.lower() == channel_name.lower():
+                    print(f"\033[0;36m[{channel_name}]\033[0m Dice roll: {roll:.3f}% \033[2mvs {random_chance}%\033[0m -> \033[1;33m{'Triggered!' if roll <= random_chance else 'Miss'}\033[0m")
+            if roll <= random_chance:
+                should_send_message = True
+                
+        # Fallback to lines/time checks if random didn't trigger
+        if not should_send_message:
+            if lines_between > 0 and self.channel_chat_line_count[channel_name] >= lines_between:
+                should_send_message = True
+            elif time_between > 0 and elapsed_time >= time_between * 60:
+                should_send_message = True
 
         # If a message should be sent and voice is enabled for the current channel.
         if should_send_message and voice_enabled:
@@ -1630,7 +1722,7 @@ class Bot(commands.Bot):
 
             # Generate a response using the appropriate model.
             if row:
-
+                response = self.generate_message(channel_name)
 
                 # If a response was generated.
                 if response:
@@ -1717,9 +1809,10 @@ class Bot(commands.Bot):
                                 self.logger.info("start_tts_processing called for bot auto-response.")
                                 # The process_text_thread called by start_tts_processing will handle logging to tts_logs.
 
-                            # Reset the chat line count and last message time for the current channel.
-                            self.channel_chat_line_count[channel_name] = 0
-                            self.channel_last_message_time[channel_name] = time.time()
+                        # Reset the chat line count and last message time for the current channel.
+                        # Do this for both NORMAL MODE and TTS DELAY MODE
+                        self.channel_chat_line_count[channel_name] = 0
+                        self.channel_last_message_time[channel_name] = time.time()
                     except Exception as e:
                         # Log any errors that occur when sending the message.
                         self.my_logger.error(f"Failed to send message in {channel_name}: {str(e)}")
@@ -2007,7 +2100,7 @@ class Bot(commands.Bot):
                             # Generate TTS if enabled for this channel
                             try:
                                 # Fetch channel settings to check if TTS is enabled
-                                lines_between, time_between, tts_enabled, voice_enabled = await self.fetch_channel_settings(channel_clean)
+                                lines_between, time_between, tts_enabled, voice_enabled, _, _ = await self.fetch_channel_settings(channel_clean)
                                 
                                 if self.enable_tts and tts_enabled:
                                     # Generate a unique message ID for TTS processing

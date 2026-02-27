@@ -459,14 +459,13 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
                     if db_conn_tts_log:
                         db_conn_tts_log.close()
 
-            # Re-silence output if further Bark/TTS processing was needed (though it's done here)
-            silence_output()
-            
             # Notify with the message_id (string) so the frontend can query the API correctly
             if logged_tts_table_id is not None:
                 notify_new_audio_available(channel_name, message_id, full_path) 
             
-            # Print to CLI that the audio is ready
+            # Restore output to print to CLI
+            sys.stdout = original_stdout
+            sys.stderr = original_stderr
             print(f"✅ TTS audio ready! ({full_path})")
             
             # Log internally without printing to console (already done above with [TTS DB LOG])

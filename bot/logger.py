@@ -33,6 +33,7 @@ class Logger:
         self.color_manager = ColorManager()  # Initialize the ColorManager
         self.logger = logging.getLogger('bot') # Initialize logger instance attribute
         self.bad_words = self.load_bad_patterns()
+        self.active_channel_filter = None
         self.setup_logger() # Call setup_logger in constructor
         
     def setup_logger(self):
@@ -115,7 +116,7 @@ class Logger:
             print(f"{RED}Message from {username} in #{channel} not logged due to bad word usage.{RESET}")
             # Optionally, log a sanitized version to app.log if needed for audit, e.g.,
             # self.logger.info(f"Blocked message from {username} in #{channel} due to bad word.")
-            return
+            return False
 
         timestamp_dt = datetime.now()
         day_year_time = timestamp_dt.strftime('%d %y %H:%M:%S')
@@ -136,7 +137,8 @@ class Logger:
         console_log_msg = f"{colored_month} {colored_timestamp_str} - #{colored_channel_str} | <{colored_username_str}>: {message_content}"
 
         # Print the rich, colorized message directly to the console
-        print(console_log_msg)
+        if not self.active_channel_filter or self.active_channel_filter.lower() == channel.lower():
+            print(console_log_msg)
 
 
         # Prepare a sanitized, uncolored message for app.log
@@ -149,6 +151,7 @@ class Logger:
         # Mark the record to skip console output since we already printed it above
         # Use a custom level or extra parameter to signal CustomHandler to skip it
         self.logger.info(file_log_msg_content, extra={'skip_console': True})
+        return True
     
     def log_warning(self, message):
         """Log a warning with consistent yellow styling"""

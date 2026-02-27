@@ -62,20 +62,35 @@ class InteractiveShell:
                 await self.bot.print_channel_status(self.current_context.lstrip('#'))
 
         elif cmd in ['brain', 'stats']:
-            await self.bot.print_brain_status()
+            if args:
+                target_channel = args[0].lstrip('#')
+                await self.bot.print_brain_status(target_channel)
+            elif self.current_context != "Global":
+                await self.bot.print_brain_status(self.current_context.lstrip('#'))
+            else:
+                await self.bot.print_brain_status()
 
         elif cmd == 'use':
             if not args:
-                print("Usage: use <#channel|global>")
+                self.current_context = "Global"
+                if hasattr(self.bot, 'my_logger'):
+                    self.bot.my_logger.active_channel_filter = None
+                print(f"Context switched to: {self.current_context}")
                 return
             target = args[0].lower()
             if target == 'global':
                 self.current_context = "Global"
+                if hasattr(self.bot, 'my_logger'):
+                    self.bot.my_logger.active_channel_filter = None
             elif target.startswith('#'):
                 # Ideally verify channel exists or is joined
                 self.current_context = target
+                if hasattr(self.bot, 'my_logger'):
+                    self.bot.my_logger.active_channel_filter = target.lstrip('#')
             else:
                 self.current_context = f"#{target}"
+                if hasattr(self.bot, 'my_logger'):
+                    self.bot.my_logger.active_channel_filter = target
             print(f"Context switched to: {self.current_context}")
 
         elif cmd == 'join':
@@ -157,20 +172,34 @@ class InteractiveShell:
                     return
                 state = 1 if val_str == 'general' else 0
                 await self._update_setting('use_general_model', state)
+            elif key == 'chance':
+                try: 
+                    val = float(val_str)
+                    if val < 0.0 or val > 100.0:
+                        raise ValueError()
+                except ValueError: 
+                    print("Error: Value must be a number between 0 and 100."); return
+                await self._update_setting('random_chance', val)
+            elif key == 'log_dice':
+                if val_str not in ['on', 'off', 'true', 'false']:
+                    print("Usage: set log_dice <on|off>")
+                    return
+                state = 1 if val_str in ['on', 'true'] else 0
+                await self._update_setting('log_dice', state)
             else:
-                print(f"Unknown setting: {key}. Available: lines, time, model.")
+                print(f"Unknown setting: {key}. Available: lines, time, chance, model, log_dice.")
 
         elif cmd == 'help':
             print("""
 Available Commands:
   status            Show status table (context-aware)
-  use <#ch|global>  Switch context
+  use [channel]     Switch context (empty clears to global)
   join <#channel>   Join a channel
   say <message>     Send chat (in channel context)
   tts <on|off>      Toggle TTS for current context
   voice <on|off>    Toggle voice for current context
   model <gen|indiv> Toggle Markov model type (general/individual)
-  set <key> <val>   Set config (keys: lines, time, model)
+  set <key> <val>   Set config (keys: lines, time, chance, model)
   brain, stats      Show number of lines loaded per channel
   quit, q           Exit bot
             """)

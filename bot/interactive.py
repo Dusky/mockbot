@@ -186,8 +186,16 @@ class InteractiveShell:
                     return
                 state = 1 if val_str in ['on', 'true'] else 0
                 await self._update_setting('log_dice', state)
+            elif key == 'voice':
+                if not val_str:
+                    print("Usage: set voice <model_name>")
+                    return
+                # We will store the original string (case-sensitive if needed) as val_str is already lowered above.
+                # Let's use the actual passed argument for voice preset to preserve case:
+                actual_val = args[1]
+                await self._update_setting('voice_preset', actual_val)
             else:
-                print(f"Unknown setting: {key}. Available: lines, time, chance, model, log_dice.")
+                print(f"Unknown setting: {key}. Available: lines, time, chance, model, log_dice, voice.")
 
         elif cmd == 'help':
             print("""
@@ -197,9 +205,8 @@ Available Commands:
   join <#channel>   Join a channel
   say <message>     Send chat (in channel context)
   tts <on|off>      Toggle TTS for current context
-  voice <on|off>    Toggle voice for current context
   model <gen|indiv> Toggle Markov model type (general/individual)
-  set <key> <val>   Set config (keys: lines, time, chance, model)
+  set <key> <val>   Set config (keys: lines, time, chance, model, log_dice, voice)
   brain, stats      Show number of lines loaded per channel
   quit, q           Exit bot
             """)

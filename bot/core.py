@@ -260,6 +260,8 @@ class Bot(commands.Bot):
             channel: time.time() for channel in self.channels
         }
         self.channel_settings = {}  # Initialize the channel settings dictionary
+        self.message_queue = [] # Queue for async DB bulk inserts
+        self.db_flush_task = None
         self.db_file = db_file
         self.load_channel_settings()  # Populate channel settings
 
@@ -1440,6 +1442,74 @@ class Bot(commands.Bot):
         except Exception as e:
             print(f"{RED}❌ Error setting up heartbeat: {e}{RESET}")
             
+        # Step 9: Start background DB writer
+        try:
+            if verbose:
+                print(f"{YELLOW}Step 9: Starting background DB writer...{RESET}")
+            self.db_flush_task = self.loop.create_task(self.background_db_writer())
+            if verbose:
+                print(f"{GREEN}✅ Background DB writer started{RESET}")
+        except Exception as e:
+            print(f"{RED}❌ Error starting background DB writer: {e}{RESET}")
+            
+    async def flush_db_queue(self):
+        """Force flush remaining messages in the queue to the database."""
+        if not self.message_queue:
+            return
+            
+        messages_to_insert = list(self.message_queue)
+        self.message_queue.clear()
+        
+        try:
+            async with aiosqlite.connect(self.db_file) as conn:
+                c = await conn.cursor()
+                await c.executemany(
+                    """INSERT INTO messages (twitch_message_id, message, author_name, timestamp, channel, is_bot_response, message_length, tts_processed)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    messages_to_insert
+                )
+                await conn.commit()
+            self.logger.info(f"Forcibly flushed {len(messages_to_insert)} messages to DB during shutdown.")
+        except Exception as e:
+            self.logger.error(f"Failed to cleanly flush message queue: {e}")
+
+    async def background_db_writer(self):
+        """Background asynchronous task that periodically commits queued messages to the database in bulk."""
+        self.logger.info("Background DB writer started.")
+        while True:
+            try:
+                await asyncio.sleep(2.0)  # Flush every 2 seconds
+                
+                if not self.message_queue:
+                    continue
+                    
+                # Take a shallow copy and clear the main list lock-free
+                messages_to_insert = list(self.message_queue)
+                self.message_queue.clear()
+
+                try:
+                    async with aiosqlite.connect(self.db_file) as conn:
+                        c = await conn.cursor()
+                        await c.executemany(
+                            """INSERT INTO messages (twitch_message_id, message, author_name, timestamp, channel, is_bot_response, message_length, tts_processed)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                            messages_to_insert
+                        )
+                        await conn.commit()
+                    # Optional debug logging for bulk insertion
+                    # print(f"Flushed {len(messages_to_insert)} messages to DB in bulk.")
+                except Exception as db_err:
+                    self.logger.error(f"Failed bulk inserting messages to DB: {db_err}")
+                    # Re-queue the messages so they aren't lost if the DB momentarily locked
+                    self.message_queue.extend(messages_to_insert)
+            except asyncio.CancelledError:
+                self.logger.info("Background DB writer cancelled. Flushing remaining messages...")
+                await self.flush_db_queue()
+                break
+            except Exception as e:
+                self.logger.error(f"Unexpected error in background DB writer: {e}")
+                await asyncio.sleep(2.0)
+
         # Final verification
         if verbose:
             print(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
@@ -1658,29 +1728,21 @@ class Bot(commands.Bot):
         # Handle any commands in the message.
         await self.handle_commands(message)
 
-        # Save user's message to the database
+        # Add user's message to the queue for background bulk-insertion
         try:
-            async with aiosqlite.connect(self.db_file) as conn:
-                c = await conn.cursor()
-                await c.execute(
-                    """INSERT INTO messages (twitch_message_id, message, author_name, timestamp, channel, is_bot_response, message_length, tts_processed)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        message.id,
-                        message.content,
-                        message.author.name,
-                        message.timestamp.isoformat(), # Store timestamp as ISO string
-                        channel_name,
-                        0, # Not a bot response
-                        len(message.content),
-                        0 # Not processed for TTS by default
-                    )
-                )
-                await conn.commit()
+            self.message_queue.append((
+                message.id,
+                message.content,
+                message.author.name,
+                message.timestamp.isoformat(), # Store timestamp as ISO string
+                channel_name,
+                0, # Not a bot response
+                len(message.content),
+                0 # Not processed for TTS by default
+            ))
         except Exception as e:
-            self.my_logger.error(f"Failed to save user message to DB for channel {channel_name}: {e}")
-            print(f"Error saving user message to DB for {channel_name}: {e}")
-
+            self.my_logger.error(f"Failed to queue user message for DB: {e}")
+            print(f"Error queuing user message for {channel_name}: {e}")
 
         # Make sure the channel is in our dictionaries
         if channel_name not in self.channel_chat_line_count:

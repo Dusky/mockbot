@@ -461,7 +461,7 @@ def process_text_thread(input_text, channel_name, db_file='./messages.db', full_
 
             # Notify with the message_id (string) so the frontend can query the API correctly
             if logged_tts_table_id is not None:
-                notify_new_audio_available(channel_name, message_id, full_path) 
+                notify_new_audio_available(channel_name, message_id, full_path, input_text) 
             
             # Restore output to print to CLI
             sys.stdout = original_stdout
@@ -711,6 +711,6 @@ def start_tts_processing(input_text, channel_name, db_file='./messages.db', mess
     # Logging that the thread has been dispatched. The thread itself will log its entry.
     # logging.info(f"TTS processing thread dispatched for original message_id {message_id} in channel {channel_name}.")
 
-def notify_new_audio_available(channel_name, message_id, full_path):
+def notify_new_audio_available(channel_name, message_id, full_path, text=""):
     from bot.overlay import broadcast_audio
-    broadcast_audio(channel_name, full_path)
+    broadcast_audio(channel_name, full_path, text)

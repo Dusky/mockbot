@@ -22,160 +22,165 @@ async def serve_overlay(request):
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <title>Mockbot TTS - {channel}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+        <title>Mockbot TTS - {{channel}}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
         <style>
+            :root {{
+                --neon-cyan: #0ff;
+                --neon-magenta: #f0f;
+                --dark-bg: rgba(10, 10, 12, 0.85);
+            }}
             body {{
                 background-color: transparent;
                 margin: 0;
-                padding: 20px;
-                font-family: 'Inter', sans-serif;
-                color: #fff;
+                padding: 40px;
+                font-family: 'Outfit', sans-serif;
+                color: #e2e8f0;
                 overflow: hidden;
             }}
-            .widget-container {{
-                background: rgba(15, 23, 42, 0.75);
-                backdrop-filter: blur(12px);
-                -webkit-backdrop-filter: blur(12px);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 16px;
+            
+            /* The main widget container starts hidden (translated down and faded out) */
+            .cyber-widget {{
+                position: absolute;
+                bottom: 40px;
+                left: 40px;
+                background: var(--dark-bg);
+                backdrop-filter: blur(16px);
+                -webkit-backdrop-filter: blur(16px);
+                border: 1px solid rgba(0, 255, 255, 0.1);
+                border-left: 4px solid var(--neon-cyan);
+                border-radius: 8px;
                 padding: 16px 24px;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                width: 400px;
+                box-shadow: 0 0 20px rgba(0, 255, 255, 0.1), inset 0 0 20px rgba(0, 0, 0, 0.5);
+                
+                opacity: 0;
+                transform: translateY(20px);
+                transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+            }}
+            
+            /* When active, the widget pops up and glows */
+            .cyber-widget.active {{
+                opacity: 1;
+                transform: translateY(0);
+                box-shadow: 0 0 30px rgba(0, 255, 255, 0.2), inset 0 0 20px rgba(0, 0, 0, 0.5);
+            }}
+
+            .header-row {{
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                width: 320px;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-                transition: all 0.3s ease;
+                font-size: 14px;
+                color: var(--neon-cyan);
+                text-transform: uppercase;
+                letter-spacing: 2px;
+                font-weight: 600;
             }}
-            .widget-container.active {{
-                border-color: rgba(99, 102, 241, 0.5);
-                box-shadow: 0 8px 32px rgba(99, 102, 241, 0.2);
-            }}
-            .left-section {{
-                display: flex;
-                flex-direction: column;
-                gap: 4px;
-            }}
-            .title-row {{
+            
+            .bot-name {{
                 display: flex;
                 align-items: center;
                 gap: 8px;
             }}
-            .title {{
-                font-weight: 600;
-                font-size: 15px;
-                letter-spacing: 0.5px;
-            }}
-            .status-dot {{
+
+            /* The pulsing recording dot */
+            .record-dot {{
                 width: 8px;
                 height: 8px;
                 border-radius: 50%;
-                background-color: #ef4444; /* red */
-                transition: background-color 0.3s ease;
+                background-color: var(--neon-magenta);
+                box-shadow: 0 0 10px var(--neon-magenta);
+                animation: pulse 1.5s infinite;
             }}
-            .status-dot.connected {{
-                background-color: #10b981; /* green */
-                box-shadow: 0 0 8px #10b981;
+            
+            @keyframes pulse {{
+                0% {{ opacity: 1; transform: scale(1); }}
+                50% {{ opacity: 0.5; transform: scale(1.2); }}
+                100% {{ opacity: 1; transform: scale(1); }}
             }}
-            .subtitle {{
-                font-size: 12px;
-                color: #94a3b8;
-                display: flex;
-                align-items: center;
-                gap: 6px;
+
+            /* The typographic message body */
+            .message-body {{
+                font-size: 18px;
+                font-weight: 300;
+                line-height: 1.4;
+                color: #f8fafc;
+                min-height: 50px;
             }}
             
             /* Visualizer Animation */
             .visualizer {{
                 display: flex;
                 align-items: center;
-                gap: 3px;
-                height: 12px;
-                opacity: 0;
-                transition: opacity 0.2s ease;
-            }}
-            .visualizer.playing {{
-                opacity: 1;
+                gap: 4px;
+                height: 16px;
             }}
             .bar {{
                 width: 3px;
                 height: 100%;
-                background-color: #6366f1;
+                background-color: var(--neon-cyan);
                 border-radius: 2px;
-                animation: bounce 0.5s ease infinite alternate;
+                animation: bounce 0.4s ease infinite alternate;
             }}
-            .bar:nth-child(2) {{ animation-delay: 0.1s; }}
+            .bar:nth-child(2) {{ animation-delay: 0.1s; background-color: var(--neon-magenta); }}
             .bar:nth-child(3) {{ animation-delay: 0.2s; }}
-            .bar:nth-child(4) {{ animation-delay: 0.3s; }}
+            .bar:nth-child(4) {{ animation-delay: 0.3s; background-color: var(--neon-magenta); }}
+            .bar:nth-child(5) {{ animation-delay: 0.4s; }}
             
             @keyframes bounce {{
-                0% {{ transform: scaleY(0.3); }}
+                0% {{ transform: scaleY(0.2); }}
                 100% {{ transform: scaleY(1); }}
             }}
-
-            /* Toggle Switch */
-            .switch {{
-                position: relative;
-                display: inline-block;
-                width: 44px;
-                height: 24px;
-            }}
-            .switch input {{ 
+            
+            /* Debug Toggle Container - hidden by default unless hovered for testing */
+            .debug-container {{
+                position: absolute;
+                top: 20px;
+                right: 20px;
                 opacity: 0;
-                width: 0;
-                height: 0;
+                transition: opacity 0.3s;
+                background: rgba(0,0,0,0.5);
+                padding: 10px;
+                border-radius: 8px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 12px;
             }}
-            .slider {{
-                position: absolute;
-                cursor: pointer;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background-color: #475569;
-                transition: .4s;
-                border-radius: 24px;
+            body:hover .debug-container {{
+                opacity: 1;
             }}
-            .slider:before {{
-                position: absolute;
-                content: "";
-                height: 18px;
-                width: 18px;
-                left: 3px;
-                bottom: 3px;
-                background-color: white;
-                transition: .3s;
-                border-radius: 50%;
-            }}
-            input:checked + .slider {{
-                background-color: #6366f1;
-            }}
-            input:checked + .slider:before {{
-                transform: translateX(20px);
-            }}
+            input[type=checkbox] {{ accent-color: var(--neon-cyan); }}
+
         </style>
     </head>
     <body>
-        <div class="widget-container" id="widgetContainer">
-            <div class="left-section">
-                <div class="title-row">
-                    <div class="status-dot" id="statusDot"></div>
-                    <div class="title">Mockbot TTS</div>
+        <!-- The Main OBS Notification Widget -->
+        <div class="cyber-widget" id="cyberWidget">
+            <div class="header-row">
+                <div class="bot-name">
+                    <div class="record-dot"></div>
+                    MOCKBOT_TTS_SYS
                 </div>
-                <div class="subtitle">
-                    <span id="statusText">Connecting...</span>
-                    <div class="visualizer" id="visualizer">
-                        <div class="bar"></div>
-                        <div class="bar"></div>
-                        <div class="bar"></div>
-                        <div class="bar"></div>
-                    </div>
+                <div class="visualizer" id="visualizer">
+                    <div class="bar"></div><div class="bar"></div>
+                    <div class="bar"></div><div class="bar"></div>
+                    <div class="bar"></div>
                 </div>
             </div>
-            
-            <label class="switch" title="Toggle Auto-TTS Playback">
-                <input type="checkbox" id="ttsToggle" checked>
-                <span class="slider"></span>
+            <div class="message-body" id="messageBody">
+                <!-- Text typed out here -->
+            </div>
+        </div>
+
+        <!-- Hidden Debug Menu -->
+        <div class="debug-container">
+            <span id="statusText">Connecting...</span>
+            <label>
+                <input type="checkbox" id="ttsToggle" checked> Active
             </label>
         </div>
 
@@ -184,31 +189,46 @@ async def serve_overlay(request):
         <script>
             let ws;
             const player = document.getElementById('ttsAudioPlayer');
-            const statusDot = document.getElementById('statusDot');
             const statusText = document.getElementById('statusText');
             const ttsToggle = document.getElementById('ttsToggle');
-            const visualizer = document.getElementById('visualizer');
-            const widgetContainer = document.getElementById('widgetContainer');
+            const cyberWidget = document.getElementById('cyberWidget');
+            const messageBody = document.getElementById('messageBody');
             
+            let typingInterval = null;
+
             player.onplay = () => {{
-                visualizer.classList.add('playing');
-                widgetContainer.classList.add('active');
-                statusText.innerText = "Playing audio...";
+                // Audio started, keep widget active
             }};
             
             player.onended = () => {{
-                visualizer.classList.remove('playing');
-                widgetContainer.classList.remove('active');
-                statusText.innerText = "Ready ({channel})";
+                // Audio finished, fade widget out
+                setTimeout(() => {{ cyberWidget.classList.remove('active'); }}, 1000);
             }};
             
+            // Typewriter effect function
+            function typeString(str, speed=30) {{
+                messageBody.innerHTML = '';
+                if(typingInterval) clearInterval(typingInterval);
+                
+                let i = 0;
+                cyberWidget.classList.add('active'); // Pop the widget up immediately
+                
+                typingInterval = setInterval(() => {{
+                    if (i < str.length) {{
+                        messageBody.innerHTML += str.charAt(i);
+                        i++;
+                    }} else {{
+                        clearInterval(typingInterval);
+                    }}
+                }}, speed);
+            }}
+
             function connect() {{
                 const wsUrl = `ws://${{window.location.host}}/ws/{channel}`;
                 ws = new WebSocket(wsUrl);
                 
                 ws.onopen = () => {{
-                    console.log("Connected to Mockbot TTS Overlay websocket.");
-                    statusDot.classList.add('connected');
+                    console.log("Connected to Mockbot Cyber-Noir TTS websocket.");
                     statusText.innerText = "Ready ({channel})";
                 }};
                 
@@ -217,14 +237,21 @@ async def serve_overlay(request):
                         const data = JSON.parse(event.data);
                         if (data.action === 'play_audio' && data.file) {{
                             if (ttsToggle.checked) {{
-                                console.log("Playing audio:", data.file);
+                                console.log("Incoming Message:", data.message);
+                                
+                                // Type out the transcribed text
+                                if(data.message) {{
+                                    typeString(data.message);
+                                }} else {{
+                                    typeString("<< AUDIO TRANSMISSION RECEIVED >>");
+                                }}
+
+                                // Play the audio file
                                 player.src = data.file;
                                 player.play().catch(e => {{
-                                    console.error("Error expected if no user interaction:", e);
-                                    statusText.innerText = "Browser policy blocked autoplay";
+                                    console.error("Browser blocked autoplay:", e);
+                                    statusText.innerText = "Autoplay blocked";
                                 }});
-                            }} else {{
-                                console.log("Audio received but toggle is off.");
                             }}
                         }}
                     }} catch (e) {{
@@ -234,13 +261,8 @@ async def serve_overlay(request):
                 
                 ws.onclose = () => {{
                     console.log("Websocket disconnected. Reconnecting in 3s...");
-                    statusDot.classList.remove('connected');
                     statusText.innerText = "Reconnecting...";
                     setTimeout(connect, 3000);
-                }};
-                
-                ws.onerror = (error) => {{
-                    console.error("Websocket error:", error);
                 }};
             }}
             
@@ -279,7 +301,7 @@ async def websocket_handler(request):
 
     return ws
 
-def broadcast_audio(channel: str, file_path: str):
+def broadcast_audio(channel: str, file_path: str, message: str = ""):
     """
     Called by the TTS thread to notify all connected overlays to play a file.
     Note: Can be called from a synchronous thread, so we schedule the async broadcast.
@@ -299,7 +321,8 @@ def broadcast_audio(channel: str, file_path: str):
 
     payload = json.dumps({
         "action": "play_audio",
-        "file": audio_url
+        "file": audio_url,
+        "message": message
     })
 
     if clean_channel in connected_clients and main_loop is not None:

@@ -57,6 +57,17 @@ Commands are prefixed with `!mockbot` (or `!mb` if configured).
 | **Part** | `!mockbot part <channel>` | Leave a channel (Owner only). |
 | **Config** | `!mockbot lines <num>` | Set messages required before auto-reply. |
 
+## Interactive CLI Dashboard
+The bot comes completely equipped with a `screen`-like interface inside the terminal.
+Start it by running `./launch.sh cli`.
+In the CLI dashboard, you can swap between channels using `use #channel`, adjust global settings with `use` to return to global config, and view internal database caches with `brain`. 
+You can assign specific voices to specific channels using `set voice <model_name>` while inside a channel context.
+
+## Custom Web Notification Overlay
+Mockbot spins up a lightweight `aiohttp` web server attached to port `5050`. 
+Add a "Browser Source" to your OBS layout with the URL `http://localhost:5050/overlay/<your_channel>`.
+Whenever the bot speaks, it will slide on screen with a stylish Cyber-Noir text widget, type the message out, play the generated Bark Audio, and slide away.
+
 ## File Structure
 
 ```

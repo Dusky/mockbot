@@ -22,166 +22,174 @@ async def serve_overlay(request):
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <title>Mockbot TTS - {{channel}}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+        <title>Mockbot TTS - {channel}</title>
         <style>
-            :root {{
-                --neon-cyan: #0ff;
-                --neon-magenta: #f0f;
-                --dark-bg: rgba(10, 10, 12, 0.85);
-            }}
             body {{
-                background-color: transparent;
                 margin: 0;
-                padding: 40px;
-                font-family: 'Outfit', sans-serif;
-                color: #e2e8f0;
-                overflow: hidden;
-            }}
-            
-            /* The main widget container starts hidden (translated down and faded out) */
-            .cyber-widget {{
-                position: absolute;
-                bottom: 40px;
-                left: 40px;
-                background: var(--dark-bg);
-                backdrop-filter: blur(16px);
-                -webkit-backdrop-filter: blur(16px);
-                border: 1px solid rgba(0, 255, 255, 0.1);
-                border-left: 4px solid var(--neon-cyan);
-                border-radius: 8px;
-                padding: 16px 24px;
+                padding: 20px;
+                font-family: -apple-system, BlinkMacMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                background-color: #0f172a; /* Slate 900 */
+                color: #f8fafc; /* Slate 50 */
                 display: flex;
                 flex-direction: column;
-                gap: 8px;
-                width: 400px;
-                box-shadow: 0 0 20px rgba(0, 255, 255, 0.1), inset 0 0 20px rgba(0, 0, 0, 0.5);
-                
-                opacity: 0;
-                transform: translateY(20px);
-                transition: all 0.5s cubic-bezier(0.19, 1, 0.22, 1);
+                gap: 16px;
+                align-items: center;
             }}
-            
-            /* When active, the widget pops up and glows */
-            .cyber-widget.active {{
-                opacity: 1;
-                transform: translateY(0);
-                box-shadow: 0 0 30px rgba(0, 255, 255, 0.2), inset 0 0 20px rgba(0, 0, 0, 0.5);
+            .widget-container {{
+                background: #1e293b; /* Slate 800 */
+                border-radius: 12px;
+                padding: 20px 24px;
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+                box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+                width: 100%;
+                max-width: 400px;
             }}
-
-            .header-row {{
+            .top-bar {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }}
+            .left-section {{
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }}
+            .title-row {{
                 display: flex;
                 align-items: center;
-                justify-content: space-between;
-                font-size: 14px;
-                color: var(--neon-cyan);
-                text-transform: uppercase;
-                letter-spacing: 2px;
+                gap: 8px;
+            }}
+            .status-dot {{
+                width: 10px;
+                height: 10px;
+                border-radius: 50%;
+                background-color: #ef4444; /* Red 500 - Disconnected */
+                transition: background-color 0.3s;
+            }}
+            .status-dot.connected {{
+                background-color: #22c55e; /* Green 500 */
+            }}
+            .title {{
+                font-size: 1.1rem;
                 font-weight: 600;
             }}
-            
-            .bot-name {{
+            .subtitle {{
+                font-size: 0.85rem;
+                color: #94a3b8; /* Slate 400 */
                 display: flex;
                 align-items: center;
                 gap: 8px;
             }}
-
-            /* The pulsing recording dot */
-            .record-dot {{
-                width: 8px;
-                height: 8px;
-                border-radius: 50%;
-                background-color: var(--neon-magenta);
-                box-shadow: 0 0 10px var(--neon-magenta);
-                animation: pulse 1.5s infinite;
-            }}
             
-            @keyframes pulse {{
-                0% {{ opacity: 1; transform: scale(1); }}
-                50% {{ opacity: 0.5; transform: scale(1.2); }}
-                100% {{ opacity: 1; transform: scale(1); }}
-            }}
-
-            /* The typographic message body */
-            .message-body {{
-                font-size: 18px;
-                font-weight: 300;
-                line-height: 1.4;
-                color: #f8fafc;
-                min-height: 50px;
-            }}
-            
-            /* Visualizer Animation */
+            /* Visualizer */
             .visualizer {{
-                display: flex;
+                display: none;
                 align-items: center;
-                gap: 4px;
-                height: 16px;
+                gap: 3px;
+                height: 14px;
+            }}
+            .visualizer.playing {{
+                display: flex;
             }}
             .bar {{
                 width: 3px;
-                height: 100%;
-                background-color: var(--neon-cyan);
+                background-color: #38bdf8; /* Sky 400 */
                 border-radius: 2px;
-                animation: bounce 0.4s ease infinite alternate;
+                animation: bounce 0.5s ease infinite alternate;
             }}
-            .bar:nth-child(2) {{ animation-delay: 0.1s; background-color: var(--neon-magenta); }}
-            .bar:nth-child(3) {{ animation-delay: 0.2s; }}
-            .bar:nth-child(4) {{ animation-delay: 0.3s; background-color: var(--neon-magenta); }}
-            .bar:nth-child(5) {{ animation-delay: 0.4s; }}
+            .bar:nth-child(1) {{ height: 60%; animation-delay: 0.0s; }}
+            .bar:nth-child(2) {{ height: 100%; animation-delay: 0.1s; background-color: #818cf8; }}
+            .bar:nth-child(3) {{ height: 80%; animation-delay: 0.2s; }}
+            .bar:nth-child(4) {{ height: 40%; animation-delay: 0.3s; background-color: #818cf8; }}
             
             @keyframes bounce {{
-                0% {{ transform: scaleY(0.2); }}
-                100% {{ transform: scaleY(1); }}
+                from {{ transform: scaleY(0.5); }}
+                to {{ transform: scaleY(1.0); }}
             }}
             
-            /* Debug Toggle Container - hidden by default unless hovered for testing */
-            .debug-container {{
-                position: absolute;
-                top: 20px;
-                right: 20px;
+            /* Toggle Switch */
+            .switch {{
+                position: relative;
+                display: inline-block;
+                width: 44px;
+                height: 24px;
+            }}
+            .switch input {{
                 opacity: 0;
-                transition: opacity 0.3s;
-                background: rgba(0,0,0,0.5);
-                padding: 10px;
-                border-radius: 8px;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                font-size: 12px;
+                width: 0;
+                height: 0;
             }}
-            body:hover .debug-container {{
-                opacity: 1;
+            .slider {{
+                position: absolute;
+                cursor: pointer;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background-color: #475569;
+                transition: .4s;
+                border-radius: 24px;
             }}
-            input[type=checkbox] {{ accent-color: var(--neon-cyan); }}
+            .slider:before {{
+                position: absolute;
+                content: "";
+                height: 18px;
+                width: 18px;
+                left: 3px;
+                bottom: 3px;
+                background-color: white;
+                transition: .3s;
+                border-radius: 50%;
+            }}
+            input:checked + .slider {{
+                background-color: #6366f1;
+            }}
+            input:checked + .slider:before {{
+                transform: translateX(20px);
+            }}
 
+            /* Transcript Area */
+            .transcript-area {{
+                background: #0f172a;
+                border-radius: 8px;
+                padding: 12px;
+                font-size: 0.95rem;
+                color: #cbd5e1;
+                min-height: 40px;
+                border: 1px solid #334155;
+            }}
         </style>
     </head>
     <body>
-        <!-- The Main OBS Notification Widget -->
-        <div class="cyber-widget" id="cyberWidget">
-            <div class="header-row">
-                <div class="bot-name">
-                    <div class="record-dot"></div>
-                    MOCKBOT_TTS_SYS
+        <div class="widget-container" id="widgetContainer">
+            <div class="top-bar">
+                <div class="left-section">
+                    <div class="title-row">
+                        <div class="status-dot" id="statusDot"></div>
+                        <div class="title">Mockbot TTS Output</div>
+                    </div>
+                    <div class="subtitle">
+                        <span id="statusText">Connecting...</span>
+                        <div class="visualizer" id="visualizer">
+                            <div class="bar"></div>
+                            <div class="bar"></div>
+                            <div class="bar"></div>
+                            <div class="bar"></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="visualizer" id="visualizer">
-                    <div class="bar"></div><div class="bar"></div>
-                    <div class="bar"></div><div class="bar"></div>
-                    <div class="bar"></div>
-                </div>
+                
+                <label class="switch" title="Toggle Auto-TTS Playback">
+                    <input type="checkbox" id="ttsToggle" checked>
+                    <span class="slider"></span>
+                </label>
             </div>
-            <div class="message-body" id="messageBody">
-                <!-- Text typed out here -->
+            
+            <div class="transcript-area" id="transcriptArea">
+                Waiting for messages...
             </div>
-        </div>
-
-        <!-- Hidden Debug Menu -->
-        <div class="debug-container">
-            <span id="statusText">Connecting...</span>
-            <label>
-                <input type="checkbox" id="ttsToggle" checked> Active
-            </label>
         </div>
 
         <audio id="ttsAudioPlayer" style="display: none;"></audio>
@@ -189,33 +197,32 @@ async def serve_overlay(request):
         <script>
             let ws;
             const player = document.getElementById('ttsAudioPlayer');
+            const statusDot = document.getElementById('statusDot');
             const statusText = document.getElementById('statusText');
             const ttsToggle = document.getElementById('ttsToggle');
-            const cyberWidget = document.getElementById('cyberWidget');
-            const messageBody = document.getElementById('messageBody');
+            const visualizer = document.getElementById('visualizer');
+            const transcriptArea = document.getElementById('transcriptArea');
             
             let typingInterval = null;
 
             player.onplay = () => {{
-                // Audio started, keep widget active
+                visualizer.classList.add('playing');
+                statusText.innerText = "Playing audio...";
             }};
             
             player.onended = () => {{
-                // Audio finished, fade widget out
-                setTimeout(() => {{ cyberWidget.classList.remove('active'); }}, 1000);
+                visualizer.classList.remove('playing');
+                statusText.innerText = "Ready ({channel})";
             }};
             
-            // Typewriter effect function
             function typeString(str, speed=30) {{
-                messageBody.innerHTML = '';
+                transcriptArea.innerHTML = '';
                 if(typingInterval) clearInterval(typingInterval);
                 
                 let i = 0;
-                cyberWidget.classList.add('active'); // Pop the widget up immediately
-                
                 typingInterval = setInterval(() => {{
                     if (i < str.length) {{
-                        messageBody.innerHTML += str.charAt(i);
+                        transcriptArea.innerHTML += str.charAt(i);
                         i++;
                     }} else {{
                         clearInterval(typingInterval);
@@ -228,7 +235,8 @@ async def serve_overlay(request):
                 ws = new WebSocket(wsUrl);
                 
                 ws.onopen = () => {{
-                    console.log("Connected to Mockbot Cyber-Noir TTS websocket.");
+                    console.log("Connected to Mockbot TTS Overlay websocket.");
+                    statusDot.classList.add('connected');
                     statusText.innerText = "Ready ({channel})";
                 }};
                 
@@ -237,21 +245,21 @@ async def serve_overlay(request):
                         const data = JSON.parse(event.data);
                         if (data.action === 'play_audio' && data.file) {{
                             if (ttsToggle.checked) {{
-                                console.log("Incoming Message:", data.message);
+                                console.log("Playing audio:", data.file);
                                 
-                                // Type out the transcribed text
                                 if(data.message) {{
                                     typeString(data.message);
                                 }} else {{
                                     typeString("<< AUDIO TRANSMISSION RECEIVED >>");
                                 }}
-
-                                // Play the audio file
+                                
                                 player.src = data.file;
                                 player.play().catch(e => {{
-                                    console.error("Browser blocked autoplay:", e);
-                                    statusText.innerText = "Autoplay blocked";
+                                    console.error("Error expected if no user interaction:", e);
+                                    statusText.innerText = "Browser blocked autoplay";
                                 }});
+                            }} else {{
+                                console.log("Audio received but toggle is off.");
                             }}
                         }}
                     }} catch (e) {{
@@ -261,8 +269,13 @@ async def serve_overlay(request):
                 
                 ws.onclose = () => {{
                     console.log("Websocket disconnected. Reconnecting in 3s...");
+                    statusDot.classList.remove('connected');
                     statusText.innerText = "Reconnecting...";
                     setTimeout(connect, 3000);
+                }};
+                
+                ws.onerror = (error) => {{
+                    console.error("Websocket error:", error);
                 }};
             }}
             

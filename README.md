@@ -6,10 +6,12 @@ Now fully refactored into a lightweight, efficient CLI application.
 
 ## Key Features
 
-- **AI Text Generation**: Learns from chat logs using Markov chains.
-- **Text-to-Speech**: High-quality TTS using [Bark](https://github.com/suno-ai/bark) (NVIDIA GPU recommended).
-- **CLI Dashboard**: Simple, resource-efficient terminal interface.
-- **Multi-Channel**: Supports joining multiple channels with individual settings.
+- **AI Text Generation**: Learns from chat logs using Markov chains to create realistic bot personas.
+- **Custom Generative Grammar**: A powerful command engine powered by [Tracery](https://tracery.io/). Channel operators can define commands (e.g., `!slap`) that pull from robust randomization rules.
+- **Interactive Twitch Integrations**: Natively hooks into Twitch **Channel Points** and **Bits (Cheers)**. Channel Point redemptions can even trigger Tracery commands dynamically!
+- **Twitch Chat Polls**: Operators and Bot Owners can seamlessly spawn Polls directly from Twitch Chat or the Terminal CLI
+- **Text-to-Speech**: High-quality TTS using [Bark](https://github.com/suno-ai/bark)
+- **Interactive Dashboard**: A `screen`-styled Terminal CLI used to live-manage, configure, and monitor the bot across all channels.
 
 ## Quick Start
 
@@ -28,14 +30,14 @@ Edit `settings.conf` (created during setup) with your credentials:
 
 ```ini
 [auth]
-tmi_token = oauth:your_token  # Get from twitchapps.com/tmi
-client_id = your_client_id    # optional for basic features
+tmi_token = oauth:your_token  # Required for Chat & PubSub
+client_id = your_client_id    # Required for API calls (e.g. Polls)
 nickname = your_bot_name
 owner = your_username
 
 [settings]
-channels = channel1, channel2
-verbose_heartbeat_log = false
+# Channels are now managed via SQLite. Use the CLI `join <#channel>` 
+# or Twitch chat `!mockbot join` command to configure them!
 ```
 
 ### 3. Run
@@ -45,25 +47,30 @@ verbose_heartbeat_log = false
 ./launch.sh cli
 ```
 
-## Commands
+## Commands (Twitch Chat)
 
-Commands are prefixed with `!mockbot` (or `!mb` if configured).
+Commands are prefixed with `!mockbot` (or `!mb` if configured), except for dedicated actions.
 
 | Command | Usage | Description |
 |---------|-------|-------------|
 | **Speak** | `!mockbot speak` | Force the bot to generate a message (and speak if TTS on). |
-| **TTS** | `!mockbot tts on/off` | Enable/Disable TTS for the channel. |
-| **Join** | `!mockbot join <channel>` | Join a new channel (Owner only). |
-| **Part** | `!mockbot part <channel>` | Leave a channel (Owner only). |
-| **Config** | `!mockbot lines <num>` | Set messages required before auto-reply. |
+| **Settings** | `!mockbot <setting> <on/off>` | Manage `tts`, `voice`, `bits`, `points`, `lines`, `time`. |
+| **Custom Commands** | `!addc`, `!editc`, `!delc` | Manage Tracery rules (e.g., `!addc !test <{sender}> said <{input}>`) |
+| **Grammar Rules** | `!grammar <add/list/clear> <rule>` | Register word-pools for use in Custom Commands. |
+| **Polls** | `!poll <mins> <Q> \| <A1> \| <A2>` | Start a native Twitch chat UI poll. |
 
 ## Interactive CLI Dashboard
-The bot comes completely equipped with a `screen`-like interface inside the terminal.
-Start it by running `./launch.sh cli`.
-In the CLI dashboard, you can swap between channels using `use #channel`, adjust global settings with `use` to return to global config, and view internal database caches with `brain`. 
-You can assign specific voices to specific channels using `set voice <model_name>` while inside a channel context.
+
+The bot comes completely equipped with an interactive terminal interface! Start it by running `./launch.sh cli`.
+
+In the CLI dashboard, you can swap between channels using `use #channel`, adjust global settings with `use` to return to global config, and view internal database caches with `status`.
+You can live-manage features natively from the server terminal:
+- Add commands: `addc !test Hello <{sender}>`
+- Manage Polls: `poll 2 What is cool? | Everything | Nothing`
+- Enable/Disable Triggers: `set bits on` / `set points on`
 
 ## Custom Web Notification Overlay
+
 Mockbot spins up a lightweight `aiohttp` web server attached to port `5050`. 
 Add a "Browser Source" to your OBS layout with the URL `http://localhost:5050/overlay/<your_channel>`.
 Whenever the bot speaks, it will slide on screen with a stylish Cyber-Noir text widget, type the message out, play the generated Bark Audio, and slide away.
@@ -74,15 +81,12 @@ Whenever the bot speaks, it will slide on screen with a stylish Cyber-Noir text 
 .
 ├── main.py             # Entry point
 ├── bot/                # Core logic package
-│   ├── core.py         # Bot class & Event loop
-│   ├── commands.py     # Command definitions
-│   ├── tts.py          # Bark TTS integration
+│   ├── core.py         # Bot class, Subscriptions, & Event loops
+│   ├── commands.py     # Command parsing & logic
+│   ├── tts.py          # Bark TTS generation queue
+│   ├── interactive.py  # PromptToolkit terminal UI
 │   └── ...
-├── launch.sh           # Management script
-└── logs/               # Log files
+├── launch.sh           # Setup & Management script
+├── messages.db         # Persistent context and commands DB
+└── logs/               # Traceback log files
 ```
-
-## Troubleshooting
-
-- **TTS Slow?** ensure you have an NVIDIA GPU and installed via `./launch.sh setup-tts`.
-- **Bot silent?** Check `logs/mockbot.log`. Ensure `lines_between_messages` isn't too high.

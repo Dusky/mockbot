@@ -78,7 +78,9 @@ def ensure_db_setup(db_file):
                         currently_connected BOOLEAN DEFAULT 0,
                         tts_delay_enabled BOOLEAN DEFAULT 0,
                         random_chance REAL DEFAULT 0.0,
-                        log_dice BOOLEAN DEFAULT 0
+                        log_dice BOOLEAN DEFAULT 0,
+                        pubsub_bits BOOLEAN DEFAULT 0,
+                        pubsub_points BOOLEAN DEFAULT 0
                     )''')
 
         # Add random_chance column to channel_configs if it doesn't exist (migration)
@@ -91,6 +93,17 @@ def ensure_db_setup(db_file):
         if 'log_dice' not in channel_configs_columns:
             c.execute("ALTER TABLE channel_configs ADD COLUMN log_dice BOOLEAN DEFAULT 0")
             logging.info("Column 'log_dice' added to 'channel_configs'.")
+            
+        # Add pubsub_bits column to channel_configs if it doesn't exist (migration)
+        if 'pubsub_bits' not in channel_configs_columns:
+            c.execute("ALTER TABLE channel_configs ADD COLUMN pubsub_bits BOOLEAN DEFAULT 0")
+            logging.info("Column 'pubsub_bits' added to 'channel_configs'.")
+            
+        # Add pubsub_points column to channel_configs if it doesn't exist (migration)
+        if 'pubsub_points' not in channel_configs_columns:
+            c.execute("ALTER TABLE channel_configs ADD COLUMN pubsub_points BOOLEAN DEFAULT 0")
+            logging.info("Column 'pubsub_points' added to 'channel_configs'.")
+            
         conn.commit()
 
         # Create 'user_colors' table
@@ -142,6 +155,24 @@ def ensure_db_setup(db_file):
                     )''')
         c.execute('CREATE INDEX IF NOT EXISTS idx_error_timestamp ON error_log(timestamp)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_error_level ON error_log(level)')
+        conn.commit()
+        
+        # Create 'custom_commands' table for Funtoon-style dynamic commands
+        c.execute('''CREATE TABLE IF NOT EXISTS custom_commands (
+                        channel_name TEXT,
+                        command_name TEXT,
+                        response_template TEXT NOT NULL,
+                        PRIMARY KEY(channel_name, command_name)
+                    )''')
+        conn.commit()
+        
+        # Create 'custom_grammar' table for Funtoon-style tracery grammar rules
+        c.execute('''CREATE TABLE IF NOT EXISTS custom_grammar (
+                        channel_name TEXT,
+                        rule_name TEXT,
+                        options_json TEXT NOT NULL,
+                        PRIMARY KEY(channel_name, rule_name)
+                    )''')
         conn.commit()
 
         # Check and migrate tts_logs table if needed

@@ -268,6 +268,179 @@ class InteractiveShell:
             except Exception as e:
                 print(f"Database Error: {e}")
 
+        elif cmd == 'addc':
+            if len(args) < 2:
+                print("Usage: addc <cmd> <response>")
+                return
+            cmd_name = args[0].lower()
+            if not cmd_name.startswith('!'): cmd_name = f"!{cmd_name}"
+            response = " ".join(args[1:])
+            target_chan = 'global' if self.current_context == 'Global' else self.current_context.lstrip('#')
+            
+            try:
+                import sqlite3
+                async with aiosqlite.connect(self.bot.db_file) as conn:
+                    c = await conn.cursor()
+                    await c.execute(
+                        "INSERT INTO custom_commands (channel_name, command_name, response_template) VALUES (?, ?, ?)",
+                        (target_chan, cmd_name, response)
+                    )
+                    await conn.commit()
+                print(f"✅ Added {cmd_name} to {target_chan}.")
+            except sqlite3.IntegrityError:
+                print(f"❌ Command {cmd_name} already exists. Use editc.")
+            except Exception as e:
+                print(f"Error: {e}")
+
+        elif cmd == 'editc':
+            if len(args) < 2:
+                print("Usage: editc <cmd> <response>")
+                return
+            cmd_name = args[0].lower()
+            if not cmd_name.startswith('!'): cmd_name = f"!{cmd_name}"
+            response = " ".join(args[1:])
+            target_chan = 'global' if self.current_context == 'Global' else self.current_context.lstrip('#')
+            
+            try:
+                async with aiosqlite.connect(self.bot.db_file) as conn:
+                    c = await conn.cursor()
+                    await c.execute(
+                        "UPDATE custom_commands SET response_template = ? WHERE channel_name = ? AND command_name = ?",
+                        (response, target_chan, cmd_name)
+                    )
+                    if c.rowcount > 0:
+                        print(f"✅ Updated {cmd_name} in {target_chan}.")
+                    else:
+                        print(f"❌ Command {cmd_name} not found in {target_chan}.")
+                    await conn.commit()
+            except Exception as e:
+                print(f"Error: {e}")
+
+        elif cmd == 'delc':
+            if len(args) < 1:
+                print("Usage: delc <cmd>")
+                return
+            cmd_name = args[0].lower()
+            if not cmd_name.startswith('!'): cmd_name = f"!{cmd_name}"
+            target_chan = 'global' if self.current_context == 'Global' else self.current_context.lstrip('#')
+            
+            try:
+                async with aiosqlite.connect(self.bot.db_file) as conn:
+                    c = await conn.cursor()
+                    await c.execute(
+                        "DELETE FROM custom_commands WHERE channel_name = ? AND command_name = ?",
+                        (target_chan, cmd_name)
+                    )
+                    if c.rowcount > 0:
+                        print(f"✅ Deleted {cmd_name} from {target_chan}.")
+                    else:
+                        print(f"❌ Command {cmd_name} not found in {target_chan}.")
+                    await conn.commit()
+            except Exception as e:
+                print(f"Error: {e}")
+
+        elif cmd == 'grammar':
+            if len(args) < 2:
+                print("Usage: grammar <add|list|clear> <rule> [text]")
+                return
+            action = args[0].lower()
+            rule = args[1].lower()
+            text = " ".join(args[2:])
+            target_chan = 'global' if self.current_context == 'Global' else self.current_context.lstrip('#')
+            
+            try:
+                import json
+                async with aiosqlite.connect(self.bot.db_file) as conn:
+                    c = await conn.cursor()
+                    await c.execute("SELECT options_json FROM custom_grammar WHERE channel_name = ? AND rule_name = ?", (target_chan, rule))
+                    row = await c.fetchone()
+                    options = json.loads(row[0]) if row else []
+                    
+                    if action == 'add':
+                        if not text:
+                            print("Please provide text.")
+                            return
+                        options.append(text)
+                        if row:
+                            await c.execute("UPDATE custom_grammar SET options_json = ? WHERE channel_name = ? AND rule_name = ?", (json.dumps(options), target_chan, rule))
+                        else:
+                            await c.execute("INSERT INTO custom_grammar (channel_name, rule_name, options_json) VALUES (?, ?, ?)", (target_chan, rule, json.dumps(options)))
+                        print(f"✅ Added '{text}' to #{rule}# in {target_chan}.")
+                    elif action == 'list':
+                        if not options: print(f"Rule #{rule}# empty.")
+                        else: print(f"Rule #{rule}# options: {', '.join(options)}")
+                    elif action == 'clear':
+                        await c.execute("DELETE FROM custom_grammar WHERE channel_name = ? AND rule_name = ?", (target_chan, rule))
+                        print(f"✅ Cleared rule #{rule}# from {target_chan}.")
+                    await conn.commit()
+            except Exception as e:
+                print(f"Error: {e}")
+        elif cmd == 'poll':
+            if self.current_context == "Global":
+                print("Cannot create a poll globally. Please 'use <channel>' first.")
+                return
+            
+            if not args:
+                print("Usage: poll <duration_minutes> <question> | <opt1> | <opt2>")
+                return
+                
+            try:
+                args_str = " ".join(args)
+                parts = [p.strip() for p in args_str.split('|') if p.strip()]
+                
+                if len(parts) < 3:
+                    print("A poll needs a question and at least two choices separated by '|'.")
+                    return
+                    
+                first_part = parts[0]
+                first_part_words = first_part.split(maxsplit=1)
+                if len(first_part_words) < 2:
+                    print("Please provide a duration and a question. Example: poll 5 Is this cool? | Yes | No")
+                    return
+                    
+                duration_minutes_str, question = first_part_words
+                
+                try:
+                    duration_minutes = float(duration_minutes_str)
+                except ValueError:
+                    print(f"Invalid duration: {duration_minutes_str}")
+                    return
+                    
+                duration_seconds = int(duration_minutes * 60)
+                duration_seconds = max(15, min(1800, duration_seconds))
+                
+                choices = parts[1:]
+                if len(choices) > 5:
+                    print("Twitch polls can have at most 5 choices.")
+                    return
+
+                clean_channel = self.current_context.lstrip('#')
+                users = await self.bot.fetch_users(names=[clean_channel])
+                if not users:
+                    print("Failed to fetch channel from Twitch API.")
+                    return
+                    
+                broadcaster = users[0]
+                
+                import configparser
+                config = configparser.ConfigParser()
+                config.read("settings.conf")
+                token = config.get("auth", "tmi_token")
+                if token.startswith("oauth:"):
+                    token = token[6:]
+
+                await broadcaster.create_poll(
+                    token=token,
+                    title=question,
+                    choices=choices,
+                    duration=duration_seconds,
+                    channel_points_voting_enabled=False
+                )
+                
+                print(f"✅ Poll started in {self.current_context}: {question} ({duration_minutes_str}m)!")
+            except Exception as e:
+                print(f"Failed to create poll: {e}")
+
         elif cmd == 'help':
             print("""
 Available Commands:
@@ -281,7 +454,12 @@ Available Commands:
   ignore <user>     Add user to ignored lists (prevents brain learning)
   unignore <user>   Remove user from ignored lists
   model <gen|indiv> Toggle Markov model type (general/individual)
-  set <key> <val>   Set config (keys: lines, time, chance, model, log_dice, voice, delay)
+  set <key> <val>   Set config (keys: lines, time, chance, model, log_dice, voice, delay, bits, points)
+  poll <args>       Create a poll (e.g. poll 5 Yes/No? | Yes | No)
+  addc <cmd> <resp> Add custom command (use <sender> <streamer> <input>)
+  editc <cmd> <rsp> Edit custom command
+  delc <cmd>        Delete custom command
+  grammar <action>  Manage grammar (add, list, clear) <rule> [text]
   brain, stats      Show number of lines loaded per channel
   quit, q           Exit bot
             """)

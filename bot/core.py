@@ -1,4 +1,5 @@
 from twitchio.ext import commands
+import twitchio.ext.pubsub as pubsub
 import logging
 import markovify
 import asyncio
@@ -300,6 +301,8 @@ class Bot(commands.Bot):
 
         # Initialize connection state manager for automatic reconnection
         self.connection_manager = ConnectionStateManager(self)
+        self.pubsub_pool = pubsub.PubSubPool(self)
+        self._channel_ids = {}
         self.socketio_emitter = None  # Will be set by webapp for real-time updates
 
         self.message_request_check = None
@@ -1197,6 +1200,37 @@ class Bot(commands.Bot):
                     await ctx.send(f"Removed {username} from trusted users")
                 else:
                     await ctx.send("Unknown action. Use add or remove")
+        elif setting == "addc":
+            from bot.commands import mockbot_addc
+            if len(args) < 2:
+                await ctx.send("Usage: !addc <cmd> <response>")
+                return
+            await mockbot_addc(self, ctx, args[0], response_template=" ".join(args[1:]))
+            
+        elif setting == "editc":
+            from bot.commands import mockbot_editc
+            if len(args) < 2:
+                await ctx.send("Usage: !editc <cmd> <response>")
+                return
+            await mockbot_editc(self, ctx, args[0], response_template=" ".join(args[1:]))
+            
+        elif setting == "delc":
+            from bot.commands import mockbot_delc
+            if len(args) < 1:
+                await ctx.send("Usage: !delc <cmd>")
+                return
+            await mockbot_delc(self, ctx, args[0])
+            
+        elif setting == "grammar":
+            from bot.commands import mockbot_grammar
+            if len(args) < 2:
+                await ctx.send("Usage: !grammar <add|list|clear> <rule> [text]")
+                return
+            await mockbot_grammar(self, ctx, args[0], args[1], text=" ".join(args[2:]) if len(args) > 2 else "")
+            
+        elif setting == "poll":
+            from bot.commands import mockbot_poll
+            await mockbot_poll(self, ctx, *args)
         else:
             # Call the original mockbot_command for other settings
             await mockbot_command(self, ctx, setting, args[0] if args else None, enable_tts=self.enable_tts)
@@ -1346,6 +1380,16 @@ class Bot(commands.Bot):
         # Step 2: Set start time for uptime tracking
         self._start_time = time.time()
         
+        # Step 2.5: Cache Bot's Twitch User ID for API calls (like Timeout)
+        try:
+            bot_users = await self.fetch_users(names=[self.nick])
+            if bot_users:
+                self.bot_user_id = bot_users[0].id
+                if verbose:
+                    print(f"{GREEN}✅ Bot User ID Cached: {self.bot_user_id}{RESET}")
+        except Exception as e:
+            print(f"{RED}❌ Failed to cache Bot User ID: {e}{RESET}")
+        
         # Step 3: Process channels from config file
         try:
             if verbose:
@@ -1373,8 +1417,8 @@ class Bot(commands.Bot):
                             c.execute('''
                                 INSERT INTO channel_configs 
                                 (channel_name, tts_enabled, voice_enabled, join_channel, owner, 
-                                trusted_users, ignored_users, use_general_model, lines_between_messages, time_between_messages, currently_connected, tts_delay_enabled)
-                                VALUES (?, 0, 1, 1, ?, '', '', 1, 50, 15, 0, 0)
+                                trusted_users, ignored_users, use_general_model, lines_between_messages, time_between_messages, currently_connected, tts_delay_enabled, pubsub_bits, pubsub_points)
+                                VALUES (?, 0, 1, 1, ?, '', '', 1, 50, 15, 0, 0, 0, 0)
                             ''', (clean_name, clean_name))
                         else:
                             # Update existing entry to make sure join_channel is enabled
@@ -1452,63 +1496,41 @@ class Bot(commands.Bot):
         except Exception as e:
             print(f"{RED}❌ Error starting background DB writer: {e}{RESET}")
             
-    async def flush_db_queue(self):
-        """Force flush remaining messages in the queue to the database."""
-        if not self.message_queue:
-            return
-            
-        messages_to_insert = list(self.message_queue)
-        self.message_queue.clear()
-        
+        # Step 10: Setup PubSub
         try:
-            async with aiosqlite.connect(self.db_file) as conn:
-                c = await conn.cursor()
-                await c.executemany(
-                    """INSERT INTO messages (twitch_message_id, message, author_name, timestamp, channel, is_bot_response, message_length, tts_processed)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    messages_to_insert
-                )
-                await conn.commit()
-            self.logger.info(f"Forcibly flushed {len(messages_to_insert)} messages to DB during shutdown.")
-        except Exception as e:
-            self.logger.error(f"Failed to cleanly flush message queue: {e}")
-
-    async def background_db_writer(self):
-        """Background asynchronous task that periodically commits queued messages to the database in bulk."""
-        self.logger.info("Background DB writer started.")
-        while True:
-            try:
-                await asyncio.sleep(2.0)  # Flush every 2 seconds
+            if verbose:
+                print(f"{YELLOW}Step 10: Setting up PubSub for Bits & Channel Points...{RESET}")
+            
+            tmi_token = config.get("auth", "tmi_token")
+            if tmi_token.startswith("oauth:"):
+                tmi_token = tmi_token[6:]
                 
-                if not self.message_queue:
-                    continue
-                    
-                # Take a shallow copy and clear the main list lock-free
-                messages_to_insert = list(self.message_queue)
-                self.message_queue.clear()
-
-                try:
-                    async with aiosqlite.connect(self.db_file) as conn:
-                        c = await conn.cursor()
-                        await c.executemany(
-                            """INSERT INTO messages (twitch_message_id, message, author_name, timestamp, channel, is_bot_response, message_length, tts_processed)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                            messages_to_insert
-                        )
-                        await conn.commit()
-                    # Optional debug logging for bulk insertion
-                    # print(f"Flushed {len(messages_to_insert)} messages to DB in bulk.")
-                except Exception as db_err:
-                    self.logger.error(f"Failed bulk inserting messages to DB: {db_err}")
-                    # Re-queue the messages so they aren't lost if the DB momentarily locked
-                    self.message_queue.extend(messages_to_insert)
-            except asyncio.CancelledError:
-                self.logger.info("Background DB writer cancelled. Flushing remaining messages...")
-                await self.flush_db_queue()
-                break
+            clean_channels = [c.lstrip('#') for c in self._joined_channels]
+            users = await self.fetch_users(names=clean_channels)
+            
+            topics = []
+            try:
+                async with aiosqlite.connect(self.db_file) as conn:
+                    c = await conn.cursor()
+                    for user in users:
+                        self._channel_ids[user.id] = f"#{user.name}"
+                        await c.execute("SELECT pubsub_bits, pubsub_points FROM channel_configs WHERE channel_name = ?", (user.name,))
+                        row = await c.fetchone()
+                        bits_enabled, points_enabled = row if row else (0, 0)
+                        
+                        if bits_enabled:
+                            topics.append(pubsub.bits(tmi_token)[user.id])
+                        if points_enabled:
+                            topics.append(pubsub.channel_points(tmi_token)[user.id])
             except Exception as e:
-                self.logger.error(f"Unexpected error in background DB writer: {e}")
-                await asyncio.sleep(2.0)
+                print(f"Failed to load pubsub configs: {e}")
+                
+            if topics:
+                await self.pubsub_pool.subscribe_topics(topics)
+                if verbose:
+                    print(f"{GREEN}✅ Subscribed to PubSub topics for {len(users)} channels{RESET}")
+        except Exception as e:
+            print(f"{RED}❌ Error setting up PubSub: {e}{RESET}")
 
         # Final verification
         if verbose:
@@ -1560,6 +1582,161 @@ class Bot(commands.Bot):
 
         # Mark connection as successful for reconnection manager
         self.connection_manager.mark_connected()
+
+    async def flush_db_queue(self):
+        """Force flush remaining messages in the queue to the database."""
+        if not self.message_queue:
+            return
+            
+        messages_to_insert = list(self.message_queue)
+        self.message_queue.clear()
+        
+        try:
+            async with aiosqlite.connect(self.db_file) as conn:
+                c = await conn.cursor()
+                await c.executemany(
+                    """INSERT INTO messages (twitch_message_id, message, author_name, timestamp, channel, is_bot_response, message_length, tts_processed)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    messages_to_insert
+                )
+                await conn.commit()
+            self.logger.info(f"Forcibly flushed {len(messages_to_insert)} messages to DB during shutdown.")
+        except Exception as e:
+            self.logger.error(f"Failed to cleanly flush message queue: {e}")
+
+    async def background_db_writer(self):
+        """Background asynchronous task that periodically commits queued messages to the database in bulk."""
+        self.logger.info("Background DB writer started.")
+        while True:
+            try:
+                await asyncio.sleep(2.0)  # Flush every 2 seconds
+                
+                if not self.message_queue:
+                    continue
+                    
+                # Take a shallow copy and clear the main list lock-free
+                messages_to_insert = list(self.message_queue)
+                self.message_queue.clear()
+
+                try:
+                    async with aiosqlite.connect(self.db_file) as conn:
+                        c = await conn.cursor()
+                        await c.executemany(
+                            """INSERT INTO messages (twitch_message_id, message, author_name, timestamp, channel, is_bot_response, message_length, tts_processed)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                            messages_to_insert
+                        )
+                        await conn.commit()
+                except Exception as db_err:
+                    self.logger.error(f"Failed bulk inserting messages to DB: {db_err}")
+                    # Re-queue the messages so they aren't lost if the DB momentarily locked
+                    self.message_queue.extend(messages_to_insert)
+            except asyncio.CancelledError:
+                self.logger.info("Background DB writer cancelled. Flushing remaining messages...")
+                await self.flush_db_queue()
+                break
+            except Exception as e:
+                self.logger.error(f"Unexpected error in background DB writer: {e}")
+                await asyncio.sleep(2.0)
+
+    async def event_pubsub_bits(self, event: pubsub.PubSubBitsMessage):
+        """Handle incoming Bits/Cheers via PubSub."""
+        channel_name = self._channel_ids.get(event.channel_id, "unknown")
+        user_name = event.user.name if event.user else "Anonymous"
+        
+        try:
+            async with aiosqlite.connect(self.db_file) as conn:
+                c = await conn.cursor()
+                await c.execute("SELECT pubsub_bits FROM channel_configs WHERE channel_name = ?", (channel_name.lstrip('#'),))
+                row = await c.fetchone()
+                if not row or not row[0]:
+                    return  # Bits tracking is disabled
+        except Exception as e:
+            self.logger.error(f"Failed to check pubsub_bits config: {e}")
+            return
+            
+        self.logger.info(f"Received {event.bits_used} bits from {user_name} in {channel_name}!")
+        
+        # We can implement a fun random response or customized cheer logic here!
+        channel = self.get_channel(channel_name.lstrip('#'))
+        if channel:
+            await channel.send(f"Thank you {user_name} for the {event.bits_used} bits! bloodTrail")
+
+    async def event_pubsub_channel_points(self, event: pubsub.PubSubChannelPointsMessage):
+        """Handle channel point redemptions via PubSub."""
+        channel_name = self._channel_ids.get(event.channel_id, "unknown")
+        user_name = event.user.name if event.user else "Anonymous"
+        reward_title = event.reward.title
+        
+        try:
+            async with aiosqlite.connect(self.db_file) as conn:
+                c = await conn.cursor()
+                await c.execute("SELECT pubsub_points FROM channel_configs WHERE channel_name = ?", (channel_name.lstrip('#'),))
+                row = await c.fetchone()
+                if not row or not row[0]:
+                    return  # Points tracking is disabled
+        except Exception as e:
+            self.logger.error(f"Failed to check pubsub_points config: {e}")
+            return
+            
+        self.logger.info(f"Channel point redemption: {reward_title} by {user_name} in {channel_name}")
+        
+        # Forward this to the custom command logic if the reward title matches a command!
+        # We simulate a Twitch message object since our custom command logic requires one.
+        class DummyMessage:
+            def __init__(self, author_name, content, ch):
+                self.author = type('DummyAuthor', (), {'name': author_name})()
+                self.content = content
+                self.channel = type('DummyChannel', (), {'name': ch.lstrip('#')})()
+        
+        # If the reward title matches a custom command, execute it!
+        # We prefix it with '!' just in case it's defined that way in DB.
+        cmd_trigger = reward_title if reward_title.startswith('!') else f"!{reward_title}"
+        dummy_msg = DummyMessage(user_name, f"{cmd_trigger} {event.input or ''}", channel_name)
+        
+        # Check custom commands first (simulating what event_message does)
+        try:
+            async with aiosqlite.connect(self.db_file) as conn:
+                c = await conn.cursor()
+                await c.execute(
+                    "SELECT response_template FROM custom_commands WHERE (channel_name = ? OR channel_name = 'global') AND command_name = ? ORDER BY channel_name = 'global' ASC LIMIT 1",
+                    (channel_name.lstrip('#'), cmd_trigger)
+                )
+                row = await c.fetchone()
+                if row:
+                    response_template = row[0]
+                    # Fetch grammar
+                    await c.execute("SELECT rule_name, options_json FROM custom_grammar WHERE channel_name = ? OR channel_name = 'global'", (channel_name.lstrip('#'),))
+                    db_rules = await c.fetchall()
+                    
+                    import tracery
+                    import json
+                    from tracery.modifiers import base_english
+                    
+                    rules = {}
+                    for r_name, o_json in db_rules:
+                        rules[r_name] = json.loads(o_json)
+                        
+                    rules["sender"] = [user_name]
+                    rules["streamer"] = [channel_name.lstrip('#')]
+                    rules["input"] = [event.input or ""]
+                    
+                    grammar = tracery.Grammar(rules)
+                    grammar.add_modifiers(base_english)
+                    
+                    # Pre-replace the exact tags
+                    formatted_template = response_template.replace("<{sender}>", "#sender#").replace("<{streamer}>", "#streamer#").replace("<{input}>", "#input#")
+                    
+                    final_response = grammar.flatten(formatted_template)
+                    channel = self.get_channel(channel_name.lstrip('#'))
+                    if channel:
+                        await channel.send(final_response)
+                        
+                    # Also log it
+                    self.logger.info(f"Custom command triggered by channel points: {cmd_trigger} -> {final_response}")
+                    
+        except Exception as e:
+            self.logger.error(f"Error evaluating custom command from channel points: {e}")
 
     async def event_error(self, error, data=None):
         """Handle TwitchIO errors and initiate reconnection if needed."""
@@ -1725,7 +1902,119 @@ class Bot(commands.Bot):
         if message.author.name.lower() in ignored_users:
             return
 
-        # Handle any commands in the message.
+        # --- CUSTOM COMMANDS & GRAMMAR (Funtoon Style) ---
+        if message.content.startswith('!'):
+            command_parts = message.content.split(maxsplit=1)
+            cmd_name = command_parts[0].lower()
+            cmd_input = command_parts[1] if len(command_parts) > 1 else ""
+            
+            # Check db for custom command, prioritizing channel-specific, then global
+            try:
+                async with aiosqlite.connect(self.db_file) as conn:
+                    c = await conn.cursor()
+                    await c.execute(
+                        "SELECT response_template FROM custom_commands WHERE (channel_name = ? OR channel_name = 'global') AND command_name = ? ORDER BY channel_name DESC LIMIT 1",
+                        (channel_name, cmd_name)
+                    )
+                    cmd_row = await c.fetchone()
+                    
+                    if cmd_row:
+                        response_template = cmd_row[0]
+                        
+                        # Fetch grammar rules for this channel + global rules
+                        await c.execute(
+                            "SELECT rule_name, options_json FROM custom_grammar WHERE channel_name = ? OR channel_name = 'global'",
+                            (channel_name,)
+                        )
+                        grammar_rows = await c.fetchall()
+                        
+                        rules = {}
+                        import json
+                        for rule_name, options_json in grammar_rows:
+                            try:
+                                # Prioritize channel rules over global rules if they have the same name (by overwriting)
+                                rules[rule_name] = json.loads(options_json)
+                            except:
+                                pass
+                                
+                        # Inject built-in variables as static rules
+                        rules["sender"] = [message.author.name]
+                        rules["streamer"] = [channel_name]
+                        rules["input"] = [cmd_input]
+                        
+                        # Generate response using Tracery
+                        import tracery
+                        from tracery.modifiers import base_english
+                        grammar = tracery.Grammar(rules)
+                        grammar.add_modifiers(base_english)
+                        
+                        # Replace <{...}> syntax with Tracery #...# syntax for variables
+                        formatted_template = response_template.replace("<{sender}>", "#sender#")
+                        formatted_template = formatted_template.replace("<{streamer}>", "#streamer#")
+                        formatted_template = formatted_template.replace("<{input}>", "#input#")
+                        
+                        # Unescape \< and << that funtoon uses to prevent parsing
+                        formatted_template = formatted_template.replace("\\<", "<").replace("<<", "<")
+                        
+                        generated_response = grammar.flatten(formatted_template)
+                        
+                        # --- MODERATION ACTION INTERCEPTOR ---
+                        import re
+                        timeout_match = re.search(r'\{timeout:(.+?):(\d+)\}', generated_response)
+                        if timeout_match:
+                            target_user = timeout_match.group(1).strip()
+                            duration = int(timeout_match.group(2))
+                            
+                            # Clean the generated response so the tag doesn't show in chat
+                            generated_response = re.sub(r'\{timeout:(.+?):(\d+)\}', '', generated_response).strip()
+                            
+                            # Security Check
+                            # The sender MUST be a moderator, the broadcaster, the global bot owner, OR they are targeting themselves.
+                            config.read("settings.conf")
+                            bot_owner = config.get("auth", "owner", fallback="").lower()
+                            
+                            is_mod = message.author.is_mod
+                            is_broadcaster = message.author.is_broadcaster
+                            is_owner = message.author.name.lower() == bot_owner
+                            is_self_target = target_user.lower() == message.author.name.lower()
+                            
+                            if is_mod or is_broadcaster or is_owner or is_self_target:
+                                # Fetch Broadcaster (to act as the channel context) and Target User
+                                try:
+                                    channel_users = await self.fetch_users(names=[channel_name])
+                                    target_users = await self.fetch_users(names=[target_user])
+                                    if channel_users and target_users and hasattr(self, 'bot_user_id'):
+                                        channel_user_obj = channel_users[0]
+                                        target_user_obj = target_users[0]
+                                        
+                                        tmi_token = config.get("auth", "tmi_token")
+                                        if tmi_token.startswith("oauth:"):
+                                            tmi_token = tmi_token[6:]
+                                            
+                                        await channel_user_obj.timeout_user(
+                                            token=tmi_token,
+                                            moderator_id=self.bot_user_id,
+                                            user_id=target_user_obj.id,
+                                            duration=duration,
+                                            reason="MockBot Custom Command"
+                                        )
+                                        self.logger.info(f"Successfully timed out {target_user} for {duration}s via Custom Command!")
+                                except Exception as e:
+                                    self.logger.error(f"Failed to execute moderation action: {e}")
+                            else:
+                                self.logger.warning(f"{message.author.name} attempted to use a moderation custom command without permissions.")
+
+                        # Send the custom command response
+                        channel_obj = self.get_channel(channel_name)
+                        if channel_obj and generated_response:
+                            await channel_obj.send(generated_response)
+                            self.my_logger.log_message(channel_name, self.nick, generated_response, is_bot_message=True)
+                            
+                        return # Exit early! Don't process it as a regular message or core command
+            except Exception as e:
+                self.logger.error(f"Error processing custom command {cmd_name} in {channel_name}: {e}")
+
+        # Handle any core bot commands in the message.
         await self.handle_commands(message)
 
         # Add user's message to the queue for background bulk-insertion

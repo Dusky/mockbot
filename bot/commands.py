@@ -332,4 +332,312 @@ async def mockbot_command(self, ctx, setting=None, new_value=None, **kwargs):
         status_text = "enabled" if new_tts_status else "disabled"
         await ctx.send(f"TTS {status_text} for channel {target_channel}.")
 
+    elif setting == "bits":
+        # Only the bot owner or channel owner can change Bits status
+        config = configparser.ConfigParser()
+        config.read("settings.conf")
+        bot_owner = config.get("auth", "owner")
 
+        conn = await aiosqlite.connect(self.db_file)
+        c = await conn.cursor()
+
+        target_channel = ctx.channel.name
+
+        await c.execute("SELECT owner FROM channel_configs WHERE channel_name = ?", (target_channel,))
+        channel_config = await c.fetchone()
+
+        if channel_config is None:
+            await ctx.send(f"Channel {target_channel} not found in database.")
+            await conn.close()
+            return
+
+        channel_owner = channel_config[0]
+
+        if ctx.author.name != bot_owner and ctx.author.name != channel_owner:
+            await ctx.send("You do not have permission to change Bits settings for this channel.")
+            await conn.close()
+            return
+
+        if new_value.lower() == "on":
+            new_bits_status = True
+        elif new_value.lower() == "off":
+            new_bits_status = False
+        else:
+            await ctx.send("Invalid command. Use '!mockbot bits on' or '!mockbot bits off'.")
+            await conn.close()
+            return
+
+        await c.execute("UPDATE channel_configs SET pubsub_bits = ? WHERE channel_name = ?", (new_bits_status, target_channel))
+        await conn.commit()
+        await conn.close()
+
+        status_text = "enabled" if new_bits_status else "disabled"
+        await ctx.send(f"Bits tracking {status_text} for channel {target_channel}.")
+
+    elif setting == "points":
+        # Only the bot owner or channel owner can change Points status
+        config = configparser.ConfigParser()
+        config.read("settings.conf")
+        bot_owner = config.get("auth", "owner")
+
+        conn = await aiosqlite.connect(self.db_file)
+        c = await conn.cursor()
+
+        target_channel = ctx.channel.name
+
+        await c.execute("SELECT owner FROM channel_configs WHERE channel_name = ?", (target_channel,))
+        channel_config = await c.fetchone()
+
+        if channel_config is None:
+            await ctx.send(f"Channel {target_channel} not found in database.")
+            await conn.close()
+            return
+
+        channel_owner = channel_config[0]
+
+        if ctx.author.name != bot_owner and ctx.author.name != channel_owner:
+            await ctx.send("You do not have permission to change Points settings for this channel.")
+            await conn.close()
+            return
+
+        if new_value.lower() == "on":
+            new_points_status = True
+        elif new_value.lower() == "off":
+            new_points_status = False
+        else:
+            await ctx.send("Invalid command. Use '!mockbot points on' or '!mockbot points off'.")
+            await conn.close()
+            return
+
+        await c.execute("UPDATE channel_configs SET pubsub_points = ? WHERE channel_name = ?", (new_points_status, target_channel))
+        await conn.commit()
+        await conn.close()
+
+        status_text = "enabled" if new_points_status else "disabled"
+        await ctx.send(f"Points tracking {status_text} for channel {target_channel}.")
+
+
+
+async def _check_custom_auth(self, ctx):
+    """Helper to check if user is admin/trusted for custom command management."""
+    config = configparser.ConfigParser()
+    config.read("settings.conf")
+    bot_owner = config.get("auth", "owner")
+    
+    if ctx.author.name == bot_owner:
+        return True
+        
+    async with aiosqlite.connect(self.db_file) as conn:
+        c = await conn.cursor()
+        await c.execute("SELECT owner, trusted_users FROM channel_configs WHERE channel_name = ?", (ctx.channel.name,))
+        row = await c.fetchone()
+        if not row:
+            return False
+            
+        channel_owner, trusted_users_str = row
+        if ctx.author.name == channel_owner:
+            return True
+            
+        trusted_users = trusted_users_str.split(",") if trusted_users_str else []
+        if ctx.author.name in trusted_users:
+            return True
+            
+    return False
+
+async def mockbot_addc(self, ctx, cmd_name: str, *, response_template: str):
+    if not await _check_custom_auth(self, ctx):
+        await ctx.send("You don't have permission to manage custom commands.")
+        return
+        
+    cmd_name = cmd_name.lower()
+    if not cmd_name.startswith('!'):
+        cmd_name = f"!{cmd_name}"
+        
+    try:
+        async with aiosqlite.connect(self.db_file) as conn:
+            c = await conn.cursor()
+            await c.execute(
+                "INSERT INTO custom_commands (channel_name, command_name, response_template) VALUES (?, ?, ?)",
+                (ctx.channel.name, cmd_name, response_template)
+            )
+            await conn.commit()
+        await ctx.send(f"Command {cmd_name} added successfully!")
+    except sqlite3.IntegrityError:
+        await ctx.send(f"Command {cmd_name} already exists. Use !editc to change it.")
+    except Exception as e:
+        await ctx.send(f"Error saving command: {e}")
+
+async def mockbot_editc(self, ctx, cmd_name: str, *, response_template: str):
+    if not await _check_custom_auth(self, ctx):
+        await ctx.send("You don't have permission to manage custom commands.")
+        return
+        
+    cmd_name = cmd_name.lower()
+    if not cmd_name.startswith('!'):
+        cmd_name = f"!{cmd_name}"
+        
+    try:
+        async with aiosqlite.connect(self.db_file) as conn:
+            c = await conn.cursor()
+            await c.execute(
+                "UPDATE custom_commands SET response_template = ? WHERE channel_name = ? AND command_name = ?",
+                (response_template, ctx.channel.name, cmd_name)
+            )
+            if c.rowcount > 0:
+                await ctx.send(f"Command {cmd_name} updated successfully!")
+            else:
+                await ctx.send(f"Command {cmd_name} not found.")
+            await conn.commit()
+    except Exception as e:
+        await ctx.send(f"Error updating command: {e}")
+
+async def mockbot_delc(self, ctx, cmd_name: str):
+    if not await _check_custom_auth(self, ctx):
+        await ctx.send("You don't have permission to manage custom commands.")
+        return
+        
+    cmd_name = cmd_name.lower()
+    if not cmd_name.startswith('!'):
+        cmd_name = f"!{cmd_name}"
+        
+    try:
+        async with aiosqlite.connect(self.db_file) as conn:
+            c = await conn.cursor()
+            await c.execute(
+                "DELETE FROM custom_commands WHERE channel_name = ? AND command_name = ?",
+                (ctx.channel.name, cmd_name)
+            )
+            if c.rowcount > 0:
+                await ctx.send(f"Command {cmd_name} deleted successfully!")
+            else:
+                await ctx.send(f"Command {cmd_name} not found.")
+            await conn.commit()
+    except Exception as e:
+        await ctx.send(f"Error deleting command: {e}")
+
+async def mockbot_grammar(self, ctx, action: str, rule: str, *, text: str = ""):
+    if not await _check_custom_auth(self, ctx):
+        await ctx.send("You don't have permission to manage custom grammar.")
+        return
+        
+    action = action.lower()
+    rule = rule.lower()
+    
+    if action not in ['add', 'list', 'clear']:
+        await ctx.send("Usage: !grammar <add|list|clear> <rule> [text]")
+        return
+        
+    try:
+        import json
+        async with aiosqlite.connect(self.db_file) as conn:
+            c = await conn.cursor()
+            await c.execute(
+                "SELECT options_json FROM custom_grammar WHERE channel_name = ? AND rule_name = ?",
+                (ctx.channel.name, rule)
+            )
+            row = await c.fetchone()
+            options = json.loads(row[0]) if row else []
+            
+            if action == 'add':
+                if not text:
+                    await ctx.send("Please provide text to add to the rule.")
+                    return
+                options.append(text)
+                options_str = json.dumps(options)
+                
+                if row:
+                    await c.execute(
+                        "UPDATE custom_grammar SET options_json = ? WHERE channel_name = ? AND rule_name = ?",
+                        (options_str, ctx.channel.name, rule)
+                    )
+                else:
+                    await c.execute(
+                        "INSERT INTO custom_grammar (channel_name, rule_name, options_json) VALUES (?, ?, ?)",
+                        (ctx.channel.name, rule, options_str)
+                    )
+                await conn.commit()
+                await ctx.send(f"Added '{text}' to rule #{rule}#.")
+                
+            elif action == 'list':
+                if not options:
+                    await ctx.send(f"Rule #{rule}# has no options.")
+                else:
+                    items = ", ".join(f"'{o}'" for o in options)
+                    await ctx.send(f"Rule #{rule}# options: {items}")
+                    
+            elif action == 'clear':
+                await c.execute(
+                    "DELETE FROM custom_grammar WHERE channel_name = ? AND rule_name = ?",
+                    (ctx.channel.name, rule)
+                )
+                await conn.commit()
+                await ctx.send(f"Rule #{rule}# cleared.")
+    except Exception as e:
+        await ctx.send(f"Error managing grammar: {e}")
+
+async def mockbot_poll(self, ctx, *args):
+    """Creates a poll using Twitch API: !poll <duration_minutes> <question> | <opt1> | <opt2>"""
+    if not await _check_custom_auth(self, ctx):
+        await ctx.send("You don't have permission to create polls.")
+        return
+
+    if not args:
+        await ctx.send("Usage: !poll <duration_minutes> <question> | <opt1> | <opt2>")
+        return
+
+    try:
+        args_str = " ".join(args)
+        parts = [p.strip() for p in args_str.split('|') if p.strip()]
+        
+        if len(parts) < 3:
+            await ctx.send("A poll needs a question and at least two choices separated by '|'.")
+            return
+            
+        first_part = parts[0]
+        first_part_words = first_part.split(maxsplit=1)
+        if len(first_part_words) < 2:
+            await ctx.send("Please provide a duration and a question. Example: !poll 5 Is this cool? | Yes | No")
+            return
+            
+        duration_minutes_str, question = first_part_words
+        
+        try:
+            duration_minutes = float(duration_minutes_str)
+        except ValueError:
+            await ctx.send(f"Invalid duration: {duration_minutes_str}")
+            return
+            
+        duration_seconds = int(duration_minutes * 60)
+        # Twitch Poll duration must be between 15 and 1800 seconds
+        duration_seconds = max(15, min(1800, duration_seconds))
+        
+        choices = parts[1:]
+        if len(choices) > 5:
+            await ctx.send("Twitch polls can have at most 5 choices.")
+            return
+
+        clean_channel = ctx.channel.name.lstrip('#')
+        users = await self.fetch_users(names=[clean_channel])
+        if not users:
+            await ctx.send("Failed to fetch channel from Twitch API.")
+            return
+            
+        broadcaster = users[0]
+        
+        config = configparser.ConfigParser()
+        config.read("settings.conf")
+        token = config.get("auth", "tmi_token")
+        if token.startswith("oauth:"):
+            token = token[6:]
+
+        await broadcaster.create_poll(
+            token=token,
+            title=question,
+            choices=choices,
+            duration=duration_seconds,
+            channel_points_voting_enabled=False
+        )
+        
+        await ctx.send(f"Poll started: {question} ({duration_minutes_str}m)!")
+    except Exception as e:
+        await ctx.send(f"Failed to create poll: {e}")

@@ -606,46 +606,48 @@ class Bot(commands.Bot):
                 
                 rows = await c.fetchall()
                 if not rows and channel_filter:
-                    print(f"No configuration found for #{channel_filter}")
+                    self.my_logger.print_message(f"No configuration found for #{channel_filter}")
                     return
 
                 for row in rows:
                     channel, owner, trusted, ignored, voice, tts, join_enabled, time_between, lines_between, use_general, random_chance, log_dice = row
                     
                     # Format owner with color
-                    owner_display = f"\033[38;5;{self.get_user_color(owner)}m{owner}\033[0m" if owner else "None"
+                    owner_display = f"[color({self.get_user_color(owner)})]{owner}[/]" if owner else "None"
                     
                     # Format trusted users with colors
                     if trusted and trusted.strip():
                         trusted_display = ", ".join(
-                            f"\033[38;5;{self.get_user_color(user.strip())}m{user.strip()}\033[0m"
+                            f"[color({self.get_user_color(user.strip())})]{user.strip()}[/]"
                             for user in trusted.split(",") if user.strip()
                         )
                     else:
                         trusted_display = ""
                         
                     # Format settings
-                    voice_status = f"{GREEN}enabled{RESET}" if voice else f"{RED}disabled{RESET}"
-                    tts_status = f"{GREEN}enabled{RESET}" if tts else f"{RED}disabled{RESET}"
-                    model_status = f"{GREEN}general{RESET}" if use_general else f"{PURPLE}individual{RESET}"
+                    voice_status = "[green]enabled[/green]" if voice else "[red]disabled[/red]"
+                    tts_status = "[green]enabled[/green]" if tts else "[red]disabled[/red]"
+                    model_status = "[green]general[/green]" if use_general else "[magenta]individual[/magenta]"
                     
                     # Check if channel is actually joined
                     is_joined = f"#{channel}" in self._joined_channels
-                    join_status = f"{GREEN}joined{RESET}" if is_joined else f"{RED}not joined{RESET}"
+                    join_status = "[green]joined[/green]" if is_joined else "[red]not joined[/red]"
                     
                     # Format time and lines settings
-                    time_status = f"{GREEN}{time_between}{RESET}" if time_between > 0 else f"{RED}0{RESET}"
-                    lines_status = f"{GREEN}{lines_between}{RESET}" if lines_between > 0 else f"{RED}0{RESET}"
+                    time_status = f"[green]{time_between}[/green]" if time_between > 0 else "[red]0[/red]"
+                    lines_status = f"[green]{lines_between}[/green]" if lines_between > 0 else "[red]0[/red]"
                     
                     # Format chance
-                    chance_status = f"\033[0;36m{random_chance}%\033[0m" if random_chance > 0 else f"\033[1;33m0.0%\033[0m"
+                    chance_status = f"[cyan]{random_chance}%[/cyan]" if random_chance > 0 else "[yellow]0.0%[/yellow]"
                     
                     # Format log dice
-                    log_dice_status = f"{GREEN}on{RESET}" if log_dice else f"{RED}off{RESET}"
+                    log_dice_status = "[green]on[/green]" if log_dice else "[red]off[/red]"
+                    
+                    channel_display = f"[color({self.get_channel_color(channel)})]#{channel}[/]"
                     
                     # Add to table
                     table_data.append([
-                        f"\033[38;5;{self.get_channel_color(channel)}m#{channel}\033[0m", 
+                        channel_display, 
                         owner_display,
                         trusted_display,
                         voice_status,
@@ -658,11 +660,37 @@ class Bot(commands.Bot):
                         log_dice_status
                     ])
             
-            headers = ["Channel", "Owner", "Trusted Users", "Voice", "TTS", "Autojoin", "Model", "Time", "Lines", "Chance", "Log_Dice"]
-            print(tabulate(table_data, headers=headers, tablefmt="pretty"))
+            from rich.table import Table
+            from rich import box
+            table = Table(
+                title="Channel Configurations",
+                title_style="bold cyan",
+                box=box.ROUNDED,
+                border_style="dim",
+                header_style="bold white",
+                padding=(0, 1),
+            )
+            headers = [
+                ("Channel", "left"),
+                ("Owner", "left"),
+                ("Trusted Users", "left"),
+                ("Voice", "center"),
+                ("TTS", "center"),
+                ("Autojoin", "center"),
+                ("Model", "center"),
+                ("Time", "right"),
+                ("Lines", "right"),
+                ("Chance", "right"),
+                ("Log Dice", "center"),
+            ]
+            for h, j in headers:
+                table.add_column(h, justify=j)
+            for row in table_data:
+                table.add_row(*row)
+            self.my_logger.print_message(table)
         
         except Exception as e:
-            print(f"Error printing channel status: {e}")
+            self.my_logger.print_message(f"Error printing channel status: {e}")
 
     async def print_brain_status(self, channel_filter=None):
         """Print a status table showing the number of lines loaded for each channel's Markov brain and cache metadata."""
@@ -693,10 +721,9 @@ class Bot(commands.Bot):
                     await c.execute('SELECT COUNT(*) FROM messages WHERE is_bot_response = 0 AND channel = ?', (clean_channel,))
                     row = await c.fetchone()
                     msg_count = row[0] if row else 0
-                    
-                    print(f"\n🧠 \033[1mDetailed Brain Stats for \033[38;5;{self.get_channel_color(clean_channel)}m#{clean_channel}\033[0m\033[1m:\033[0m")
-                    print(f"  • Raw Messages in DB: {msg_count:,}")
-                    print(f"  • Source Model:       {model_type} ({model_name})")
+                    self.my_logger.print_message(f"\n🧠 [bold]Detailed Brain Stats for [color({self.get_channel_color(clean_channel)})]#{clean_channel}[/]:[/bold]")
+                    self.my_logger.print_message(f"  • Raw Messages in DB: {msg_count:,}")
+                    self.my_logger.print_message(f"  • Source Model:       {model_type} ({model_name})")
                     
                     if os.path.exists(cache_file_path):
                         size_bytes = os.path.getsize(cache_file_path)
@@ -704,8 +731,8 @@ class Bot(commands.Bot):
                         mtime = os.path.getmtime(cache_file_path)
                         dt = datetime.datetime.fromtimestamp(mtime)
                         
-                        print(f"  • Cache File Size:    {cache_size_str}")
-                        print(f"  • Last Compiled:      {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                        self.my_logger.print_message(f"  • Cache File Size:    {cache_size_str}")
+                        self.my_logger.print_message(f"  • Last Compiled:      {dt.strftime('%Y-%m-%d %H:%M:%S')}")
                         
                         try:
                             with open(cache_file_path, 'r', encoding='utf-8') as f:
@@ -729,17 +756,17 @@ class Bot(commands.Bot):
                             except Exception:
                                 top_starts_str = "Unavailable"
                                 
-                            print(f"  • State Size:         {state_size}")
-                            print(f"  • Sentences Parsed:   {num_parsed_sentences:,}")
-                            print(f"  • Unique States:      {num_states:,}" if isinstance(num_states, int) else f"  • Unique States:      {num_states}")
-                            print(f"  • Top Start Words:    {top_starts_str}")
+                            self.my_logger.print_message(f"  • State Size:         {state_size}")
+                            self.my_logger.print_message(f"  • Sentences Parsed:   {num_parsed_sentences:,}")
+                            self.my_logger.print_message(f"  • Unique States:      {num_states:,}" if isinstance(num_states, int) else f"  • Unique States:      {num_states}")
+                            self.my_logger.print_message(f"  • Top Start Words:    {top_starts_str}")
 
                         except Exception as e:
-                            print(f"  • Error parsing cache: {str(e)}")
+                            self.my_logger.print_message(f"  • Error parsing cache: {str(e)}")
                     else:
-                        print(f"  • Cache Status:       Not generated yet")
+                        self.my_logger.print_message(f"  • Cache Status:       Not generated yet")
                     
-                    print("")
+                    self.my_logger.print_message("")
                     return
                 
                 # Get total counts per channel from DB
@@ -776,7 +803,7 @@ class Bot(commands.Bot):
                                 
                         # Add to table
                         table_data.append([
-                            f"\033[38;5;{self.get_channel_color(clean_channel)}m#{clean_channel}\033[0m", 
+                            f"[color({self.get_channel_color(clean_channel)})]#{clean_channel}[/]", 
                             f"{count:,}",
                             model_type,
                             cache_size_str,
@@ -784,16 +811,31 @@ class Bot(commands.Bot):
                         ])
                         total_lines += count
                  
-                # Format total length color
-                YELLOW = '\033[1;33m'
-                RESET = '\033[0m'
-                
-                total_label = f"{YELLOW}Total{RESET}"
+                total_label = "[bold yellow]Total[/bold yellow]"
                 table_data.append([total_label, f"{total_lines:,}", "", "", ""])
                 
-                headers = ["Channel", "Lines in Brain", "Model Type", "Cache Size", "Last Compiled"]
-                print("\nBrain Statistics:")
-                print(tabulate(table_data, headers=headers, tablefmt="pretty", numalign="right"))
+                from rich.table import Table
+                from rich import box
+                table = Table(
+                    title="Brain Statistics",
+                    title_style="bold cyan",
+                    box=box.ROUNDED,
+                    border_style="dim",
+                    header_style="bold white",
+                    padding=(0, 1),
+                )
+                headers = [
+                    ("Channel", "left"),
+                    ("Lines in Brain", "right"),
+                    ("Model Type", "center"),
+                    ("Cache Size", "right"),
+                    ("Last Compiled", "center"),
+                ]
+                for h, j in headers:
+                    table.add_column(h, justify=j)
+                for row in table_data:
+                    table.add_row(*row)
+                self.my_logger.print_message(table)
                 
                 # Check for cached general model
                 cache_file_path = os.path.join("cache", "general_markov_model.json")
@@ -802,12 +844,13 @@ class Bot(commands.Bot):
                     cache_size_str = f"{size_bytes / 1024:.1f} KB"
                     mtime = os.path.getmtime(cache_file_path)
                     dt = datetime.datetime.fromtimestamp(mtime)
-                    print(f"\nGeneral Brain Cache Status: Compiled {dt.strftime('%Y-%m-%d %H:%M:%S')} ({cache_size_str})")
+                    self.my_logger.print_message(f"\nGeneral Model Cache Size: {cache_size_str}")
+                    self.my_logger.print_message(f"General Model Last Compiled: {dt.strftime('%Y-%m-%d %H:%M:%S')}")
                 else:
-                    print("\nGeneral Brain Cache Status: None")
+                    self.my_logger.print_message("\nGeneral Model Cache: Not generated yet")
                     
         except Exception as e:
-            print(f"Error printing brain status: {e}")
+            self.my_logger.print_message(f"Error printing brain status: {e}")
 
     def load_text_and_build_model(self, create_individual_caches=False):
         cache_directory = "cache/"
@@ -835,7 +878,7 @@ class Bot(commands.Bot):
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         lines = [line.strip() for line in f if line.strip()]
                     if lines:
-                        print(f"Migrating {len(lines)} legacy log entries for #{channel_name} to database...")
+                        self.my_logger.print_message(f"Migrating {len(lines)} legacy log entries for #{channel_name} to database...")
                         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
                         c.executemany(
                             "INSERT INTO messages (message, timestamp, channel, author_name, is_bot_response) VALUES (?, ?, ?, ?, 0)",
@@ -906,7 +949,7 @@ class Bot(commands.Bot):
         # Print the table outside the loop, after processing all files
         headers = ["Channel", "Brain Size", "Brain Status", "Brain"]
         # print(tabulate(files_data, headers=headers, tablefmt="pretty", numalign="right"))
-        print(f"Brain loaded: {total_lines:,} lines active.")
+        self.my_logger.print_message(f"Brain loaded: {total_lines:,} lines active.")
 
     def determine_cache_status(self, channel_name, file_text, create_individual_caches, cache_directory):
         """Determine cache status for a given channel"""
@@ -959,10 +1002,10 @@ class Bot(commands.Bot):
             # Update build time
             self.cache_build_times[channel_name] = time.time()
             self.save_cache_build_times()
-            return f"{GREEN}Updated{RESET}"
+            return f"[green]Updated[/]"
         except Exception as e:
-            print(f"Error creating model for {channel_name}: {e}")
-            return f"{RED}Error{RESET}"
+            self.my_logger.print_message(f"Error creating model for {channel_name}: {e}")
+            return f"[red]Error[/]"
 
     def save_general_model_to_cache(self, cache_file_path):
         """Save the general model to the cache."""
@@ -971,7 +1014,7 @@ class Bot(commands.Bot):
                 cache_file.write(self.general_model.to_json())
             return True
         except Exception as e:
-            print(f"Error saving general model to cache: {e}")
+            self.my_logger.print_message(f"Error saving general model to cache: {e}")
             return False
 
 
@@ -1861,7 +1904,8 @@ class Bot(commands.Bot):
             return  # Ignore the error, preventing it from propagating further
         else:
             # For all other types of errors, you might want to see what's going on
-            self.my_logger.error(f"Error in command: {ctx.command.name}, {error}")
+            channel = ctx.channel.name if ctx.channel else None
+            self.my_logger.error(f"Error in command: {ctx.command.name}, {error}", channel=channel)
 
 
     def log_message(self, message):
@@ -2030,7 +2074,7 @@ class Bot(commands.Bot):
                 0 # Not processed for TTS by default
             ))
         except Exception as e:
-            self.my_logger.error(f"Failed to queue user message for DB: {e}")
+            self.my_logger.error(f"Failed to queue user message for DB: {e}", channel=channel_name)
             print(f"Error queuing user message for {channel_name}: {e}")
 
         # Make sure the channel is in our dictionaries
@@ -2049,8 +2093,11 @@ class Bot(commands.Bot):
             import random
             roll = random.uniform(0.0, 100.0)
             if log_dice:
-                if not self.my_logger.active_channel_filter or self.my_logger.active_channel_filter.lower() == channel_name.lower():
-                    print(f"\033[0;36m[{channel_name}]\033[0m Dice roll: {roll:.3f}% \033[2mvs {random_chance}%\033[0m -> \033[1;33m{'Triggered!' if roll <= random_chance else 'Miss'}\033[0m")
+                result_str = '[bright_yellow]Triggered![/]' if roll <= random_chance else '[dim]Miss[/]'
+                self.my_logger.print_message(
+                    f"[cyan]\\[{channel_name}][/] Dice roll: {roll:.3f}% [dim]vs {random_chance}%[/] → {result_str}",
+                    channel=channel_name
+                )
             if roll <= random_chance:
                 should_send_message = True
                 
@@ -2166,7 +2213,7 @@ class Bot(commands.Bot):
                         self.channel_last_message_time[channel_name] = time.time()
                     except Exception as e:
                         # Log any errors that occur when sending the message.
-                        self.my_logger.error(f"Failed to send message in {channel_name}: {str(e)}")
+                        self.my_logger.error(f"Failed to send message in {channel_name}: {str(e)}", channel=channel_name)
                         print(f"Error sending message in {channel_name}: {str(e)}")
 
     async def stop(self):

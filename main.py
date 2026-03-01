@@ -139,28 +139,31 @@ def main():
         # Simple CLI mode - direct output
         sys.stdout.flush()
         
-        # Initialize Interactive Shell
-        from bot.interactive import InteractiveShell
+        # Initialize Textual Dashboard
+        from bot.tui import MockbotDashboard
         from bot.overlay import start_server
-        shell = InteractiveShell(bot_instance)
+        import bot.logger
+        
+        tui_app = MockbotDashboard(bot=bot_instance)
+        bot.logger.TUI_LOG_CALLBACK = tui_app.write_log
         
         async def run_concurrently():
             # Start the OBS overlay web server
             # start_server returns an AppRunner but doesn't block
             runner = await start_server(port=5050)
             
-            # Create tasks for both the bot and the shell
+            # Create tasks for both the bot and the TUI
             # bot.start() is the coroutine version of bot.run()
             bot_task = asyncio.create_task(bot_instance.start()) 
-            shell_task = asyncio.create_task(shell.run())
+            tui_task = asyncio.create_task(tui_app.run_async())
             
-            # Wait for either to finish (likely shell quit)
+            # Wait for either to finish (likely TUI quit)
             done, pending = await asyncio.wait(
-                [bot_task, shell_task], 
+                [bot_task, tui_task], 
                 return_when=asyncio.FIRST_COMPLETED
             )
             
-            # If shell finished (quit), cancel bot
+            # If TUI finished (quit), cancel bot
             for task in pending:
                 task.cancel()
                 

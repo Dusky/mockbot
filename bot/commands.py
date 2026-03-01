@@ -39,7 +39,7 @@ async def mockbot_command(self, ctx, setting=None, new_value=None, **kwargs):
     bot_owner = config.get("auth", "owner")
 
     if ctx.author.name not in channel_trusted_users and ctx.author.name != channel_owner and ctx.author.name != bot_owner:
-        self.my_logger.log_warning(f"Unauthorized attempt to use ansv command by {ctx.author.name}")
+        self.my_logger.log_warning(f"Unauthorized attempt to use ansv command by {ctx.author.name}", channel=ctx.channel.name)
         await ctx.send("You do not have permission to use this command.")
         return
     if setting == "speak":
@@ -84,7 +84,7 @@ async def mockbot_command(self, ctx, setting=None, new_value=None, **kwargs):
                 self.channel_last_message_time[ctx.channel.name] = time.time()
 
             except Exception as e:
-                self.my_logger.log_error(f"Failed to send message due to: {e}")
+                self.my_logger.log_error(f"Failed to send message due to: {e}", channel=ctx.channel.name)
         else:
             await ctx.send("Unable to generate a message at this time.")
 

@@ -9,7 +9,7 @@ python-dotenv>=1.0.0
 numpy>=1.26.0
 
 # CLI Interface
-prompt_toolkit>=3.0.36
+# prompt_toolkit removed in favor of textual
 
 # OBS Overlay
 aiohttp>=3.9.0

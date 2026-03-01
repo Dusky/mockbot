@@ -6,6 +6,9 @@ import os
 from .color_control import ColorManager 
 from logging.handlers import RotatingFileHandler
 
+# Optional callback hook for the Textual TUI
+TUI_LOG_CALLBACK = None
+
 # ANSI color codes for consistent styling
 YELLOW = "\x1b[33m"
 RESET = "\x1b[0m"
@@ -18,6 +21,33 @@ BRIGHT_GREEN = "\x1b[92m"
 BRIGHT_RED = "\x1b[91m"
 BRIGHT_YELLOW = "\x1b[93m"
 BRIGHT_BLUE = "\x1b[94m"
+
+# Regex to strip ANSI escape codes
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
+
+def strip_ansi(text):
+    """Remove all ANSI escape codes from a string."""
+    return _ANSI_RE.sub('', text)
+
+# Map basic ANSI color codes to Rich color names for simple conversions
+_ANSI_TO_RICH = {
+    YELLOW: "[yellow]", RED: "[red]", GREEN: "[green]",
+    PURPLE: "[magenta]", CYAN: "[cyan]", BLUE: "[blue]",
+    BRIGHT_GREEN: "[bright_green]", BRIGHT_RED: "[bright_red]",
+    BRIGHT_YELLOW: "[bright_yellow]", BRIGHT_BLUE: "[bright_blue]",
+    RESET: "[/]",
+}
+
+def ansi_to_rich(text):
+    """Convert known ANSI escape sequences to Rich markup tags."""
+    # First handle 256-color codes like \x1b[38;5;Xm
+    text = re.sub(r'\x1b\[38;5;(\d+)m', r'[color(\1)]', text)
+    # Then handle basic ANSI codes
+    for ansi, rich in _ANSI_TO_RICH.items():
+        text = text.replace(ansi, rich)
+    # Strip any remaining ANSI codes we didn't map
+    text = _ANSI_RE.sub('', text)
+    return text
 
 APP_LOG_FILE = 'app.log'
 
@@ -103,97 +133,94 @@ class Logger:
     def log_message(self, channel, username, message_content, is_bot_message=False):
         """
         Log a message to console and optionally to corpus file.
-
-        Args:
-            channel: Channel name
-            username: Username of the message author
-            message_content: The message text
-            is_bot_message: If True, skip writing to corpus file (prevents bot from learning its own responses)
         """
-        if self.message_contains_badword(message_content):
-            # Log to console that message was not processed due to bad word
-            # This specific format will be printed directly.
-            print(f"{RED}Message from {username} in #{channel} not logged due to bad word usage.{RESET}")
-            # Optionally, log a sanitized version to app.log if needed for audit, e.g.,
-            # self.logger.info(f"Blocked message from {username} in #{channel} due to bad word.")
-            return False
-
+        has_badword = self.message_contains_badword(message_content)
+        
         timestamp_dt = datetime.now()
         day_year_time = timestamp_dt.strftime('%d %y %H:%M:%S')
         month_str = timestamp_dt.strftime("%b").upper()
 
-        # Use the module-level MONTH_COLORS
-        colored_month = f"\x1b[38;5;{MONTH_COLORS[month_str]}m{month_str}\x1b[0m"
+        # Always display the message, but mark bad-word messages with an indicator
+        not_logged_tag = " [dim red]🚫 not logged[/]" if has_badword else ""
+        not_logged_tag_ansi = f" {RED}🚫 not logged{RESET}" if has_badword else ""
 
-        timestamp_color_index = 14  # Cyan
-        colored_timestamp_str = f"\x1b[38;5;{timestamp_color_index}m{day_year_time}\x1b[0m"
+        if TUI_LOG_CALLBACK:
+            month_color = MONTH_COLORS[month_str]
+            user_color_idx = self.color_manager.get_user_color(username)
+            channel_color_idx = self.color_manager.get_channel_color(channel)
+            
+            rich_msg = (
+                f"[color({month_color})]{month_str}[/] "
+                f"[color(14)]{day_year_time}[/] - "
+                f"#[color({channel_color_idx})]{channel}[/] | "
+                f"<[color({user_color_idx})]{username}[/]>: {message_content}{not_logged_tag}"
+            )
+            
+            if not self.active_channel_filter or self.active_channel_filter.lower() == channel.lower():
+                TUI_LOG_CALLBACK(rich_msg, channel=channel)
+        else:
+            colored_month = f"\x1b[38;5;{MONTH_COLORS[month_str]}m{month_str}\x1b[0m"
+            timestamp_color_index = 14
+            colored_timestamp_str = f"\x1b[38;5;{timestamp_color_index}m{day_year_time}\x1b[0m"
+            user_color_idx = self.color_manager.get_user_color(username)
+            channel_color_idx = self.color_manager.get_channel_color(channel)
+            colored_username_str = f"\x1b[38;5;{user_color_idx}m{username}\x1b[0m"
+            colored_channel_str = f"\x1b[38;5;{channel_color_idx}m{channel}\x1b[0m"
+            console_log_msg = f"{colored_month} {colored_timestamp_str} - #{colored_channel_str} | <{colored_username_str}>: {message_content}{not_logged_tag_ansi}"
+            
+            if not self.active_channel_filter or self.active_channel_filter.lower() == channel.lower():
+                print(console_log_msg)
 
-        user_color_idx = self.color_manager.get_user_color(username)
-        channel_color_idx = self.color_manager.get_channel_color(channel)
-        colored_username_str = f"\x1b[38;5;{user_color_idx}m{username}\x1b[0m"
-        colored_channel_str = f"\x1b[38;5;{channel_color_idx}m{channel}\x1b[0m"
+        if has_badword:
+            return False
 
-        # Construct the colorized message for direct console output
-        console_log_msg = f"{colored_month} {colored_timestamp_str} - #{colored_channel_str} | <{colored_username_str}>: {message_content}"
-
-        # Print the rich, colorized message directly to the console
-        if not self.active_channel_filter or self.active_channel_filter.lower() == channel.lower():
-            print(console_log_msg)
-
-
-        # Prepare a sanitized, uncolored message for app.log
-        # The FileHandler will add its own timestamp, level, etc.
-        # Basic HTML tag removal for sanitization, can be expanded
+        # Log sanitized message to app.log
         sanitized_message_text = re.sub(r'<[^>]*>', '', message_content) 
         file_log_msg_content = f"#{channel} | <{username}>: {sanitized_message_text}"
-        
-        # Log the uncolored, sanitized message. This will go to app.log (via FileHandler)
-        # Mark the record to skip console output since we already printed it above
-        # Use a custom level or extra parameter to signal CustomHandler to skip it
         self.logger.info(file_log_msg_content, extra={'skip_console': True})
         return True
     
-    def log_warning(self, message):
+    def log_warning(self, message, channel=None):
         """Log a warning with consistent yellow styling"""
         parts = message.split(':', 1) if ':' in message else [message, '']
         if len(parts) > 1:
             formatted_msg = f"{YELLOW}{parts[0]}:{BRIGHT_YELLOW}{parts[1]}{RESET}"
         else:
             formatted_msg = f"{YELLOW}{message}{RESET}"
-        self.logger.warning(formatted_msg) # This will be handled by CustomHandler for console
+        self.logger.warning(formatted_msg, extra={'channel': channel})
     
-    def log_error(self, message): # This was the method named log_error
+    def log_error(self, message, channel=None):
         """Log an error with consistent red styling"""
         parts = message.split(':', 1) if ':' in message else [message, '']
         if len(parts) > 1:
             formatted_msg = f"{RED}{parts[0]}:{BRIGHT_RED}{parts[1]}{RESET}"
         else:
             formatted_msg = f"{RED}{message}{RESET}"
-        self.logger.error(formatted_msg) # This will be handled by CustomHandler for console
+        self.logger.error(formatted_msg, extra={'channel': channel})
     
-    def log_success(self, message):
+    def log_success(self, message, channel=None):
         """Log a success message with green styling"""
         parts = message.split(':', 1) if ':' in message else [message, '']
         if len(parts) > 1:
             formatted_msg = f"{GREEN}{parts[0]}:{BRIGHT_GREEN}{parts[1]}{RESET}"
         else:
             formatted_msg = f"{GREEN}{message}{RESET}"
-        self.logger.info(formatted_msg) # This will be handled by CustomHandler for console
+        self.logger.info(formatted_msg, extra={'channel': channel})
     
-    def log_event(self, event_type, details):
+    def log_event(self, event_type, details, channel=None):
         """Log a bot event with consistent styling"""
         event_msg = f"{PURPLE}{event_type}{RESET}: {CYAN}{details}{RESET}"
-        self.logger.info(event_msg) # This will be handled by CustomHandler for console
+        self.logger.info(event_msg, extra={'channel': channel})
         
-    def log_command(self, user, command, result=None):
+    def log_command(self, user, command, result=None, channel=None):
         """Log a command execution with consistent styling"""
         user_colored = f"\x1b[38;5;{self.color_manager.get_user_color(user)}m{user}\x1b[0m"
         cmd_msg = f"{BLUE}Command{RESET}: {user_colored} used {BRIGHT_BLUE}{command}{RESET}"
         if result:
             cmd_msg += f" → {result}"
-        self.logger.info(cmd_msg) # This will be handled by CustomHandler for console
+        self.logger.info(cmd_msg, extra={'channel': channel})
 
-    def log_info(self, message, color=None): # This is the general log_info
+    def log_info(self, message, color=None, channel=None):
         """Log an info message with optional color"""
         if color is None:
             parts = message.split(':', 1) if ':' in message else [message, '']
@@ -203,10 +230,20 @@ class Logger:
                 message_formatted = f"{GREEN}{message}{RESET}"
         else:
             message_formatted = f"{color}{message}{RESET}"
-        self.logger.info(message_formatted) # This will be handled by CustomHandler for console
+        self.logger.info(message_formatted, extra={'channel': channel})
 
-    def print_message(self, message): # This seems like a direct print, maybe for specific unlogged messages
-        print(message)
+    def print_message(self, message, channel=None):
+        if TUI_LOG_CALLBACK:
+            if isinstance(message, str):
+                TUI_LOG_CALLBACK(ansi_to_rich(message), channel=channel)
+            else:
+                TUI_LOG_CALLBACK(message, channel=channel)
+        else:
+            if hasattr(message, "__rich_console__") or hasattr(message, "__rich_measure__"):
+                from rich.console import Console
+                Console().print(message)
+            else:
+                print(message)
 
     def log_settings(self, time_between_messages, lines_between_messages):
         # Using log_info which now correctly passes to self.logger.info
@@ -253,11 +290,15 @@ class CustomHandler(logging.StreamHandler):
         # This happens if a method like log_warning, log_error, etc., was called, which pre-colors.
         # Or if log_message printed its own colorized version and then logged an uncolored one.
         # Use the module-level MONTH_COLORS here
-        if '\x1b[' in msg_str and not msg_str.startswith(tuple(MONTH_COLORS.keys())): # Avoid re-coloring our direct prints from log_message
-             # Check if it ends with RESET, if not, add it for safety.
+        if '\x1b[' in msg_str and not msg_str.startswith(tuple(MONTH_COLORS.keys())):
             if not msg_str.endswith(RESET):
                 msg_str += RESET
-            print(msg_str) # Print the already colored message
+            
+            channel = getattr(record, 'channel', None)
+            if TUI_LOG_CALLBACK:
+                TUI_LOG_CALLBACK(ansi_to_rich(msg_str), channel=channel)
+            else:
+                print(msg_str)
             return
 
         # Colorize specific known TwitchIO messages or other generic log messages
@@ -318,5 +359,9 @@ class CustomHandler(logging.StreamHandler):
 
         if not colored_output.endswith(RESET) and '\x1b[' in colored_output:
             colored_output += RESET
-            
-        print(colored_output)
+        
+        channel = getattr(record, 'channel', None)
+        if TUI_LOG_CALLBACK:
+            TUI_LOG_CALLBACK(ansi_to_rich(colored_output), channel=channel)
+        else:
+            print(colored_output)

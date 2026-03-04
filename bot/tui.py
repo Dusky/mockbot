@@ -5,7 +5,7 @@ from textual.widgets import Header, Footer, Input, RichLog, Static, ListView, Li
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual import work
 from datetime import datetime
-from textual.events import Key
+from textual.events import Key, Resize
 
 MAX_BUFFER = 500  # Maximum messages to keep per channel buffer
 
@@ -201,6 +201,13 @@ class MockbotDashboard(App):
         self.update_prompt()
         self.update_sidebar()
         self.query_one(CommandInput).focus()
+
+    def on_resize(self, event: Resize) -> None:
+        """Handle terminal resize gracefully by repopulating the wrapped RichLog component."""
+        timer = getattr(self, "_resize_timer", None)
+        if timer is not None:
+            timer.stop()
+        self._resize_timer = self.set_timer(0.3, self._repopulate_log)
 
     def write_log(self, message, channel=None) -> None:
         """Thread-safe way to write to the log widget with channel-aware buffering."""

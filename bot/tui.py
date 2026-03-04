@@ -218,6 +218,8 @@ class MockbotDashboard(App):
     def _cmd_log(self, message: str) -> None:
         """Helper to route user-facing command feedback to the active channel log."""
         target = "global" if self.current_context in ("Global", "System") else self.current_context
+        if target != "global":
+            self.write_log(message, channel="global")
         self.write_log(message, channel=target)
 
     def _repopulate_log(self):
@@ -300,7 +302,10 @@ class MockbotDashboard(App):
             user_text = Text(f"<{msg_obj['username']}>", style="bold magenta")
             msg_text = Text(msg_obj['message'], style="magenta italic")
         else:
-            user_style = f"bold {user_color}" if user_color else "bold"
+            if isinstance(user_color, str) and user_color.isdigit():
+                user_style = f"bold color({user_color})"
+            else:
+                user_style = f"bold {user_color}" if user_color else "bold"
             user_text = Text(f"<{msg_obj['username']}>", style=user_style)
             msg_text = Text(msg_obj['message'], style="italic")
             

@@ -31,10 +31,25 @@ class ColorManager:
             json.dump(data, file)
             #print("Saved colors:", data)  # Debug print
 
+    def _generate_bright_hex(self):
+        # Generate vivid, legible hex colors for dark backgrounds natively
+        return f"#{random.randint(100, 255):02x}{random.randint(100, 255):02x}{random.randint(100, 255):02x}"
+
     def get_color(self, name, color_dict):
+        needs_save = False
+        
         if name not in color_dict:
-            color_dict[name] = random.randint(0, 255)
+            color_dict[name] = self._generate_bright_hex()
+            needs_save = True
+            
+        # Seamlessly migrate old 8-bit ANSI integers to rich Hex codes
+        elif isinstance(color_dict[name], int):
+            color_dict[name] = self._generate_bright_hex()
+            needs_save = True
+            
+        if needs_save:
             self.save_colors()
+            
         return color_dict[name]
 
     def get_user_color(self, username):

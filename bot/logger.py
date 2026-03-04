@@ -5,6 +5,7 @@ import re
 import os
 from .color_control import ColorManager 
 from logging.handlers import RotatingFileHandler
+from rich.markup import escape
 
 # Optional callback hook for the Textual TUI
 TUI_LOG_CALLBACK = None
@@ -130,43 +131,71 @@ class Logger:
         return any(pattern.search(message) for pattern in self.bad_words)
 
 
-    def log_message(self, channel, username, message_content, is_bot_message=False):
+    def log_message(self, channel, username, message_content, is_bot_message=False, color_hex=None):
         """
         Log a message to console and optionally to corpus file.
         """
         has_badword = self.message_contains_badword(message_content)
         
         timestamp_dt = datetime.now()
-        day_year_time = timestamp_dt.strftime('%d %y %H:%M:%S')
-        month_str = timestamp_dt.strftime("%b").upper()
+        # Just the Time
+        time_only = timestamp_dt.strftime('%H:%M:%S')
 
         # Always display the message, but mark bad-word messages with an indicator
-        not_logged_tag = " [dim red]🚫 not logged[/]" if has_badword else ""
-        not_logged_tag_ansi = f" {RED}🚫 not logged{RESET}" if has_badword else ""
+        # We also put a tiny floppy disk emoji to indicate it hit the corpus logger payload
+        if has_badword:
+            db_tag = "🚫"
+            not_logged_tag = " [dim red]🚫 not logged[/]"
+            not_logged_tag_ansi = f" {RED}🚫 not logged{RESET}"
+        else:
+            db_tag = "💾"
+            not_logged_tag = ""
+            not_logged_tag_ansi = ""
 
         if TUI_LOG_CALLBACK:
-            month_color = MONTH_COLORS[month_str]
-            user_color_idx = self.color_manager.get_user_color(username)
-            channel_color_idx = self.color_manager.get_channel_color(channel)
+            if color_hex and color_hex.strip():
+                _hex = color_hex.strip()
+                user_color_rich = _hex if _hex.startswith('#') else f"#{_hex}"
+            else:
+                user_color_rich = self.color_manager.get_user_color(username)
+                
+            safe_msg = escape(message_content)
+
+            if is_bot_message:
+                rich_msg = (
+                    f"[[color(14)]{time_only} {db_tag}[/]] "
+                    f"🤖 [bold magenta]<{username}>[/bold magenta]: [magenta]{safe_msg}[/magenta]{not_logged_tag}"
+                )
+            else:
+                rich_msg = (
+                    f"[[color(14)]{time_only} {db_tag}[/]] "
+                    f"[bold {user_color_rich}]<{username}>[/]: {safe_msg}{not_logged_tag}"
+                )
             
-            rich_msg = (
-                f"[color({month_color})]{month_str}[/] "
-                f"[color(14)]{day_year_time}[/] - "
-                f"#[color({channel_color_idx})]{channel}[/] | "
-                f"<[color({user_color_idx})]{username}[/]>: {message_content}{not_logged_tag}"
-            )
-            
-            if not self.active_channel_filter or self.active_channel_filter.lower() == channel.lower():
-                TUI_LOG_CALLBACK(rich_msg, channel=channel)
+            # Unconditionally log to the TUI so the background channel buffers populate correctly
+            TUI_LOG_CALLBACK(rich_msg, channel=channel)
         else:
-            colored_month = f"\x1b[38;5;{MONTH_COLORS[month_str]}m{month_str}\x1b[0m"
             timestamp_color_index = 14
-            colored_timestamp_str = f"\x1b[38;5;{timestamp_color_index}m{day_year_time}\x1b[0m"
-            user_color_idx = self.color_manager.get_user_color(username)
-            channel_color_idx = self.color_manager.get_channel_color(channel)
-            colored_username_str = f"\x1b[38;5;{user_color_idx}m{username}\x1b[0m"
-            colored_channel_str = f"\x1b[38;5;{channel_color_idx}m{channel}\x1b[0m"
-            console_log_msg = f"{colored_month} {colored_timestamp_str} - #{colored_channel_str} | <{colored_username_str}>: {message_content}{not_logged_tag_ansi}"
+            colored_timestamp_str = f"[\x1b[38;5;{timestamp_color_index}m{time_only} {db_tag}\x1b[0m]"
+            
+            # For terminal proxy, convert HTML #hex to TrueColor ANSI
+            user_hex = self.color_manager.get_user_color(username).lstrip('#')
+            ur, ug, ub = tuple(int(user_hex[i:i+2], 16) for i in (0, 2, 4))
+            colored_username_str = f"\x1b[1;38;2;{ur};{ug};{ub}m{username}\x1b[0m"
+            
+            chan_hex = self.color_manager.get_channel_color(channel).lstrip('#')
+            cr, cg, cb = tuple(int(chan_hex[i:i+2], 16) for i in (0, 2, 4))
+            colored_channel_str = f"\x1b[38;2;{cr};{cg};{cb}m{channel}\x1b[0m"
+            
+            if not self.active_channel_filter:
+                channel_prefix_ansi = f"#{colored_channel_str} | "
+            else:
+                channel_prefix_ansi = ""
+
+            if is_bot_message:
+                console_log_msg = f"{colored_timestamp_str} {channel_prefix_ansi}🤖 <\x1b[1;35m{username}\x1b[0m>: \x1b[35m{message_content}\x1b[0m{not_logged_tag_ansi}"
+            else:
+                console_log_msg = f"{colored_timestamp_str} {channel_prefix_ansi}<{colored_username_str}>: {message_content}{not_logged_tag_ansi}"
             
             if not self.active_channel_filter or self.active_channel_filter.lower() == channel.lower():
                 print(console_log_msg)

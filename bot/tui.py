@@ -1,12 +1,76 @@
 import asyncio
 from collections import defaultdict
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Input, RichLog, Static, ListView, ListItem, Label
-from textual.containers import Container, Horizontal
+from textual.widgets import Header, Footer, Input, RichLog, Static, ListView, ListItem, Label, Button
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual import work
 from datetime import datetime
+from textual.events import Key
 
 MAX_BUFFER = 500  # Maximum messages to keep per channel buffer
+
+class CommandInput(Input):
+    """Custom Input widget that supports command history and basic tab completion."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.history = []
+        self.history_index = -1
+        self.temp_value = "" # Store what user was typing before browsing history
+        self.autocomplete_options = [
+            "help", "use ", "join ", "leave ", "tts", "timer", "model", 
+            "status", "testvoice", "lines", "chance", "dice"
+        ]
+        self.tab_index = -1
+        self.last_tab_base = ""
+
+    def add_history(self, command: str):
+        if not command or (self.history and self.history[-1] == command):
+            return
+        self.history.append(command)
+        self.history_index = len(self.history)
+        self.temp_value = ""
+        self.tab_index = -1
+
+    async def on_key(self, event: Key):
+        # Handle Up/Down for history
+        if event.key == "up":
+            event.prevent_default()
+            if self.history_index == len(self.history):
+                self.temp_value = self.value
+            
+            if self.history_index > 0:
+                self.history_index -= 1
+                self.value = self.history[self.history_index]
+                self.action_end()
+        elif event.key == "down":
+            event.prevent_default()
+            if self.history_index < len(self.history) - 1:
+                self.history_index += 1
+                self.value = self.history[self.history_index]
+                self.action_end()
+            elif self.history_index == len(self.history) - 1:
+                self.history_index = len(self.history)
+                self.value = self.temp_value
+                self.action_end()
+        
+        # Handle Tab for autocompletion
+        elif event.key == "tab":
+            event.prevent_default()
+            if self.tab_index == -1:
+                self.last_tab_base = self.value
+            
+            # Find matches
+            matches = [opt for opt in self.autocomplete_options if opt.startswith(self.last_tab_base.lower())]
+            if matches:
+                self.tab_index = (self.tab_index + 1) % len(matches)
+                self.value = matches[self.tab_index]
+                self.action_end()
+        else:
+            # Type normally, reset tab state
+            if event.is_printable:
+                self.tab_index = -1
+
+
 
 class MockbotDashboard(App):
     """A Textual terminal dashboard for Mockbot."""
@@ -94,11 +158,11 @@ class MockbotDashboard(App):
         """Create child widgets for the app."""
         yield Static("🔌 [bold]Mockbot[/bold] | Global Context", id="status_bar")
         with Container(id="log_container"):
-            self.log_widget = RichLog(highlight=True, markup=True, wrap=True)
+            self.log_widget = RichLog(highlight=False, markup=True, wrap=True)
             yield self.log_widget
         with Horizontal(id="input_container"):
             yield Static("mockbot >", id="input_prefix")
-            yield Input(placeholder="", id="command_input")
+            yield CommandInput(placeholder="", id="command_input")
         yield ListView(id="channel_sidebar")
 
     def on_mount(self) -> None:
@@ -106,10 +170,16 @@ class MockbotDashboard(App):
         self.write_log("[bold green]Mockbot Dashboard Initialized![/bold green]")
         self.write_log("Type 'help' for commands, or 'use #channel' to switch context.")
         
+        # Set up a live clock to refresh the status bar periodically
+        self.set_interval(5.0, self.update_status_bar)
+        
+        # Periodically refresh the sidebar to pick up Live Stream status changes
+        self.set_interval(60.0, self.update_sidebar)
+
         # Focus the input field immediately
         self.update_prompt()
         self.update_sidebar()
-        self.query_one(Input).focus()
+        self.query_one(CommandInput).focus()
 
     def write_log(self, message, channel=None) -> None:
         """Thread-safe way to write to the log widget with channel-aware buffering."""
@@ -128,8 +198,8 @@ class MockbotDashboard(App):
         should_display = False
         if self.current_context == "Global":
             should_display = True  # Global shows everything
-        elif channel is None:
-            should_display = True  # System messages always show
+        elif self.current_context == "System":
+            should_display = (buf_key == "global") # System shows only global (bot) messages
         else:
             ctx_channel = self.current_context.lower().lstrip('#')
             should_display = (buf_key == ctx_channel)
@@ -145,6 +215,11 @@ class MockbotDashboard(App):
             except Exception:
                 pass
     
+    def _cmd_log(self, message: str) -> None:
+        """Helper to route user-facing command feedback to the active channel log."""
+        target = "global" if self.current_context in ("Global", "System") else self.current_context
+        self.write_log(message, channel=target)
+
     def _repopulate_log(self):
         """Clear and refill the RichLog widget based on the current context."""
         if not self.log_widget:
@@ -152,23 +227,32 @@ class MockbotDashboard(App):
         self.log_widget.clear()
         
         if self.current_context == "Global":
-            # Merge all buffers chronologically (approximate: just concatenate)
-            # System messages first, then interleave channel messages
-            system_msgs = list(self.log_buffers.get("global", []))
-            channel_msgs = []
-            for key, msgs in self.log_buffers.items():
-                if key != "global":
-                    channel_msgs.extend(msgs)
-            # Show system messages, then recent channel messages
-            for msg in system_msgs:
-                self.log_widget.write(msg)
-            for msg in channel_msgs[-MAX_BUFFER:]:
-                self.log_widget.write(msg)
-        else:
-            # Show system messages + only this channel
-            ctx_key = self.current_context.lower().lstrip('#')
+            # Global: See literally everything interleaved
+            # This is a simplified approach; a true interleaved view would require sorting by timestamp
+            # For now, we'll show global first, then other channels
             for msg in self.log_buffers.get("global", []):
                 self.log_widget.write(msg)
+            for key, msgs in self.log_buffers.items():
+                if key != "global":
+                    color_idx = 15
+                    if self.bot and hasattr(self.bot, 'my_logger'):
+                        color_idx = self.bot.my_logger.color_manager.get_channel_color(key)
+                    prefix = f"[{color_idx}]#{key}[/] | "
+                    
+                    for msg in msgs:
+                        parts = msg.split("[/]] ", 1)
+                        if len(parts) == 2:
+                            formatted_msg = f"{parts[0]}[/]] {prefix}{parts[1]}"
+                        else:
+                            formatted_msg = f"{prefix}{msg}"
+                        self.log_widget.write(formatted_msg)
+        elif self.current_context == "System":
+            # System: Only see bot events/boot logs
+            for msg in self.log_buffers.get("global", []):
+                self.log_widget.write(msg)
+        else:
+            # Channel context: Show ONLY this channel's chat
+            ctx_key = self.current_context.lower().lstrip('#')
             for msg in self.log_buffers.get(ctx_key, []):
                 self.log_widget.write(msg)
 
@@ -176,7 +260,7 @@ class MockbotDashboard(App):
         """Clear the log widget."""
         if self.log_widget:
             self.log_widget.clear()
-            self.write_log("[italic]Log cleared.[/italic]")
+            self._cmd_log("[italic]Log cleared.[/italic]")
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle when the user hits Enter in the input field."""
@@ -184,8 +268,11 @@ class MockbotDashboard(App):
         if not command_text:
             return
             
+        # Add to history
+        self.query_one(CommandInput).add_history(command_text)
+            
         # Echo the command to the log
-        self.write_log(f"> [bold cyan]{command_text}[/bold cyan]")
+        self._cmd_log(f"> [bold cyan]{command_text}[/bold cyan]")
         
         # Clear the input
         event.input.value = ""
@@ -204,9 +291,20 @@ class MockbotDashboard(App):
 
     async def _async_update_status_bar(self):
         """Async worker to fetch channel stats and update the status bar."""
-        if not self.bot or self.current_context == "Global":
+        # If it's the generic context, show live bot stats
+        if self.current_context in ("Global", "System"):
             try:
-                self.query_one("#status_bar").update("🟢 [bold]Mockbot[/bold] | Global Context")
+                uptime_str = "0:00:00"
+                if self.bot and hasattr(self.bot, 'start_time'):
+                    uptime = datetime.now() - self.bot.start_time
+                    uptime_str = str(uptime).split('.')[0] # Remove microseconds
+                    
+                import threading
+                thread_count = threading.active_count()
+                
+                self.query_one("#status_bar").update(
+                    f"🟢 [bold]Mockbot[/bold] | {self.current_context} Context | Uptime: {uptime_str} | Threads: {thread_count}"
+                )
             except Exception:
                 pass
             return
@@ -245,7 +343,7 @@ class MockbotDashboard(App):
         args = parts[1:]
         
         if cmd in ['quit', 'exit', 'q']:
-            self.write_log("[bold red]Shutting down...[/bold red]")
+            self._cmd_log("[bold red]Shutting down...[/bold red]")
             if self.bot:
                 await self.bot.close()
             self.exit()
@@ -260,7 +358,7 @@ class MockbotDashboard(App):
                 else:
                     await self.bot.print_channel_status(self.current_context.lstrip('#'))
             else:
-                self.write_log("Bot instance not connected.")
+                self._cmd_log("Bot instance not connected.")
                 
         elif cmd in ['brain', 'stats']:
             if self.bot:
@@ -272,7 +370,7 @@ class MockbotDashboard(App):
                 else:
                     await self.bot.print_brain_status()
             else:
-                self.write_log("Bot instance not connected.")
+                self._cmd_log("Bot instance not connected.")
                 
         elif cmd == 'use':
             if not args:
@@ -283,6 +381,10 @@ class MockbotDashboard(App):
                 target = args[0].lower()
                 if target == 'global':
                     self.current_context = "Global"
+                    if self.bot and hasattr(self.bot, 'my_logger'):
+                        self.bot.my_logger.active_channel_filter = None
+                elif target == 'system':
+                    self.current_context = "System"
                     if self.bot and hasattr(self.bot, 'my_logger'):
                         self.bot.my_logger.active_channel_filter = None
                 elif target.startswith('#'):
@@ -299,25 +401,20 @@ class MockbotDashboard(App):
             self.update_sidebar()
             
         elif cmd == 'say':
-            if self.current_context == "Global":
-                self.write_log("[bold red]Error:[/bold red] Cannot 'say' in Global context. Use 'use #channel' first.")
+            if self.current_context in ("Global", "System"):
+                self._cmd_log("[bold red]Error:[/bold red] Cannot 'say' in Global context. Use 'use #channel' first.")
                 return
             if not args:
-                self.write_log("Usage: say <message>")
+                self._cmd_log("Usage: say <message>")
                 return
             message = " ".join(args)
             channel_name = self.current_context.lstrip('#')
             if self.bot:
-                channel = self.bot.get_channel(channel_name)
-                if channel:
-                    await channel.send(message)
-                    self.write_log(f"[magenta]Sent to {self.current_context}:[/magenta] {message}")
-                else:
-                    self.write_log(f"[bold red]Error:[/bold red] Bot is not in channel {self.current_context}")
-                    
+                # Route through the unified message queue to ensure proper rate limits and DB logging
+                await self.bot.handle_message_request(channel_name, message)                    
         elif cmd == 'poll':
             if self.current_context == "Global":
-                self.write_log("[bold red]Error:[/bold red] Must 'use #channel' before creating a poll.")
+                self._cmd_log("[bold red]Error:[/bold red] Must 'use #channel' before creating a poll.")
                 return
             if not self.bot:
                 return
@@ -331,57 +428,57 @@ class MockbotDashboard(App):
                 choices = parts[1:]
                 
                 if len(choices) < 2:
-                    self.write_log("[bold red]Error:[/bold red] A poll requires at least 2 choices separated by '|'.")
+                    self._cmd_log("[bold red]Error:[/bold red] A poll requires at least 2 choices separated by '|'.")
                     return
                 if duration < 1:
-                    self.write_log("[bold red]Error:[/bold red] Duration must be at least 1 minute.")
+                    self._cmd_log("[bold red]Error:[/bold red] Duration must be at least 1 minute.")
                     return
                     
                 channel_name = self.current_context.lstrip('#')
                 self.bot.loop.create_task(self.bot.create_poll_via_api(channel_name, title, choices, duration))
-                self.write_log(f"[bold green]Spawning poll in {self.current_context}...[/bold green]")
+                self._cmd_log(f"[bold green]Spawning poll in {self.current_context}...[/bold green]")
             except Exception as e:
-                self.write_log(f"[bold red]Format Error:[/bold red] poll <duration> <question> | <opt1> | <opt2> ...")
+                self._cmd_log(f"[bold red]Format Error:[/bold red] poll <duration> <question> | <opt1> | <opt2> ...")
                 
         elif cmd == 'tts':
             if not args or args[0].lower() not in ['on', 'off']:
-                self.write_log("Usage: tts <on|off>")
+                self._cmd_log("Usage: tts <on|off>")
                 return
             state = 1 if args[0].lower() == 'on' else 0
             await self._update_setting('tts_enabled', state)
 
         elif cmd == 'voice':
             if not args or args[0].lower() not in ['on', 'off']:
-                self.write_log("Usage: voice <on|off>")
+                self._cmd_log("Usage: voice <on|off>")
                 return
             state = 1 if args[0].lower() == 'on' else 0
             await self._update_setting('voice_enabled', state)
 
         elif cmd == 'model':
             if not args or args[0].lower() not in ['general', 'individual']:
-                self.write_log("Usage: model <general|individual>")
+                self._cmd_log("Usage: model <general|individual>")
                 return
             state = 1 if args[0].lower() == 'general' else 0
             await self._update_setting('use_general_model', state)
             
         elif cmd == 'set':
             if len(args) < 2:
-                self.write_log("Usage: set <lines|time|model|voice|bits|points> <val>")
+                self._cmd_log("Usage: set <lines|time|model|voice|bits|points> <val>")
                 return
             key = args[0].lower()
             val_str = args[1].lower()
 
             if key == 'lines':
                 try: val = int(val_str)
-                except ValueError: self.write_log("[bold red]Error: Value must be a number.[/bold red]"); return
+                except ValueError: self._cmd_log("[bold red]Error: Value must be a number.[/bold red]"); return
                 await self._update_setting('lines_between_messages', val)
             elif key == 'time':
                 try: val = int(val_str)
-                except ValueError: self.write_log("[bold red]Error: Value must be a number.[/bold red]"); return
+                except ValueError: self._cmd_log("[bold red]Error: Value must be a number.[/bold red]"); return
                 await self._update_setting('time_between_messages', val)
             elif key == 'model':
                 if val_str not in ['general', 'individual']:
-                    self.write_log("Usage: set model <general|individual>")
+                    self._cmd_log("Usage: set model <general|individual>")
                     return
                 state = 1 if val_str == 'general' else 0
                 await self._update_setting('use_general_model', state)
@@ -391,38 +488,38 @@ class MockbotDashboard(App):
                     if val < 0.0 or val > 100.0:
                         raise ValueError()
                 except ValueError: 
-                    self.write_log("[bold red]Error: Value must be a number between 0 and 100.[/bold red]"); return
+                    self._cmd_log("[bold red]Error: Value must be a number between 0 and 100.[/bold red]"); return
                 await self._update_setting('random_chance', val)
             elif key == 'log_dice':
                 if val_str not in ['on', 'off', 'true', 'false']:
-                    self.write_log("Usage: set log_dice <on|off>")
+                    self._cmd_log("Usage: set log_dice <on|off>")
                     return
                 state = 1 if val_str in ['on', 'true'] else 0
                 await self._update_setting('log_dice', state)
             elif key == 'voice':
                 if not args or len(args) < 2:
-                    self.write_log("Usage: set voice <model_name>")
+                    self._cmd_log("Usage: set voice <model_name>")
                     return
                 actual_val = args[1]
                 await self._update_setting('voice_preset', actual_val)
             elif key == 'delay':
                 if val_str not in ['on', 'off', 'true', 'false']:
-                    self.write_log("Usage: set delay <on|off>")
+                    self._cmd_log("Usage: set delay <on|off>")
                     return
                 state = 1 if val_str in ['on', 'true'] else 0
                 await self._update_setting('tts_delay_enabled', state)
             elif key in ['bits', 'points']:
                 if val_str not in ['on', 'off']:
-                    self.write_log(f"Usage: set {key} <on|off>")
+                    self._cmd_log(f"Usage: set {key} <on|off>")
                     return
                 state = 1 if val_str == 'on' else 0
                 await self._update_setting(f'pubsub_{key}', state)
             else:
-                self.write_log(f"[bold red]Unknown setting: {key}[/bold red]. Available: lines, time, chance, model, log_dice, voice, delay, bits, points.")
+                self._cmd_log(f"[bold red]Unknown setting: {key}[/bold red]. Available: lines, time, chance, model, log_dice, voice, delay, bits, points.")
 
         elif cmd in ['trust', 'untrust', 'ignore', 'unignore']:
             if not args:
-                self.write_log(f"Usage: {cmd} <username>")
+                self._cmd_log(f"Usage: {cmd} <username>")
                 return
                 
             username = args[0].lower()
@@ -453,14 +550,14 @@ class MockbotDashboard(App):
                         await conn.commit()
                         action = "Added" if is_add else "Removed"
                         prep = "to" if is_add else "from"
-                        self.write_log(f"[bold green]{action}[/bold green] {username} {prep} {column} globally ({updated} channels updated).")
+                        self._cmd_log(f"[bold green]{action}[/bold green] {username} {prep} {column} globally ({updated} channels updated).")
                     else:
                         # Apply to current channel only
                         clean_name = self.current_context.lstrip('#')
                         await c.execute(f"SELECT {column} FROM channel_configs WHERE channel_name = ?", (clean_name,))
                         row = await c.fetchone()
                         if row is None:
-                            self.write_log(f"[bold red]Error:[/bold red] Channel {clean_name} not found in database.")
+                            self._cmd_log(f"[bold red]Error:[/bold red] Channel {clean_name} not found in database.")
                             return
                         
                         user_list = [u.strip() for u in (row[0] or "").split(',') if u.strip()]
@@ -468,26 +565,26 @@ class MockbotDashboard(App):
                         if is_add:
                             if username not in user_list:
                                 user_list.append(username)
-                                self.write_log(f"[bold green]Added[/bold green] {username} to {column} for {self.current_context}.")
+                                self._cmd_log(f"[bold green]Added[/bold green] {username} to {column} for {self.current_context}.")
                             else:
-                                self.write_log(f"User {username} is already in {column} for {self.current_context}.")
+                                self._cmd_log(f"User {username} is already in {column} for {self.current_context}.")
                         else:
                             if username in user_list:
                                 user_list.remove(username)
-                                self.write_log(f"[bold green]Removed[/bold green] {username} from {column} for {self.current_context}.")
+                                self._cmd_log(f"[bold green]Removed[/bold green] {username} from {column} for {self.current_context}.")
                             else:
-                                self.write_log(f"User {username} is not in {column} for {self.current_context}.")
+                                self._cmd_log(f"User {username} is not in {column} for {self.current_context}.")
                                 
                         new_val = ",".join(user_list)
                         await c.execute(f"UPDATE channel_configs SET {column} = ? WHERE channel_name = ?", (new_val, clean_name))
                         await conn.commit()
                 self.bot.load_channel_settings()
             except Exception as e:
-                self.write_log(f"[bold red]Database Error:[/bold red] {e}")
+                self._cmd_log(f"[bold red]Database Error:[/bold red] {e}")
 
         elif cmd == 'ignorelist':
             if not self.bot:
-                self.write_log("Bot instance not connected.")
+                self._cmd_log("Bot instance not connected.")
                 return
             try:
                 import aiosqlite
@@ -511,7 +608,7 @@ class MockbotDashboard(App):
                         all_ignored.update(users)
                     
                     if not all_ignored:
-                        self.write_log("[dim]No ignored users found.[/dim]")
+                        self._cmd_log("[dim]No ignored users found.[/dim]")
                         return
                     
                     table = Table(
@@ -530,57 +627,44 @@ class MockbotDashboard(App):
                             users_str = ", ".join(f"[yellow]{u}[/]" for u in sorted(users))
                             table.add_row(f"#{ch}", users_str)
                     
-                    self.write_log(table)
+                    self._cmd_log(table)
             except Exception as e:
-                self.write_log(f"[bold red]Database Error:[/bold red] {e}")
+                self._cmd_log(f"[bold red]Database Error:[/bold red] {e}")
 
         elif cmd == 'join':
             if not args:
-                self.write_log("Usage: join <#channel>")
+                self._cmd_log("Usage: join <#channel>")
                 return
             target = args[0].lower().lstrip('#')
             try:
-                import aiosqlite
-                async with aiosqlite.connect(self.bot.db_file) as conn:
-                    c = await conn.cursor()
-                    await c.execute("SELECT COUNT(*) FROM channel_configs WHERE channel_name = ?", (target,))
-                    if (await c.fetchone())[0] == 0:
-                        await self.bot.join_channels([target])
-                        self.bot.channels.append(target)
-                        await c.execute("INSERT OR REPLACE INTO channel_configs (channel_name, voice_enabled, tts_enabled, join_channel, owner, trusted_users) VALUES (?, 0, 0, 1, ?, '')", (target, target))
-                        await conn.commit()
-                        self.write_log(f"[bold green]Joined[/bold green] #{target} and added to channels.")
-                        self.update_sidebar()
-                    else:
-                        self.write_log(f"Already in #{target} or it's already in the database.")
+                await self.bot.join_channel(target)
+                self._cmd_log(f"[bold green]Joined[/bold green] #{target} and added to channels.")
+                self.update_sidebar()
             except Exception as e:
-                self.write_log(f"[bold red]Failed to join {target}:[/bold red] {e}")
+                self._cmd_log(f"[bold red]Failed to join {target}:[/bold red] {e}")
 
         elif cmd == 'part':
             if not args:
-                self.write_log("Usage: part <#channel>")
+                self._cmd_log("Usage: part <#channel>")
                 return
             target = args[0].lower().lstrip('#')
             try:
-                import aiosqlite
-                async with aiosqlite.connect(self.bot.db_file) as conn:
-                    c = await conn.cursor()
-                    await c.execute("SELECT COUNT(*) FROM channel_configs WHERE channel_name = ?", (target,))
-                    if (await c.fetchone())[0] > 0 and target in self.bot.channels:
-                        await self.bot.part_channels([target])
-                        self.bot.channels.remove(target)
-                        await c.execute("UPDATE channel_configs SET join_channel = 0 WHERE channel_name = ?", (target,))
+                success = await self.bot.leave_channel(target)
+                if success:
+                    import aiosqlite
+                    async with aiosqlite.connect(self.bot.db_file) as conn:
+                        await conn.execute("UPDATE channel_configs SET join_channel = 0 WHERE channel_name = ?", (target,))
                         await conn.commit()
-                        self.write_log(f"[bold green]Left channel:[/bold green] #{target}")
-                        self.update_sidebar()
-                    else:
-                        self.write_log(f"The bot is not in channel: #{target} or it's not in the database.")
+                    self._cmd_log(f"[bold green]Left channel:[/bold green] #{target}")
+                    self.update_sidebar()
+                else:
+                    self._cmd_log(f"The bot is not currently active in channel: #{target}.")
             except Exception as e:
-                self.write_log(f"[bold red]Failed to part {target}:[/bold red] {e}")
+                self._cmd_log(f"[bold red]Failed to part {target}:[/bold red] {e}")
 
         elif cmd == 'addc':
             if len(args) < 2:
-                self.write_log("Usage: addc <cmd> <response>")
+                self._cmd_log("Usage: addc <cmd> <response>")
                 return
             cmd_name = args[0].lower()
             if not cmd_name.startswith('!'): cmd_name = f"!{cmd_name}"
@@ -597,15 +681,15 @@ class MockbotDashboard(App):
                         (target_chan, cmd_name, response)
                     )
                     await conn.commit()
-                self.write_log(f"[bold green]Added[/bold green] {cmd_name} to {target_chan}.")
+                self._cmd_log(f"[bold green]Added[/bold green] {cmd_name} to {target_chan}.")
             except sqlite3.IntegrityError:
-                self.write_log(f"[bold red]Error:[/bold red] Command {cmd_name} already exists. Use editc.")
+                self._cmd_log(f"[bold red]Error:[/bold red] Command {cmd_name} already exists. Use editc.")
             except Exception as e:
-                self.write_log(f"[bold red]Error:[/bold red] {e}")
+                self._cmd_log(f"[bold red]Error:[/bold red] {e}")
 
         elif cmd == 'editc':
             if len(args) < 2:
-                self.write_log("Usage: editc <cmd> <response>")
+                self._cmd_log("Usage: editc <cmd> <response>")
                 return
             cmd_name = args[0].lower()
             if not cmd_name.startswith('!'): cmd_name = f"!{cmd_name}"
@@ -621,16 +705,16 @@ class MockbotDashboard(App):
                         (response, target_chan, cmd_name)
                     )
                     if c.rowcount > 0:
-                        self.write_log(f"[bold green]Updated[/bold green] {cmd_name} in {target_chan}.")
+                        self._cmd_log(f"[bold green]Updated[/bold green] {cmd_name} in {target_chan}.")
                     else:
-                        self.write_log(f"[bold red]Error:[/bold red] Command {cmd_name} not found in {target_chan}.")
+                        self._cmd_log(f"[bold red]Error:[/bold red] Command {cmd_name} not found in {target_chan}.")
                     await conn.commit()
             except Exception as e:
-                self.write_log(f"[bold red]Error:[/bold red] {e}")
+                self._cmd_log(f"[bold red]Error:[/bold red] {e}")
 
         elif cmd == 'delc':
             if len(args) < 1:
-                self.write_log("Usage: delc <cmd>")
+                self._cmd_log("Usage: delc <cmd>")
                 return
             cmd_name = args[0].lower()
             if not cmd_name.startswith('!'): cmd_name = f"!{cmd_name}"
@@ -645,16 +729,16 @@ class MockbotDashboard(App):
                         (target_chan, cmd_name)
                     )
                     if c.rowcount > 0:
-                        self.write_log(f"[bold green]Deleted[/bold green] {cmd_name} from {target_chan}.")
+                        self._cmd_log(f"[bold green]Deleted[/bold green] {cmd_name} from {target_chan}.")
                     else:
-                        self.write_log(f"[bold red]Error:[/bold red] Command {cmd_name} not found in {target_chan}.")
+                        self._cmd_log(f"[bold red]Error:[/bold red] Command {cmd_name} not found in {target_chan}.")
                     await conn.commit()
             except Exception as e:
-                self.write_log(f"[bold red]Error:[/bold red] {e}")
+                self._cmd_log(f"[bold red]Error:[/bold red] {e}")
 
         elif cmd == 'timer':
             if len(args) < 1:
-                self.write_log("Usage: timer <add|del|msg|list> ...")
+                self._cmd_log("Usage: timer <add|del|msg|list> ...")
                 return
                 
             subcmd = args[0].lower()
@@ -668,13 +752,13 @@ class MockbotDashboard(App):
                     
                     if subcmd == 'add':
                         if len(args) < 3:
-                            self.write_log("Usage: timer add <pool_name> <interval_minutes>")
+                            self._cmd_log("Usage: timer add <pool_name> <interval_minutes>")
                             return
                         pool_name = args[1].lower()
                         try:
                             interval = int(args[2])
                         except ValueError:
-                            self.write_log("[bold red]Error:[/bold red] Interval must be a number of minutes.")
+                            self._cmd_log("[bold red]Error:[/bold red] Interval must be a number of minutes.")
                             return
                             
                         try:
@@ -683,13 +767,13 @@ class MockbotDashboard(App):
                                 (target_chan, pool_name, interval)
                             )
                             await conn.commit()
-                            self.write_log(f"[bold green]Created timer pool[/bold green] '{pool_name}' for {target_chan} (Interval: {interval}m).")
+                            self._cmd_log(f"[bold green]Created timer pool[/bold green] '{pool_name}' for {target_chan} (Interval: {interval}m).")
                         except sqlite3.IntegrityError:
-                            self.write_log(f"[bold red]Error:[/bold red] Timer pool '{pool_name}' already exists in {target_chan}.")
+                            self._cmd_log(f"[bold red]Error:[/bold red] Timer pool '{pool_name}' already exists in {target_chan}.")
                             
                     elif subcmd == 'del':
                         if len(args) < 2:
-                            self.write_log("Usage: timer del <pool_name>")
+                            self._cmd_log("Usage: timer del <pool_name>")
                             return
                         pool_name = args[1].lower()
                         await c.execute(
@@ -698,13 +782,13 @@ class MockbotDashboard(App):
                         )
                         if c.rowcount > 0:
                             await conn.commit()
-                            self.write_log(f"[bold green]Deleted timer pool[/bold green] '{pool_name}' from {target_chan}.")
+                            self._cmd_log(f"[bold green]Deleted timer pool[/bold green] '{pool_name}' from {target_chan}.")
                         else:
-                            self.write_log(f"[bold red]Error:[/bold red] Timer pool '{pool_name}' not found in {target_chan}.")
+                            self._cmd_log(f"[bold red]Error:[/bold red] Timer pool '{pool_name}' not found in {target_chan}.")
                             
                     elif subcmd == 'msg':
                         if len(args) < 3:
-                            self.write_log("Usage: timer msg <pool_name> <message...>")
+                            self._cmd_log("Usage: timer msg <pool_name> <message...>")
                             return
                         pool_name = args[1].lower()
                         message_text = " ".join(args[2:])
@@ -712,7 +796,7 @@ class MockbotDashboard(App):
                         # Verify pool exists
                         await c.execute("SELECT 1 FROM timed_message_pools WHERE channel_name = ? AND pool_name = ?", (target_chan, pool_name))
                         if not await c.fetchone():
-                            self.write_log(f"[bold red]Error:[/bold red] Timer pool '{pool_name}' not found in {target_chan}. Create it first with 'timer add'.")
+                            self._cmd_log(f"[bold red]Error:[/bold red] Timer pool '{pool_name}' not found in {target_chan}. Create it first with 'timer add'.")
                             return
                             
                         await c.execute(
@@ -720,7 +804,7 @@ class MockbotDashboard(App):
                             (pool_name, target_chan, message_text)
                         )
                         await conn.commit()
-                        self.write_log(f"[bold green]Added message[/bold green] to timer pool '{pool_name}' in {target_chan}.")
+                        self._cmd_log(f"[bold green]Added message[/bold green] to timer pool '{pool_name}' in {target_chan}.")
                         
                     elif subcmd == 'list':
                         await c.execute(
@@ -730,7 +814,7 @@ class MockbotDashboard(App):
                         pools = await c.fetchall()
                         
                         if not pools:
-                            self.write_log(f"No timer pools found for {target_chan}.")
+                            self._cmd_log(f"No timer pools found for {target_chan}.")
                             return
                             
                         from rich.table import Table
@@ -745,16 +829,16 @@ class MockbotDashboard(App):
                             msg_count = (await c.fetchone())[0]
                             table.add_row(p_name, str(p_int), str(msg_count))
                             
-                        self.write_log(table)
+                        self._cmd_log(table)
                     else:
-                        self.write_log(f"Unknown timer subcommand: {subcmd}. Use add, del, msg, or list.")
+                        self._cmd_log(f"Unknown timer subcommand: {subcmd}. Use add, del, msg, or list.")
                         
             except Exception as e:
-                self.write_log(f"[bold red]Timer Error:[/bold red] {e}")
+                self._cmd_log(f"[bold red]Timer Error:[/bold red] {e}")
 
         elif cmd == 'grammar':
             if len(args) < 2:
-                self.write_log("Usage: grammar <add|list|clear> <rule> [text]")
+                self._cmd_log("Usage: grammar <add|list|clear> <rule> [text]")
                 return
             action = args[0].lower()
             rule = args[1].lower()
@@ -772,34 +856,34 @@ class MockbotDashboard(App):
                     
                     if action == 'add':
                         if not text:
-                            self.write_log("Please provide text.")
+                            self._cmd_log("Please provide text.")
                             return
                         options.append(text)
                         if row:
                             await c.execute("UPDATE custom_grammar SET options_json = ? WHERE channel_name = ? AND rule_name = ?", (json.dumps(options), target_chan, rule))
                         else:
                             await c.execute("INSERT INTO custom_grammar (channel_name, rule_name, options_json) VALUES (?, ?, ?)", (target_chan, rule, json.dumps(options)))
-                        self.write_log(f"[bold green]Added[/bold green] '{text}' to #{rule}# in {target_chan}.")
+                        self._cmd_log(f"[bold green]Added[/bold green] '{text}' to #{rule}# in {target_chan}.")
                     elif action == 'list':
-                        if not options: self.write_log(f"Rule #{rule}# empty.")
-                        else: self.write_log(f"Rule #{rule}# options: {', '.join(options)}")
+                        if not options: self._cmd_log(f"Rule #{rule}# empty.")
+                        else: self._cmd_log(f"Rule #{rule}# options: {', '.join(options)}")
                     elif action == 'clear':
                         await c.execute("DELETE FROM custom_grammar WHERE channel_name = ? AND rule_name = ?", (target_chan, rule))
-                        self.write_log(f"[bold green]Cleared[/bold green] rule #{rule}# from {target_chan}.")
+                        self._cmd_log(f"[bold green]Cleared[/bold green] rule #{rule}# from {target_chan}.")
                     await conn.commit()
             except Exception as e:
-                self.write_log(f"[bold red]Error:[/bold red] {e}")
+                self._cmd_log(f"[bold red]Error:[/bold red] {e}")
 
         elif cmd == 'compile':
             if not self.bot:
-                self.write_log("Bot instance not connected.")
+                self._cmd_log("Bot instance not connected.")
                 return
             
             context = self.current_context
             if context == "Global":
-                self.write_log("[bold yellow]Compiling General Markov Model and all active channels...[/bold yellow]")
+                self._cmd_log("[bold yellow]Compiling General Markov Model and all active channels...[/bold yellow]")
             else:
-                self.write_log(f"[bold yellow]Compiling brain cache tailored for {context}...[/bold yellow]")
+                self._cmd_log(f"[bold yellow]Compiling brain cache tailored for {context}...[/bold yellow]")
 
             import threading
             def _compile():
@@ -811,11 +895,11 @@ class MockbotDashboard(App):
                     self.bot.rebuild_cache = original_rebuild
                     
                     if context == "Global":
-                        self.write_log("[bold green]General Model & Channel caches compiled successfully![/bold green]")
+                        self._cmd_log("[bold green]General Model & Channel caches compiled successfully![/bold green]")
                     else:
-                        self.write_log(f"[bold green]Brain cache for {context} compiled successfully![/bold green]")
+                        self._cmd_log(f"[bold green]Brain cache for {context} compiled successfully![/bold green]")
                 except Exception as e:
-                    self.write_log(f"[bold red]Error compiling caches:[/bold red] {e}")
+                    self._cmd_log(f"[bold red]Error compiling caches:[/bold red] {e}")
             threading.Thread(target=_compile).start()
 
         elif cmd == 'help':
@@ -863,10 +947,10 @@ class MockbotDashboard(App):
             for cmd_str, desc in commands:
                 table.add_row(cmd_str, desc)
                 
-            self.write_log(table)
+            self._cmd_log(table)
 
         else:
-            self.write_log(f"[italic]Unknown command:[/italic] {cmd}")
+            self._cmd_log(f"[italic]Unknown command:[/italic] {cmd}")
 
     async def _update_setting(self, column, value):
         if not self.bot:
@@ -893,14 +977,20 @@ class MockbotDashboard(App):
         asyncio.create_task(self._async_update_sidebar())
 
     async def _async_update_sidebar(self):
+        """Refresh the list of channels in the sidebar."""
         try:
             sidebar = self.query_one("#channel_sidebar", ListView)
         except Exception:
             return
             
+        current_index = sidebar.index
         await sidebar.clear()
         
-        options = ["Global"]
+        # Add Global and System contexts first
+        sidebar.append(ListItem(Label("🌐 Global (All Chat)"), id="ctx_global"))
+        sidebar.append(ListItem(Label("⚙️ System (Bot Logs)"), id="ctx_system"))
+
+        # Add channels from the database
         if self.bot:
             try:
                 import aiosqlite
@@ -908,35 +998,43 @@ class MockbotDashboard(App):
                     c = await conn.cursor()
                     await c.execute("SELECT channel_name FROM channel_configs WHERE join_channel = 1 ORDER BY channel_name")
                     rows = await c.fetchall()
+                    live_streamers = getattr(self.bot, 'live_streamers', set())
+                    
                     for row in rows:
-                        options.append(f"#{row[0]}")
+                        clean_name = row[0]
+                        if clean_name.lower() in live_streamers:
+                            item = ListItem(Label(f"🔴 #[bold bright_red]{clean_name}[/bold bright_red]"), id=f"ctx_{clean_name}")
+                        else:
+                            item = ListItem(Label(f"#[dim]{clean_name}[/dim]"), id=f"ctx_{clean_name}")
+                        await sidebar.append(item)
             except Exception:
                 pass
                 
-        for opt in options:
-            is_active = (opt.lower() == self.current_context.lower())
-            label_text = f"🟢 [bold white]{opt}[/]" if is_active else f"⚪ {opt}"
-            item_id = "ctx_global" if opt == "Global" else f"ctx_{opt.lstrip('#')}"
-            
-            item = ListItem(Label(label_text), id=item_id)
-            if is_active:
-                item.set_class(True, "--active")
-            
-            await sidebar.append(item)
+        if current_index is not None and current_index < len(sidebar.children):
+            sidebar.index = current_index
+
+
+        self.update_prompt()
+        self._repopulate_log()
 
     async def on_list_view_selected(self, event: ListView.Selected):
         item_id = event.item.id
         if item_id == "ctx_global":
             self.current_context = "Global"
+        elif item_id == "ctx_system":
+            self.current_context = "System"
         else:
             self.current_context = f"#{item_id.replace('ctx_', '')}"
             
+
         if self.bot and hasattr(self.bot, 'my_logger'):
-            self.bot.my_logger.active_channel_filter = None if self.current_context == "Global" else self.current_context.lstrip('#')
+            if self.current_context in ("Global", "System"):
+                self.bot.my_logger.active_channel_filter = None
+            else:
+                self.bot.my_logger.active_channel_filter = self.current_context.lstrip('#')
             
         self.update_prompt()
         self._repopulate_log()
-        self.update_sidebar()
 
 if __name__ == "__main__":
     app = MockbotDashboard()

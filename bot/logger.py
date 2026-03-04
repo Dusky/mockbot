@@ -142,17 +142,16 @@ class Logger:
         time_only = timestamp_dt.strftime('%H:%M:%S')
 
         # Always display the message, but mark bad-word messages with an indicator
-        # We also put a tiny floppy disk emoji to indicate it hit the corpus logger payload
         if has_badword:
-            db_tag = "🚫"
+            db_tag = "[BLOCKED]"
             not_logged_tag = " [dim red]🚫 not logged[/]"
             not_logged_tag_ansi = f" {RED}🚫 not logged{RESET}"
         elif is_bot_message:
-            db_tag = "🤖"
+            db_tag = ""
             not_logged_tag = ""
             not_logged_tag_ansi = ""
         else:
-            db_tag = "💾"
+            db_tag = ""
             not_logged_tag = ""
             not_logged_tag_ansi = ""
 
@@ -164,6 +163,14 @@ class Logger:
                 user_color_rich = self.color_manager.get_user_color(username)
                 
             safe_msg = escape(message_content)
+
+            # Color code mentions for Rich TUI
+            def _color_mention(match):
+                mentioned_user = match.group(1).lower()
+                m_color = self.color_manager.get_user_color(mentioned_user)
+                return f"[{m_color}]@{match.group(1)}[/]"
+            
+            safe_msg = re.sub(r'@([a-zA-Z0-9_]+)', _color_mention, safe_msg)
 
             if is_bot_message:
                 rich_msg = {
@@ -210,10 +217,19 @@ class Logger:
             else:
                 channel_prefix_ansi = ""
 
+            # Color code mentions for ANSI
+            def _color_mention_ansi(match):
+                mentioned_user = match.group(1).lower()
+                m_hex = self.color_manager.get_user_color(mentioned_user).lstrip('#')
+                mr, mg, mb = tuple(int(m_hex[i:i+2], 16) for i in (0, 2, 4))
+                return f"\x1b[38;2;{mr};{mg};{mb}m@{match.group(1)}\x1b[0m"
+            
+            ansi_msg = re.sub(r'@([a-zA-Z0-9_]+)', _color_mention_ansi, message_content)
+
             if is_bot_message:
-                console_log_msg = f"{colored_timestamp_str} {channel_prefix_ansi}🤖 <\x1b[1;35m{username}\x1b[0m>: \x1b[35m{message_content}\x1b[0m{not_logged_tag_ansi}"
+                console_log_msg = f"{colored_timestamp_str} {channel_prefix_ansi}[BOT] <\x1b[1;35m{username}\x1b[0m>: \x1b[35m{ansi_msg}\x1b[0m{not_logged_tag_ansi}"
             else:
-                console_log_msg = f"{colored_timestamp_str} {channel_prefix_ansi}<{colored_username_str}>: {message_content}{not_logged_tag_ansi}"
+                console_log_msg = f"{colored_timestamp_str} {channel_prefix_ansi}<{colored_username_str}>: {ansi_msg}{not_logged_tag_ansi}"
             
             if not self.active_channel_filter or self.active_channel_filter.lower() == channel.lower():
                 print(console_log_msg)

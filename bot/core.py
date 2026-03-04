@@ -648,7 +648,7 @@ class Bot(commands.Bot):
                     # Format log dice
                     log_dice_status = "[green]on[/green]" if log_dice else "[red]off[/red]"
                     
-                    channel_display = f"[color({self.my_logger.color_manager.get_channel_color(channel)})]#{channel}[/]"
+                    channel_display = f"[{self.my_logger.color_manager.get_channel_color(channel)}]#{channel}[/]"
                     
                     # Add to table
                     table_data.append([
@@ -727,8 +727,8 @@ class Bot(commands.Bot):
                     await c.execute('SELECT COUNT(*) FROM messages WHERE is_bot_response = 0 AND channel = ?', (clean_channel,))
                     row = await c.fetchone()
                     msg_count = row[0] if row else 0
-                    chan_style = f"color({self.my_logger.color_manager.get_channel_color(clean_channel)})"
-                    out(f"\n🧠 [bold]Detailed Brain Stats for [{chan_style}]#{clean_channel}[/]:[/bold]")
+                    chan_color_hex = self.my_logger.color_manager.get_channel_color(clean_channel)
+                    out(f"\n🧠 [bold]Detailed Brain Stats for [{chan_color_hex}]#{clean_channel}[/]:[/bold]")
                     out(f"  • Raw Messages in DB: {msg_count:,}")
                     out(f"  • Source Model:       {model_type} ({model_name})")
                     
@@ -823,7 +823,7 @@ class Bot(commands.Bot):
                                 
                         # Add to table
                         table_data.append([
-                            f"[color({self.my_logger.color_manager.get_channel_color(clean_channel)})]#{clean_channel}[/]", 
+                            f"[{self.my_logger.color_manager.get_channel_color(clean_channel)}]#{clean_channel}[/]", 
                             f"{count:,}",
                             model_type,
                             cache_size_str,
@@ -1014,7 +1014,7 @@ class Bot(commands.Bot):
         """Create a model for a specific channel and save it to the cache."""
         try:
             chan_color = self.my_logger.color_manager.get_channel_color(channel_name)
-            self.my_logger.print_message(f"Compiling individual brain model for [color({chan_color})]#{channel_name}[/]...")
+            self.my_logger.print_message(f"Compiling individual brain model for [{chan_color}]#{channel_name}[/]...")
             channel_model = markovify.Text(file_text)
             self.models[channel_name] = channel_model
             

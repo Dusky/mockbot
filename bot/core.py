@@ -545,8 +545,6 @@ class Bot(commands.Bot):
             # Summary - only show if there's activity or not silent
             if not silent or new_joins > 0 or join_failure > 0:
                 self.logger.info(f"{GREEN}Channel joining complete: {join_success} succeeded, {join_failure} failed{RESET}")
-                # Final verification - only show if there's activity or not silent
-                self.logger.info(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
             
         except Exception as e:
             self.logger.info(f"{RED}Error in check_and_join_channels: {str(e)}{RESET}")
@@ -1609,10 +1607,7 @@ class Bot(commands.Bot):
 
         # Final verification
         if verbose:
-            self.logger.info(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
-            self.logger.info(f"{GREEN}==================================================={RESET}")
             self.logger.info(f"{GREEN}Bot initialization complete!{RESET}")
-            self.logger.info(f"{GREEN}==================================================={RESET}")
         
         # Extra verification for channels of interest
         for channel in self.channels:
@@ -1621,8 +1616,6 @@ class Bot(commands.Bot):
             formatted_channel = f"#{clean_channel}"
             
             if formatted_channel in self._joined_channels:
-                self.logger.info(f"{GREEN}✓ Successfully joined {formatted_channel} channel!{RESET}")
-                
                 # Update database to mark channel as connected
                 try:
                     conn = sqlite3.connect(self.db_file)
@@ -1637,10 +1630,6 @@ class Bot(commands.Bot):
                     if verbose:
                         self.logger.info(f"Error updating channel connection status in DB: {e}")
             else:
-                # Only print failure if verbose or if this was explicitly in initial_channels
-                if verbose or channel in self.channels:
-                    self.logger.info(f"{RED}✗ Failed to join {formatted_channel} channel - will retry in next periodic check{RESET}")
-                    
                 # Make sure database shows it's not connected
                 try:
                     conn = sqlite3.connect(self.db_file)

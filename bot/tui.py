@@ -499,6 +499,25 @@ class MockbotDashboard(App):
             if self.bot:
                 # Route through the unified message queue to ensure proper rate limits and DB logging
                 await self.bot.send_message_to_channel(channel_name, message)
+                
+        elif cmd == 'speak':
+            if self.current_context in ("Global", "System"):
+                self._cmd_log("[bold red]Error:[/bold red] Cannot 'speak' in Global context. Use 'use #channel' first.")
+                return
+            if not self.bot:
+                self._cmd_log("Bot instance not connected.")
+                return
+            channel_name = self.current_context.lstrip('#')
+            try:
+                msg = self.bot.generate_message(channel_name)
+                if msg:
+                    await self.bot.send_message_to_channel(channel_name, msg)
+                    self._cmd_log(f"[bold green]Forcing bot to speak in {self.current_context}...[/bold green]")
+                else:
+                    self._cmd_log(f"[bold red]Error:[/bold red] Failed to generate message for {self.current_context}.")
+            except Exception as e:
+                self._cmd_log(f"[bold red]Error:[/bold red] {e}")
+                
         elif cmd == 'poll':
             if self.current_context == "Global":
                 self._cmd_log("[bold red]Error:[/bold red] Must 'use #channel' before creating a poll.")
@@ -1008,8 +1027,9 @@ class MockbotDashboard(App):
                 ("[green]join <#channel>[/]", "Join a channel"),
                 ("[green]part <#channel>[/]", "Leave a channel"),
                 ("[green]say <message>[/]", "Send chat (in channel context)"),
-                ("[green]tts <on|off>[/]", "Toggle TTS for current context"),
-                ("[green]voice <on|off>[/]", "Toggle Voice for current context"),
+                ("[green]speak[/]", "Force generating a Markov message in channel context"),
+                ("[green]tts <on|off>[/]", "Toggle TTS (audio generation) for current context"),
+                ("[green]voice <on|off>[/]", "Toggle Voice (another audio toggle) for current context"),
                 ("[green]trust <user>[/]", "Add user to trusted users (allows command usage)"),
                 ("[green]untrust <user>[/]", "Remove user from trusted users"),
                 ("[green]ignore <user>[/]", "Ignore user (global context = all channels)"),
@@ -1017,12 +1037,17 @@ class MockbotDashboard(App):
                 ("[green]ignorelist[/]", "Show ignored users per channel"),
                 ("[green]timer <add|del|msg|list>[/]", "Manage scheduled message pools for this channel"),
                 ("[green]model <gen|indivi>[/]", "Toggle Markov model type (general/individual)"),
-                ("[green]set <key> <val>[/]", "Set config (keys: lines, time, chance, model, log_dice, voice, delay, bits...)"),
+                ("[green]set <key> <val>[/]", "Set specific config values. Keys and expected values:"),
+                ("[dim]  set voice <model_name>[/]", "  Sets the TTS voice preset (e.g. v2/en_speaker_5)"),
+                ("[dim]  set lines <number>[/]", "  Lines limit before auto-speaking"),
+                ("[dim]  set time <seconds>[/]", "  Time delay limit before auto-speaking"),
+                ("[dim]  set chance <0-100>[/]", "  Random chance to speak%"),
+                ("[dim]  set bits|points <on|off>[/]", "  Toggle PubSub features"),
                 ("[green]poll <args>[/]", "Create a poll (e.g. poll 5 Yes/No? | Yes | No)"),
-                ("[green]addc <cmd> <rsp>[/]", "Add custom command (use <sender> <streamer> <input>)"),
+                ("[green]addc <cmd> <rsp>[/]", "Add custom command (use <{sender}> <{streamer}> <{input}>)"),
                 ("[green]editc <cmd> <rsp>[/]", "Edit custom command"),
                 ("[green]delc <cmd>[/]", "Delete custom command"),
-                ("[green]grammar <action>[/]", "Manage grammar (add, list, clear) <rule> [text]"),
+                ("[green]grammar <action>[/]", "Manage grammatical word pools (add, list, clear) <rule> [text]"),
                 ("[green]compile[/]", "Force rebuild of all JSON Brain caches synchronously"),
                 ("[green]brain, stats[/]", "Show number of lines loaded per channel"),
                 ("[green]quit, exit, q[/]", "Exit bot")

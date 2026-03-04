@@ -257,10 +257,15 @@ class MockbotDashboard(App):
         if not isinstance(msg_obj, dict):
             # Fallback for generic string logs (e.g. system events)
             if force_channel and isinstance(msg_obj, str):
-                color_idx = 15
+                color_idx = "white"
                 if self.bot and hasattr(self.bot, 'my_logger'):
                     color_idx = self.bot.my_logger.color_manager.get_channel_color(force_channel)
-                return f"[{color_idx}]#{force_channel}[/] | {msg_obj}"
+                
+                if isinstance(color_idx, str) and color_idx.isdigit():
+                    prefix_style = f"color({color_idx})"
+                else:
+                    prefix_style = f"{color_idx}"
+                return f"[bold {prefix_style}]#{force_channel}[/] | {msg_obj}"
             return msg_obj
 
         from rich.table import Table
@@ -287,11 +292,15 @@ class MockbotDashboard(App):
         chan_text = None
         if show_channel:
             c_name = force_channel or msg_obj.get("channel")
-            color_idx = 15
+            color_idx = "white"
             if self.bot and hasattr(self.bot, 'my_logger'):
                 color_idx = self.bot.my_logger.color_manager.get_channel_color(c_name)
-            # Textual's Rich conversion handles ints inside color() functions
-            chan_text = Text(f"#{c_name}", style=f"color({color_idx})")
+            
+            if isinstance(color_idx, str) and color_idx.isdigit():
+                chan_style = f"bold color({color_idx})"
+            else:
+                chan_style = f"bold {color_idx}"
+            chan_text = Text(f"#{c_name}", style=chan_style)
             
         user_color = msg_obj.get("color", "white")
         # Ensure # is present for hex codes, unless it's a known rich color string

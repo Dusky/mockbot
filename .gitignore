@@ -81,3 +81,4 @@ CODE_REVIEW_PLAN.md
 .deps_installed
 bot_heartbeat.json
 bot.pid
+site/

@@ -1,0 +1,50 @@
+site_name: Mockbot Documentation
+site_description: The complete guide for Mockbot, a Markov-chain chatbot for Twitch.
+site_author: Maintainers
+
+theme:
+  name: material
+  palette:
+    # Palette toggle for auto/light/dark mode
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+
+nav:
+  - Introduction: index.md
+  - Features & Settings:
+    - Standard Commands: commands.md
+    - Twitch Interactions: interactions.md
+    - Text-to-Speech (TTS): tts.md
+  - Customization:
+    - Custom Commands & Grammar: custom-commands.md
+    - Channel Variables & Overlay: variables.md

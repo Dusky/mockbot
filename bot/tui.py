@@ -412,7 +412,7 @@ class MockbotDashboard(App):
                     c_str = f"[cyan]{chance}%[/]"
                     is_joined = "🟢" if f"#{clean_name}" in self.bot._joined_channels else "🔴"
                     
-                    status_text = f"{is_joined} [bold]#{clean_name}[/bold] | Model: {m_str} | TTS: {t_str} | Voice: {v_str} | Chance: {c_str} | Delay: {time_b}s"
+                    status_text = f"{is_joined} [bold][link=http://localhost:5050/overlay/{clean_name}]#{clean_name}[/link][/bold] | Model: {m_str} | TTS: {t_str} | Voice: {v_str} | Chance: {c_str} | Delay: {time_b}s"
                     self.query_one("#status_bar").update(status_text)
                 else:
                     self.query_one("#status_bar").update(f"🔴 [bold]#{clean_name}[/bold] | (Not in Database)")

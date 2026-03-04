@@ -420,9 +420,9 @@ async def api_get_variables(request):
         
     variables = {}
     try:
-        # The default DB file used by the bot is bot_database.db
+        # The actual DB file used by the bot is messages.db
         # To be safe, try to connect to the current directory's DB
-        async with aiosqlite.connect("bot_database.db") as conn:
+        async with aiosqlite.connect("messages.db") as conn:
             c = await conn.cursor()
             await c.execute("SELECT var_name, var_value FROM channel_variables WHERE channel_name = ?", (channel,))
             rows = await c.fetchall()

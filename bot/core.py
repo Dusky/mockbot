@@ -50,7 +50,7 @@ PURPLE = "\x1b[35m"
 try:
     channels = config["settings"]["channels"].split(",")
 except Exception as e:
-    print(f"{RED}Error reading channels from config: {e}{RESET}")
+    self.logger.info(f"{RED}Error reading channels from config: {e}{RESET}")
     channels = []
 
 
@@ -323,17 +323,17 @@ class Bot(commands.Bot):
             
         # Make sure we're in the channel
         if channel_name not in self._joined_channels:
-            print(f"Joining channel {channel_name} before sending message...")
+            self.logger.info(f"Joining channel {channel_name} before sending message...")
             await self.join_channel(channel_name)
             
         # Send the message
         channel = self.get_channel(channel_name.lstrip('#'))  # TwitchIO gets channels without #
         if channel:
             await channel.send(message)
-            print(f"Message sent to {channel_name}: {message}")
+            self.logger.info(f"Message sent to {channel_name}: {message}")
             return True
         else:
-            print(f"Failed to find channel {channel_name}")
+            self.logger.info(f"Failed to find channel {channel_name}")
             return False
     
     async def leave_channel(self, channel_name):
@@ -346,7 +346,7 @@ class Bot(commands.Bot):
             # TwitchIO part_channels expects channel names WITHOUT # prefix
             clean_name = channel_name.lstrip('#')
             
-            print(f"{YELLOW}Attempting to leave channel: {channel_name} (clean: {clean_name}){RESET}")
+            self.logger.info(f"{YELLOW}Attempting to leave channel: {channel_name} (clean: {clean_name}){RESET}")
             
             # Mark as disconnected in the database first
             try:
@@ -357,9 +357,9 @@ class Bot(commands.Bot):
                         (clean_name,)
                     )
                     await conn.commit()
-                print(f"{YELLOW}Marked {clean_name} as disconnected in database{RESET}")
+                self.logger.info(f"{YELLOW}Marked {clean_name} as disconnected in database{RESET}")
             except Exception as db_error:
-                print(f"{RED}Database error when leaving {clean_name}: {db_error}{RESET}")
+                self.logger.info(f"{RED}Database error when leaving {clean_name}: {db_error}{RESET}")
             
             # Actually leave the channel
             try:
@@ -373,14 +373,14 @@ class Bot(commands.Bot):
                 # Force an immediate heartbeat update to sync the joined channel status
                 self.update_heartbeat_file()
                 
-                print(f"{GREEN}✅ Successfully left channel: {channel_name}{RESET}")
+                self.logger.info(f"{GREEN}✅ Successfully left channel: {channel_name}{RESET}")
                 return True
             except Exception as e:
-                print(f"{RED}Failed to leave channel {channel_name}: {e}{RESET}")
+                self.logger.info(f"{RED}Failed to leave channel {channel_name}: {e}{RESET}")
                 return False
                 
         except Exception as e:
-            print(f"{RED}Exception when leaving channel {channel_name}: {e}{RESET}")
+            self.logger.info(f"{RED}Exception when leaving channel {channel_name}: {e}{RESET}")
             return False
 
     async def join_channel(self, channel_name):
@@ -405,11 +405,11 @@ class Bot(commands.Bot):
                 # Verify that the join was successful by checking connection
                 channel_obj = self.get_channel(clean_name)
                 if not channel_obj:
-                    print(f"{YELLOW}Warning: Could not verify channel object for {clean_name} after joining{RESET}")
+                    self.logger.info(f"{YELLOW}Warning: Could not verify channel object for {clean_name} after joining{RESET}")
                 
             except Exception as join_error:
                 join_success = False
-                print(f"{RED}Error in join_channels operation: {join_error}{RESET}")
+                self.logger.info(f"{RED}Error in join_channels operation: {join_error}{RESET}")
                 raise
             
             if join_success:
@@ -435,7 +435,7 @@ class Bot(commands.Bot):
                         await c.execute("SELECT 1 FROM channel_configs WHERE channel_name = ?", (clean_name,))
                         if not await c.fetchone():
                             # Create entry if it doesn't exist
-                            print(f"{YELLOW}Creating new channel config for {clean_name}{RESET}")
+                            self.logger.info(f"{YELLOW}Creating new channel config for {clean_name}{RESET}")
                             await c.execute('''
                                 INSERT INTO channel_configs 
                                 (channel_name, tts_enabled, voice_enabled, join_channel, owner, 
@@ -455,16 +455,16 @@ class Bot(commands.Bot):
                     self.update_heartbeat_file()
                     
                 except Exception as db_error:
-                    print(f"{RED}Database update error for channel {clean_name}: {db_error}{RESET}")
+                    self.logger.info(f"{RED}Database update error for channel {clean_name}: {db_error}{RESET}")
                 
                 # print(f"{GREEN}✅ Successfully joined channel: {channel_name}{RESET}")
                 return True
             else:
-                print(f"{RED}❌ Failed to join channel: {channel_name}{RESET}")
+                self.logger.info(f"{RED}❌ Failed to join channel: {channel_name}{RESET}")
                 return False
                 
         except Exception as e:
-            print(f"{RED}❌ Failed to join channel {channel_name}: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Failed to join channel {channel_name}: {e}{RESET}")
             return False
 
     def load_channel_settings(self):
@@ -500,14 +500,14 @@ class Bot(commands.Bot):
                 channels_to_join = [row[0] for row in await c.fetchall()]
             
             if not silent:
-                print(f"{YELLOW}Found {len(channels_to_join)} channels to join from database{RESET}")
+                self.logger.info(f"{YELLOW}Found {len(channels_to_join)} channels to join from database{RESET}")
             
             # If no channels found in database, check config file
             if not channels_to_join and "settings" in config and "channels" in config["settings"]:
                 config_channels = config["settings"]["channels"].split(",")
                 channels_to_join = [ch.strip() for ch in config_channels if ch.strip()]
                 if not silent:
-                    print(f"{YELLOW}No channels in database, using {len(channels_to_join)} from config file{RESET}")
+                    self.logger.info(f"{YELLOW}No channels in database, using {len(channels_to_join)} from config file{RESET}")
             
             join_success = 0
             join_failure = 0
@@ -522,7 +522,7 @@ class Bot(commands.Bot):
                     # Skip if already joined
                     if channel_name in self._joined_channels:
                         if not silent:
-                            print(f"{GREEN}Already joined channel: {channel_name}{RESET}")
+                            self.logger.info(f"{GREEN}Already joined channel: {channel_name}{RESET}")
                         join_success += 1
                         continue
                     
@@ -533,23 +533,23 @@ class Bot(commands.Bot):
                     if success:
                         join_success += 1
                         new_joins += 1
-                        print(f"{GREEN}✓ Joined {channel_name}{RESET}")
+                        self.logger.info(f"{GREEN}✓ Joined {channel_name}{RESET}")
                     else:
                         join_failure += 1
-                        print(f"{RED}✗ Failed {channel_name}{RESET}")
+                        self.logger.info(f"{RED}✗ Failed {channel_name}{RESET}")
                         
                 except Exception as e:
                     join_failure += 1
-                    print(f"{RED}Error joining channel {channel}: {str(e)}{RESET}")
+                    self.logger.info(f"{RED}Error joining channel {channel}: {str(e)}{RESET}")
             
             # Summary - only show if there's activity or not silent
             if not silent or new_joins > 0 or join_failure > 0:
-                print(f"{GREEN}Channel joining complete: {join_success} succeeded, {join_failure} failed{RESET}")
+                self.logger.info(f"{GREEN}Channel joining complete: {join_success} succeeded, {join_failure} failed{RESET}")
                 # Final verification - only show if there's activity or not silent
-                print(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
+                self.logger.info(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
             
         except Exception as e:
-            print(f"{RED}Error in check_and_join_channels: {str(e)}{RESET}")
+            self.logger.info(f"{RED}Error in check_and_join_channels: {str(e)}{RESET}")
     
     async def setup_periodic_channel_check(self, interval=300):  # 5 minutes
         """Set up a periodic task to check for new channels."""
@@ -574,7 +574,7 @@ class Bot(commands.Bot):
             # Check if config exists
             c.execute("SELECT 1 FROM channel_configs WHERE channel_name = ?", (clean_channel,))
             if not c.fetchone():
-                print(f"Creating config for channel: {clean_channel}")
+                self.logger.info(f"Creating config for channel: {clean_channel}")
                 c.execute('''
                     INSERT INTO channel_configs 
                     (channel_name, tts_enabled, voice_enabled, join_channel, owner, 
@@ -1159,7 +1159,7 @@ class Bot(commands.Bot):
                     
                     # Convert from list to dictionary if needed
                     if isinstance(data, list):
-                        print("Converting cache build times from list to dictionary format...")
+                        self.logger.info("Converting cache build times from list to dictionary format...")
                         result = {}
                         for entry in data:
                             if isinstance(entry, dict) and "channel" in entry and "timestamp" in entry:
@@ -1172,7 +1172,7 @@ class Bot(commands.Bot):
                     return data
             return {}
         except Exception as e:
-            print(f"Error loading cache build times: {e}")
+            self.logger.info(f"Error loading cache build times: {e}")
             return {}
         
     def save_cache_build_times(self):
@@ -1206,7 +1206,7 @@ class Bot(commands.Bot):
                                     "duration": 3.45  # Default duration
                                 })
                             json.dump(list_data, f, indent=2)
-                            print("Saved cache build times in list format for compatibility")
+                            self.logger.info("Saved cache build times in list format for compatibility")
                             return
                 except:
                     # If we can't read the old file, just use the dictionary format
@@ -1214,9 +1214,9 @@ class Bot(commands.Bot):
                 
                 # Save as dictionary
                 json.dump(self.cache_build_times, f, indent=2)
-                print("Saved cache build times in dictionary format")
+                self.logger.info("Saved cache build times in dictionary format")
         except Exception as e:
-            print(f"Error saving cache build times: {e}")
+            self.logger.info(f"Error saving cache build times: {e}")
 
     @commands.command(name="mockbot", aliases=["mb"])
     async def mockbot_wrapper(self, ctx, setting=None, *args):
@@ -1334,7 +1334,7 @@ class Bot(commands.Bot):
                 else:
                     return 0, 0, False, False, 0.0, False  # Default values
         except Exception as e:
-            print(f"SQLite error in fetch_channel_settings: {e}")
+            self.logger.info(f"SQLite error in fetch_channel_settings: {e}")
             return 0, 0, False, False, 0.0, False
 
     def get_channel_voice_preset(self, channel_name):
@@ -1443,12 +1443,12 @@ class Bot(commands.Bot):
         # Step 1: Initialize channel configs in the database
         try:
             if verbose:
-                print(f"{YELLOW}Step 1: Initializing channel configurations...{RESET}")
+                self.logger.info(f"{YELLOW}Step 1: Initializing channel configurations...{RESET}")
             self.ensure_channel_configs()
             if verbose:
-                print(f"{GREEN}✅ Channel configs initialized{RESET}")
+                self.logger.info(f"{GREEN}✅ Channel configs initialized{RESET}")
         except Exception as e:
-            print(f"{RED}❌ Error initializing channel configs: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Error initializing channel configs: {e}{RESET}")
         
         # Step 2: Set start time for uptime tracking
         self._start_time = time.time()
@@ -1459,20 +1459,20 @@ class Bot(commands.Bot):
             if bot_users:
                 self.bot_user_id = bot_users[0].id
                 if verbose:
-                    print(f"{GREEN}✅ Bot User ID Cached: {self.bot_user_id}{RESET}")
+                    self.logger.info(f"{GREEN}✅ Bot User ID Cached: {self.bot_user_id}{RESET}")
         except Exception as e:
-            print(f"{RED}❌ Failed to cache Bot User ID: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Failed to cache Bot User ID: {e}{RESET}")
         
         # Step 3: Process channels from config file
         try:
             if verbose:
-                print(f"{YELLOW}Step 3: Processing channels from config file...{RESET}")
+                self.logger.info(f"{YELLOW}Step 3: Processing channels from config file...{RESET}")
             if "settings" in config and "channels" in config["settings"]:
                 config_channels = config["settings"]["channels"].split(",")
                 config_channels = [ch.strip() for ch in config_channels if ch.strip()]
                 
                 if verbose:
-                    print(f"{YELLOW}Found {len(config_channels)} channels in config file{RESET}")
+                    self.logger.info(f"{YELLOW}Found {len(config_channels)} channels in config file{RESET}")
                 
                 # Make sure each config channel has a database entry
                 for channel in config_channels:
@@ -1486,7 +1486,7 @@ class Bot(commands.Bot):
                         if not c.fetchone():
                             # Create new entry 
                             if verbose:
-                                print(f"{YELLOW}Creating config for config file channel: {clean_name}{RESET}")
+                                self.logger.info(f"{YELLOW}Creating config for config file channel: {clean_name}{RESET}")
                             c.execute('''
                                 INSERT INTO channel_configs 
                                 (channel_name, tts_enabled, voice_enabled, join_channel, owner, 
@@ -1500,81 +1500,81 @@ class Bot(commands.Bot):
                         conn.commit()
                         conn.close()
                     except Exception as db_error:
-                        print(f"{RED}Error updating channel config for {clean_name}: {db_error}{RESET}")
+                        self.logger.info(f"{RED}Error updating channel config for {clean_name}: {db_error}{RESET}")
             elif verbose:
-                print(f"{YELLOW}No channels found in config file{RESET}")
+                self.logger.info(f"{YELLOW}No channels found in config file{RESET}")
                 
             if verbose:
-                print(f"{GREEN}✅ Config file channels processed{RESET}")
+                self.logger.info(f"{GREEN}✅ Config file channels processed{RESET}")
         except Exception as e:
-            print(f"{RED}❌ Error processing config file channels: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Error processing config file channels: {e}{RESET}")
         
         # Step 4: Join all configured channels from database
         try:
             if verbose:
-                print(f"{YELLOW}Step 4: Joining all configured channels...{RESET}")
+                self.logger.info(f"{YELLOW}Step 4: Joining all configured channels...{RESET}")
             await self.check_and_join_channels(silent=False)  # Initial join, show full output
             if verbose:
-                print(f"{GREEN}✅ Channel joining completed{RESET}")
+                self.logger.info(f"{GREEN}✅ Channel joining completed{RESET}")
         except Exception as e:
-            print(f"{RED}❌ Error joining channels: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Error joining channels: {e}{RESET}")
         
         # Step 5: Start periodic channel checking
         try:
             if verbose:
-                print(f"{YELLOW}Step 5: Setting up periodic channel check...{RESET}")
+                self.logger.info(f"{YELLOW}Step 5: Setting up periodic channel check...{RESET}")
             await self.setup_periodic_channel_check()
             if verbose:
-                print(f"{GREEN}✅ Periodic checking started{RESET}")
+                self.logger.info(f"{GREEN}✅ Periodic checking started{RESET}")
         except Exception as e:
-            print(f"{RED}❌ Error setting up periodic channel check: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Error setting up periodic channel check: {e}{RESET}")
         
         # Step 6: Print status table
         try:
             if verbose:
-                print(f"{YELLOW}Step 6: Printing status table...{RESET}")
+                self.logger.info(f"{YELLOW}Step 6: Printing status table...{RESET}")
             await self.print_channel_status()
             if verbose:
-                print(f"{GREEN}✅ Status printed{RESET}")
+                self.logger.info(f"{GREEN}✅ Status printed{RESET}")
         except Exception as e:
-            print(f"{RED}❌ Error printing channel status: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Error printing channel status: {e}{RESET}")
         
         # Step 7: Create PID file
         try:
             with open("bot.pid", "w") as f:
                 f.write(str(os.getpid()))
             if verbose:
-                print(f"{GREEN}✅ Created PID file with PID: {os.getpid()}{RESET}")
+                self.logger.info(f"{GREEN}✅ Created PID file with PID: {os.getpid()}{RESET}")
         except Exception as e:
-            print(f"{RED}❌ Error creating PID file: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Error creating PID file: {e}{RESET}")
         
         # Step 8: Setup heartbeat
         try:
             if verbose:
-                print(f"{YELLOW}Step 8: Setting up heartbeat...{RESET}")
+                self.logger.info(f"{YELLOW}Step 8: Setting up heartbeat...{RESET}")
             self.update_heartbeat_file()
             self.loop.create_task(self.heartbeat_task())
             if verbose:
-                print(f"{GREEN}✅ Heartbeat task started{RESET}")
+                self.logger.info(f"{GREEN}✅ Heartbeat task started{RESET}")
         except Exception as e:
-            print(f"{RED}❌ Error setting up heartbeat: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Error setting up heartbeat: {e}{RESET}")
             
         # Step 9: Start background DB writer & Timed Message Loop
         try:
             if verbose:
-                print(f"{YELLOW}Step 9: Starting background DB writer, Timed Message Loop, and Sleep Monitor...{RESET}")
+                self.logger.info(f"{YELLOW}Step 9: Starting background DB writer, Timed Message Loop, and Sleep Monitor...{RESET}")
             self.db_flush_task = self.loop.create_task(self.background_db_writer())
             self.timed_msg_task = self.loop.create_task(self.timed_message_loop())
             self.sleep_monitor_task = self.loop.create_task(self.sleep_monitor_loop())
             if verbose:
-                print(f"{GREEN}✅ Background loops started{RESET}")
+                self.logger.info(f"{GREEN}✅ Background loops started{RESET}")
         except Exception as e:
-            print(f"{RED}❌ Error starting background loops: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Error starting background loops: {e}{RESET}")
             
         # Step 10: Setup PubSub
         try:
             if verbose:
-                print(f"{YELLOW}Step 10: Setting up PubSub for Bits & Channel Points...{RESET}")
+                self.logger.info(f"{YELLOW}Step 10: Setting up PubSub for Bits & Channel Points...{RESET}")
             
             tmi_token = config.get("auth", "tmi_token")
             if tmi_token.startswith("oauth:"):
@@ -1598,21 +1598,21 @@ class Bot(commands.Bot):
                         if points_enabled:
                             topics.append(pubsub.channel_points(tmi_token)[user.id])
             except Exception as e:
-                print(f"Failed to load pubsub configs: {e}")
+                self.logger.info(f"Failed to load pubsub configs: {e}")
                 
             if topics:
                 await self.pubsub_pool.subscribe_topics(topics)
                 if verbose:
-                    print(f"{GREEN}✅ Subscribed to PubSub topics for {len(users)} channels{RESET}")
+                    self.logger.info(f"{GREEN}✅ Subscribed to PubSub topics for {len(users)} channels{RESET}")
         except Exception as e:
-            print(f"{RED}❌ Error setting up PubSub: {e}{RESET}")
+            self.logger.info(f"{RED}❌ Error setting up PubSub: {e}{RESET}")
 
         # Final verification
         if verbose:
-            print(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
-            print(f"{GREEN}==================================================={RESET}")
-            print(f"{GREEN}Bot initialization complete!{RESET}")
-            print(f"{GREEN}==================================================={RESET}")
+            self.logger.info(f"{YELLOW}Currently joined channels: {sorted(self._joined_channels)}{RESET}")
+            self.logger.info(f"{GREEN}==================================================={RESET}")
+            self.logger.info(f"{GREEN}Bot initialization complete!{RESET}")
+            self.logger.info(f"{GREEN}==================================================={RESET}")
         
         # Extra verification for channels of interest
         for channel in self.channels:
@@ -1621,7 +1621,7 @@ class Bot(commands.Bot):
             formatted_channel = f"#{clean_channel}"
             
             if formatted_channel in self._joined_channels:
-                print(f"{GREEN}✓ Successfully joined {formatted_channel} channel!{RESET}")
+                self.logger.info(f"{GREEN}✓ Successfully joined {formatted_channel} channel!{RESET}")
                 
                 # Update database to mark channel as connected
                 try:
@@ -1635,11 +1635,11 @@ class Bot(commands.Bot):
                     conn.close()
                 except Exception as e:
                     if verbose:
-                        print(f"Error updating channel connection status in DB: {e}")
+                        self.logger.info(f"Error updating channel connection status in DB: {e}")
             else:
                 # Only print failure if verbose or if this was explicitly in initial_channels
                 if verbose or channel in self.channels:
-                    print(f"{RED}✗ Failed to join {formatted_channel} channel - will retry in next periodic check{RESET}")
+                    self.logger.info(f"{RED}✗ Failed to join {formatted_channel} channel - will retry in next periodic check{RESET}")
                     
                 # Make sure database shows it's not connected
                 try:
@@ -1653,7 +1653,7 @@ class Bot(commands.Bot):
                     conn.close()
                 except Exception as e:
                     if verbose:
-                        print(f"Error updating channel connection status in DB: {e}")
+                        self.logger.info(f"Error updating channel connection status in DB: {e}")
 
         # Mark connection as successful for reconnection manager
         self.connection_manager.mark_connected()
@@ -2303,7 +2303,7 @@ class Bot(commands.Bot):
             ))
         except Exception as e:
             self.my_logger.error(f"Failed to queue user message for DB: {e}", channel=channel_name)
-            print(f"Error queuing user message for {channel_name}: {e}")
+            self.logger.info(f"Error queuing user message for {channel_name}: {e}")
 
         # Make sure the channel is in our dictionaries
         if channel_name not in self.channel_chat_line_count:
@@ -2436,7 +2436,7 @@ class Bot(commands.Bot):
                     except Exception as e:
                         # Log any errors that occur when sending the message.
                         self.my_logger.error(f"Failed to send message in {channel_name}: {str(e)}", channel=channel_name)
-                        print(f"Error sending message in {channel_name}: {str(e)}")
+                        self.logger.info(f"Error sending message in {channel_name}: {str(e)}")
 
     async def stop(self):
         try:
@@ -2449,9 +2449,9 @@ class Bot(commands.Bot):
                     os.remove(file)
                 
             # Perform any additional cleanup tasks, such as closing database connections or saving data
-            print("Bot stopped successfully.")
+            self.logger.info("Bot stopped successfully.")
         except Exception as e:
-            print(f"Error stopping bot: {e}")
+            self.logger.info(f"Error stopping bot: {e}")
 
     async def add_trusted_user(self, channel_name, username):
         """Add a user to the trusted users list for a channel."""
@@ -2487,13 +2487,13 @@ class Bot(commands.Bot):
                 if clean_channel in self.channel_settings:
                     self.channel_settings[clean_channel]['trusted_users'] = trusted_users
                     
-                print(f"Added {username} to trusted users for {channel_name}")
+                self.logger.info(f"Added {username} to trusted users for {channel_name}")
                 return True
             else:
-                print(f"Channel {channel_name} not found in database")
+                self.logger.info(f"Channel {channel_name} not found in database")
                 return False
         except Exception as e:
-            print(f"Error adding trusted user: {e}")
+            self.logger.info(f"Error adding trusted user: {e}")
             return False
         finally:
             conn.close()
@@ -2543,7 +2543,7 @@ class Bot(commands.Bot):
                 f.write(str(os.getpid()))
                 
             if self.verbose_heartbeat_log: # Use the new config setting
-                print(f"{YELLOW}Heartbeat: Raw channels from _joined_channels: {channels_list}{RESET}")
+                self.logger.info(f"{YELLOW}Heartbeat: Raw channels from _joined_channels: {channels_list}{RESET}")
             
             # Update the database for web UI connection status
             try:
@@ -2587,7 +2587,7 @@ class Bot(commands.Bot):
                 
                 if self.verbose_heartbeat_log: # Use the new config setting
                     self.my_logger.log_info(f"Heartbeat: Updated database heartbeat at {formatted_time}")
-                    print(f"{YELLOW}Heartbeat: Processed connected channels for DB: {channels_list}{RESET}")
+                    self.logger.info(f"{YELLOW}Heartbeat: Processed connected channels for DB: {channels_list}{RESET}")
                 
             except Exception as db_error:
                 self.my_logger.error(f"Heartbeat: Error updating database heartbeat: {db_error}")
@@ -2935,7 +2935,7 @@ def fetch_users(db_file):
                 trusted_users = row[0].split(",") if row[0] else []
                 ignored_users = row[1].split(",") if row[1] else []
         except Exception as e:
-            print(f"Error fetching users for channel {channel_name}: {e}")
+            self.logger.info(f"Error fetching users for channel {channel_name}: {e}")
         finally:
             conn.close()
         return trusted_users, ignored_users
@@ -2952,7 +2952,7 @@ def fetch_initial_channels(db_file):
         for row in c.fetchall():
             channels.append(row[0])
     except Exception as e:
-        print(f"Error fetching initial channels: {e}")
+        self.logger.info(f"Error fetching initial channels: {e}")
     finally:
         conn.close()
     return channels
@@ -2991,18 +2991,18 @@ def setup_bot(db_file, rebuild_cache=False, enable_tts=False):
     # Get channels to join from database
     channels_str_list = fetch_initial_channels(db_file)
     if not channels_str_list:
-        print("⚠️ No auto-join channels found in database.")
+        self.logger.info("⚠️ No auto-join channels found in database.")
         channels_str = ""
     else:
         channels_str = ",".join(channels_str_list)
     
-    print(f"Found channels string: {channels_str}")
+    self.logger.info(f"Found channels string: {channels_str}")
     
     # Strip whitespace and ensure channels start with #
     channels = [f"#{ch.strip()}" if not ch.strip().startswith('#') else ch.strip() 
                 for ch in channels_str.split(',')]
     
-    print(f"Bot will join these channels: {channels}")
+    self.logger.info(f"Bot will join these channels: {channels}")
     
     # Initialize bot instance
     bot = Bot(

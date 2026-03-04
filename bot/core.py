@@ -588,8 +588,9 @@ class Bot(commands.Bot):
         # Reload channel settings after updating configs
         self.load_channel_settings()
     
-    async def print_channel_status(self, channel_filter=None):
+    async def print_channel_status(self, channel_filter=None, out_func=None):
         """Print a status table showing all channels (or a specific channel) and their configurations."""
+        out = out_func or self.my_logger.print_message
         try:
             async with aiosqlite.connect(self.db_file) as conn:
                 c = await conn.cursor()
@@ -693,13 +694,14 @@ class Bot(commands.Bot):
                 table.add_column(h, justify=j)
             for row in table_data:
                 table.add_row(*row)
-            self.my_logger.print_message(table)
+            out(table)
         
         except Exception as e:
-            self.my_logger.print_message(f"Error printing channel status: {e}")
+            out(f"Error printing channel status: {e}")
 
-    async def print_brain_status(self, channel_filter=None):
+    async def print_brain_status(self, channel_filter=None, out_func=None):
         """Print a status table showing the number of lines loaded for each channel's Markov brain and cache metadata."""
+        out = out_func or self.my_logger.print_message
         try:
             async with aiosqlite.connect(self.db_file) as conn:
                 c = await conn.cursor()
@@ -722,14 +724,15 @@ class Bot(commands.Bot):
                         model_name = "general_markov_model"
                     else:
                         cache_file_path = os.path.join("cache", f"{clean_channel}_model.json")
-                        model_name = f"{clean_channel}_model"
+                    model_name = f"{clean_channel}_model"
                     
                     await c.execute('SELECT COUNT(*) FROM messages WHERE is_bot_response = 0 AND channel = ?', (clean_channel,))
                     row = await c.fetchone()
                     msg_count = row[0] if row else 0
-                    self.my_logger.print_message(f"\n🧠 [bold]Detailed Brain Stats for [color({self.get_channel_color(clean_channel)})]#{clean_channel}[/]:[/bold]")
-                    self.my_logger.print_message(f"  • Raw Messages in DB: {msg_count:,}")
-                    self.my_logger.print_message(f"  • Source Model:       {model_type} ({model_name})")
+                    chan_style = f"color({self.get_channel_color(clean_channel)})"
+                    out(f"\n🧠 [bold]Detailed Brain Stats for [{chan_style}]#{clean_channel}[/]:[/bold]")
+                    out(f"  • Raw Messages in DB: {msg_count:,}")
+                    out(f"  • Source Model:       {model_type} ({model_name})")
                     
                     if os.path.exists(cache_file_path):
                         size_bytes = os.path.getsize(cache_file_path)
@@ -737,8 +740,8 @@ class Bot(commands.Bot):
                         mtime = os.path.getmtime(cache_file_path)
                         dt = datetime.datetime.fromtimestamp(mtime)
                         
-                        self.my_logger.print_message(f"  • Cache File Size:    {cache_size_str}")
-                        self.my_logger.print_message(f"  • Last Compiled:      {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                        out(f"  • Cache File Size:    {cache_size_str}")
+                        out(f"  • Last Compiled:      {dt.strftime('%Y-%m-%d %H:%M:%S')}")
                         
                         try:
                             with open(cache_file_path, 'r', encoding='utf-8') as f:
@@ -762,17 +765,17 @@ class Bot(commands.Bot):
                             except Exception:
                                 top_starts_str = "Unavailable"
                                 
-                            self.my_logger.print_message(f"  • State Size:         {state_size}")
-                            self.my_logger.print_message(f"  • Sentences Parsed:   {num_parsed_sentences:,}")
-                            self.my_logger.print_message(f"  • Unique States:      {num_states:,}" if isinstance(num_states, int) else f"  • Unique States:      {num_states}")
-                            self.my_logger.print_message(f"  • Top Start Words:    {top_starts_str}")
+                            out(f"  • State Size:         {state_size}")
+                            out(f"  • Sentences Parsed:   {num_parsed_sentences:,}")
+                            out(f"  • Unique States:      {num_states:,}" if isinstance(num_states, int) else f"  • Unique States:      {num_states}")
+                            out(f"  • Top Start Words:    {top_starts_str}")
 
                         except Exception as e:
-                            self.my_logger.print_message(f"  • Error parsing cache: {str(e)}")
+                            out(f"  • Error parsing cache: {str(e)}")
                     else:
-                        self.my_logger.print_message(f"  • Cache Status:       Not generated yet")
+                        out(f"  • Cache Status:       Not generated yet")
                     
-                    self.my_logger.print_message("")
+                    out("")
                     return
                 
                 # Get total counts per channel from DB
@@ -854,7 +857,7 @@ class Bot(commands.Bot):
                     table.add_column(h, justify=j)
                 for row in table_data:
                     table.add_row(*row)
-                self.my_logger.print_message(table)
+                out(table)
                 
                 
                 # Check for cached general model (standalone print below the table)

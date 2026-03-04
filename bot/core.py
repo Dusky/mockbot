@@ -1303,6 +1303,13 @@ class Bot(commands.Bot):
             from bot.commands import mockbot_timer
             await mockbot_timer(self, ctx, *args)
             
+        elif setting == "var":
+            from bot.commands import mockbot_var
+            if len(args) < 2:
+                await ctx.send("Usage: !var <set|add|get> <var_name> [value]")
+                return
+            await mockbot_var(self, ctx, args[0], args[1], value=" ".join(args[2:]) if len(args) > 2 else "")
+            
         else:
             # Call the original mockbot_command for other settings
             await mockbot_command(self, ctx, setting, args[0] if args else None, enable_tts=self.enable_tts)

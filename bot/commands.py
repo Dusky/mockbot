@@ -785,3 +785,83 @@ async def mockbot_timer(self, ctx, *args):
 
     except Exception as e:
         await ctx.send(f"Timer Error: {e}")
+
+async def mockbot_var(self, ctx, subcmd, var_name, value=""):
+    """Handle the !var command"""
+    channel_name = ctx.channel.name
+    
+    # Check permissions
+    is_authorized = False
+    if hasattr(ctx.author, 'name'):
+        bot_owner = ""
+        try:
+            import configparser
+            config = configparser.ConfigParser()
+            config.read("settings.conf")
+            bot_owner = config.get("auth", "owner", fallback="").lower()
+        except: pass
+        
+        is_owner = ctx.author.name.lower() == bot_owner
+        is_mod = getattr(ctx.author, 'is_mod', False)
+        is_broadcaster = getattr(ctx.author, 'is_broadcaster', False)
+        is_authorized = is_owner or is_mod or is_broadcaster
+    
+    if subcmd in ['set', 'add'] and not is_authorized:
+        await ctx.send("You do not have permission to modify variables.")
+        return
+        
+    try:
+        import aiosqlite
+        async with aiosqlite.connect(self.db_file) as conn:
+            c = await conn.cursor()
+            
+            if subcmd == 'get':
+                await c.execute(
+                    "SELECT var_value FROM channel_variables WHERE channel_name = ? AND var_name = ?",
+                    (channel_name, var_name)
+                )
+                row = await c.fetchone()
+                val = row[0] if row else 0
+                await ctx.send(f"Variable '{var_name}' is currently: {val}")
+                
+            elif subcmd == 'set':
+                try:
+                    val_int = int(value)
+                except ValueError:
+                    await ctx.send("Value must be an integer.")
+                    return
+                
+                await c.execute(
+                    "INSERT INTO channel_variables (channel_name, var_name, var_value) VALUES (?, ?, ?) "
+                    "ON CONFLICT(channel_name, var_name) DO UPDATE SET var_value = ?",
+                    (channel_name, var_name, val_int, val_int)
+                )
+                await conn.commit()
+                await ctx.send(f"Variable '{var_name}' set to {val_int}.")
+                
+            elif subcmd == 'add':
+                try:
+                    val_int = int(value) if value.strip() else 1
+                except ValueError:
+                    val_int = 1 # default to adding 1 if no value is provided
+                
+                await c.execute(
+                    "INSERT INTO channel_variables (channel_name, var_name, var_value) VALUES (?, ?, ?) "
+                    "ON CONFLICT(channel_name, var_name) DO UPDATE SET var_value = var_value + ?",
+                    (channel_name, var_name, val_int, val_int)
+                )
+                await conn.commit()
+                
+                # Fetch new value
+                await c.execute(
+                    "SELECT var_value FROM channel_variables WHERE channel_name = ? AND var_name = ?",
+                    (channel_name, var_name)
+                )
+                new_val = (await c.fetchone())[0]
+                await ctx.send(f"Added {val_int} to '{var_name}'. New value: {new_val}")
+                
+            else:
+                await ctx.send(f"Unknown var subcommand: {subcmd}. Use set, add, or get.")
+                
+    except Exception as e:
+        await ctx.send(f"Variable Error: {e}")

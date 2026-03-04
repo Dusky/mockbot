@@ -21,7 +21,7 @@ Now fully refactored into a lightweight, efficient CLI application.
 # Clone and setup
 git clone https://github.com/yourusername/mockbot.git
 cd mockbot
-./launch.sh setup
+./launch.sh start
 ```
 
 ### 2. Configuration
@@ -43,7 +43,7 @@ owner = your_username
 ### 3. Run
 
 ```bash
-# Start the bot
+# Start the bot monitor CLI
 ./launch.sh cli
 ```
 

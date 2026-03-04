@@ -8,11 +8,11 @@
 
 ## Step-by-Step
 
-1.  **Run Setup Script**
+1.  **Run Start Script**
     ```bash
-    ./launch.sh setup
+    ./launch.sh start
     ```
-    This creates the virtual environment and installs core dependencies.
+    This automatically creates the virtual environment, installs core dependencies, and spins up the background worker.
 
 2.  **Install TTS Dependencies (Optional)**
     If you want the bot to speak:
@@ -26,7 +26,7 @@
     *   `tmi_token`: Get this from [https://twitchapps.com/tmi/](https://twitchapps.com/tmi/) (exclude 'oauth:' if the generator provides it, or include it, the bot handles both).
     *   `nickname`: The exact username of the bot account.
     *   `owner`: Your twitch username (for admin commands).
-    *   `channels`: Comma-separated list of channels to join.
+    *   *(Note: Channels are managed in-app via the CLI and database!)*
 
 4.  **Launch**
     ```bash
@@ -35,6 +35,6 @@
 
 ## Maintenance
 
+- **Documentation**: Provide `./launch.sh docs` to open the local wiki!
 - **Logs**: View logs with `./launch.sh logs`
-- **Backup**: `./launch.sh backup` (Saves DB and config)
-- **Update**: `./launch.sh update-deps`
+- **Clean**: `./launch.sh clean` (Removes temp logs and PIDs)

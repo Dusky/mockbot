@@ -498,7 +498,7 @@ class MockbotDashboard(App):
             channel_name = self.current_context.lstrip('#')
             if self.bot:
                 # Route through the unified message queue to ensure proper rate limits and DB logging
-                await self.bot.handle_message_request(channel_name, message)                    
+                await self.bot.send_message_to_channel(channel_name, message)
         elif cmd == 'poll':
             if self.current_context == "Global":
                 self._cmd_log("[bold red]Error:[/bold red] Must 'use #channel' before creating a poll.")

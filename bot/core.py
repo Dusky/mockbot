@@ -588,8 +588,9 @@ class Bot(commands.Bot):
         # Reload channel settings after updating configs
         self.load_channel_settings()
     
-    async def print_channel_status(self, channel_filter=None):
+    async def print_channel_status(self, channel_filter=None, out_func=None):
         """Print a status table showing all channels (or a specific channel) and their configurations."""
+        out = out_func or self.my_logger.print_message
         try:
             async with aiosqlite.connect(self.db_file) as conn:
                 c = await conn.cursor()
@@ -649,7 +650,14 @@ class Bot(commands.Bot):
                     # Format log dice
                     log_dice_status = "[green]on[/green]" if log_dice else "[red]off[/red]"
                     
-                    channel_display = f"[color({self.get_channel_color(channel)})]#{channel}[/]"
+                    # Formatting channel color properly via int/hex check
+                    color_idx = self.get_channel_color(channel)
+                    if isinstance(color_idx, str) and color_idx.isdigit():
+                        chan_style = f"bold color({color_idx})"
+                    else:
+                        chan_style = f"bold {color_idx}"
+                    
+                    channel_display = f"[{chan_style}]#{channel}[/]"
                     
                     # Add to table
                     table_data.append([
@@ -693,13 +701,14 @@ class Bot(commands.Bot):
                 table.add_column(h, justify=j)
             for row in table_data:
                 table.add_row(*row)
-            self.my_logger.print_message(table)
+            out(table)
         
         except Exception as e:
-            self.my_logger.print_message(f"Error printing channel status: {e}")
+            out(f"Error printing channel status: {e}")
 
-    async def print_brain_status(self, channel_filter=None):
+    async def print_brain_status(self, channel_filter=None, out_func=None):
         """Print a status table showing the number of lines loaded for each channel's Markov brain and cache metadata."""
+        out = out_func or out
         try:
             async with aiosqlite.connect(self.db_file) as conn:
                 c = await conn.cursor()
@@ -727,9 +736,15 @@ class Bot(commands.Bot):
                     await c.execute('SELECT COUNT(*) FROM messages WHERE is_bot_response = 0 AND channel = ?', (clean_channel,))
                     row = await c.fetchone()
                     msg_count = row[0] if row else 0
-                    self.my_logger.print_message(f"\n🧠 [bold]Detailed Brain Stats for [color({self.get_channel_color(clean_channel)})]#{clean_channel}[/]:[/bold]")
-                    self.my_logger.print_message(f"  • Raw Messages in DB: {msg_count:,}")
-                    self.my_logger.print_message(f"  • Source Model:       {model_type} ({model_name})")
+                    color_idx = self.get_channel_color(clean_channel)
+                    if isinstance(color_idx, str) and color_idx.isdigit():
+                        chan_style = f"color({color_idx})"
+                    else:
+                        chan_style = f"{color_idx}"
+                    
+                    out(f"\n🧠 [bold]Detailed Brain Stats for [{chan_style}]#{clean_channel}[/]:[/bold]")
+                    out(f"  • Raw Messages in DB: {msg_count:,}")
+                    out(f"  • Source Model:       {model_type} ({model_name})")
                     
                     if os.path.exists(cache_file_path):
                         size_bytes = os.path.getsize(cache_file_path)
@@ -737,8 +752,8 @@ class Bot(commands.Bot):
                         mtime = os.path.getmtime(cache_file_path)
                         dt = datetime.datetime.fromtimestamp(mtime)
                         
-                        self.my_logger.print_message(f"  • Cache File Size:    {cache_size_str}")
-                        self.my_logger.print_message(f"  • Last Compiled:      {dt.strftime('%Y-%m-%d %H:%M:%S')}")
+                        out(f"  • Cache File Size:    {cache_size_str}")
+                        out(f"  • Last Compiled:      {dt.strftime('%Y-%m-%d %H:%M:%S')}")
                         
                         try:
                             with open(cache_file_path, 'r', encoding='utf-8') as f:
@@ -762,17 +777,17 @@ class Bot(commands.Bot):
                             except Exception:
                                 top_starts_str = "Unavailable"
                                 
-                            self.my_logger.print_message(f"  • State Size:         {state_size}")
-                            self.my_logger.print_message(f"  • Sentences Parsed:   {num_parsed_sentences:,}")
-                            self.my_logger.print_message(f"  • Unique States:      {num_states:,}" if isinstance(num_states, int) else f"  • Unique States:      {num_states}")
-                            self.my_logger.print_message(f"  • Top Start Words:    {top_starts_str}")
+                            out(f"  • State Size:         {state_size}")
+                            out(f"  • Sentences Parsed:   {num_parsed_sentences:,}")
+                            out(f"  • Unique States:      {num_states:,}" if isinstance(num_states, int) else f"  • Unique States:      {num_states}")
+                            out(f"  • Top Start Words:    {top_starts_str}")
 
                         except Exception as e:
-                            self.my_logger.print_message(f"  • Error parsing cache: {str(e)}")
+                            out(f"  • Error parsing cache: {str(e)}")
                     else:
-                        self.my_logger.print_message(f"  • Cache Status:       Not generated yet")
+                        out(f"  • Cache Status:       Not generated yet")
                     
-                    self.my_logger.print_message("")
+                    out("")
                     return
                 
                 # Get total counts per channel from DB
@@ -820,9 +835,15 @@ class Bot(commands.Bot):
                                 dt = datetime.datetime.fromtimestamp(mtime)
                                 last_compiled_str = dt.strftime('%Y-%m-%d %H:%M:%S')
                                 
+                        color_idx = self.get_channel_color(clean_channel)
+                        if isinstance(color_idx, str) and color_idx.isdigit():
+                            chan_style = f"color({color_idx})"
+                        else:
+                            chan_style = f"{color_idx}"
+
                         # Add to table
                         table_data.append([
-                            f"[color({self.get_channel_color(clean_channel)})]#{clean_channel}[/]", 
+                            f"[{chan_style}]#{clean_channel}[/]", 
                             f"{count:,}",
                             model_type,
                             cache_size_str,
@@ -854,18 +875,18 @@ class Bot(commands.Bot):
                     table.add_column(h, justify=j)
                 for row in table_data:
                     table.add_row(*row)
-                self.my_logger.print_message(table)
+                out(table)
                 
                 
                 # Check for cached general model (standalone print below the table)
                 if gen_cache_size_str != "N/A":
-                    self.my_logger.print_message(f"\nGeneral Model Cache Size: {gen_cache_size_str}")
-                    self.my_logger.print_message(f"General Model Last Compiled: {gen_last_compiled_str}")
+                    out(f"\nGeneral Model Cache Size: {gen_cache_size_str}")
+                    out(f"General Model Last Compiled: {gen_last_compiled_str}")
                 else:
-                    self.my_logger.print_message("\nGeneral Model Cache: Not generated yet")
+                    out("\nGeneral Model Cache: Not generated yet")
                     
         except Exception as e:
-            self.my_logger.print_message(f"Error printing brain status: {e}")
+            out(f"Error printing brain status: {e}")
 
     def load_text_and_build_model(self, create_individual_caches=False, target_channel=None):
         cache_directory = "cache/"
@@ -893,7 +914,7 @@ class Bot(commands.Bot):
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         lines = [line.strip() for line in f if line.strip()]
                     if lines:
-                        self.my_logger.print_message(f"Migrating {len(lines)} legacy log entries for #{channel_name} to database...")
+                        out(f"Migrating {len(lines)} legacy log entries for #{channel_name} to database...")
                         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
                         c.executemany(
                             "INSERT INTO messages (message, timestamp, channel, author_name, is_bot_response) VALUES (?, ?, ?, ?, 0)",
@@ -971,7 +992,7 @@ class Bot(commands.Bot):
         # Print the table outside the loop, after processing all files
         headers = ["Channel", "Brain Size", "Brain Status", "Brain"]
         # print(tabulate(files_data, headers=headers, tablefmt="pretty", numalign="right"))
-        self.my_logger.print_message(f"Brain loaded: {total_lines:,} lines active.")
+        out(f"Brain loaded: {total_lines:,} lines active.")
 
     def determine_cache_status(self, channel_name, file_text, create_individual_caches, cache_directory):
         """Determine cache status for a given channel"""
@@ -1026,7 +1047,7 @@ class Bot(commands.Bot):
             self.save_cache_build_times()
             return f"[green]Updated[/]"
         except Exception as e:
-            self.my_logger.print_message(f"Error creating model for {channel_name}: {e}")
+            out(f"Error creating model for {channel_name}: {e}")
             return f"[red]Error[/]"
 
     def save_general_model_to_cache(self, cache_file_path):
@@ -1036,7 +1057,7 @@ class Bot(commands.Bot):
                 cache_file.write(self.general_model.to_json())
             return True
         except Exception as e:
-            self.my_logger.print_message(f"Error saving general model to cache: {e}")
+            out(f"Error saving general model to cache: {e}")
             return False
 
 
@@ -1667,7 +1688,7 @@ class Bot(commands.Bot):
                 if delta > 900 and not self.is_sleeping:
                     self.is_sleeping = True
                     self.logger.info("Global chat has been silent for 15+ minutes. Entering Smart Sleep Mode.")
-                    self.my_logger.print_message("[dim italic]Entering Smart Sleep Mode due to inactivity...[/dim italic]")
+                    out("[dim italic]Entering Smart Sleep Mode due to inactivity...[/dim italic]")
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -2097,7 +2118,7 @@ class Bot(commands.Bot):
         if self.is_sleeping:
             self.is_sleeping = False
             self.logger.info("Chat activity detected! Waking up from Smart Sleep Mode.")
-            self.my_logger.print_message("[bold yellow]Waking up from Smart Sleep Mode![/bold yellow]")
+            out("[bold yellow]Waking up from Smart Sleep Mode![/bold yellow]")
             
         # Ignore messages from the bot itself or messages with no author.
         if message.author is None or message.author.name.lower() == self.nick.lower():
@@ -2274,7 +2295,7 @@ class Bot(commands.Bot):
             roll = random.uniform(0.0, 100.0)
             if log_dice:
                 result_str = '[bright_yellow]Triggered![/]' if roll <= random_chance else '[dim]Miss[/]'
-                self.my_logger.print_message(
+                out(
                     f"[cyan]\\[{channel_name}][/] Dice roll: {roll:.3f}% [dim]vs {random_chance}%[/] → {result_str}",
                     channel=channel_name
                 )

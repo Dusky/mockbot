@@ -139,6 +139,25 @@ class MockbotDashboard(App):
     #channel_sidebar > ListItem {
         padding: 0 1;
     }
+
+    .channel-container {
+        height: 1;
+        layout: horizontal;
+        width: 100%;
+    }
+    
+    .channel-name {
+        width: 1fr;
+        content-align: left middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .channel-status {
+        width: auto;
+        content-align: right middle;
+        padding-left: 1;
+    }
     """
     
     BINDINGS = [
@@ -1068,10 +1087,29 @@ class MockbotDashboard(App):
                     
                     for row in rows:
                         clean_name = row[0]
-                        if clean_name.lower() in live_streamers:
-                            item = ListItem(Label(f"🔴 #[bold bright_red]{clean_name}[/bold bright_red]"), id=f"ctx_{clean_name}")
+                        
+                        color_idx = "white"
+                        if hasattr(self.bot, 'my_logger'):
+                            color_idx = self.bot.my_logger.color_manager.get_channel_color(clean_name)
+                        
+                        if isinstance(color_idx, str) and color_idx.isdigit():
+                            chan_style = f"bold color({color_idx})"
                         else:
-                            item = ListItem(Label(f"#[dim]{clean_name}[/dim]"), id=f"ctx_{clean_name}")
+                            chan_style = f"bold {color_idx}"
+
+                        if clean_name.lower() in live_streamers:
+                            status_label = Label("[green][*][/]", classes="channel-status")
+                        else:
+                            status_label = Label("[red][*][/]", classes="channel-status")
+                            
+                        item = ListItem(
+                            Horizontal(
+                                Label(f"#[{chan_style}]{clean_name}[/]", classes="channel-name"),
+                                status_label,
+                                classes="channel-container"
+                            ),
+                            id=f"ctx_{clean_name}"
+                        )
                         await sidebar.append(item)
             except Exception:
                 pass

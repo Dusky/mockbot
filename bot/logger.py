@@ -162,15 +162,29 @@ class Logger:
             safe_msg = escape(message_content)
 
             if is_bot_message:
-                rich_msg = (
-                    f"[[color(14)]{time_only} {db_tag}[/]] "
-                    f"🤖 [bold magenta]<{username}>[/bold magenta]: [magenta]{safe_msg}[/magenta]{not_logged_tag}"
-                )
+                rich_msg = {
+                    "type": "chat",
+                    "timestamp": time_only,
+                    "tags": db_tag,
+                    "channel": channel,
+                    "username": username,
+                    "color": "magenta",
+                    "message": safe_msg,
+                    "is_bot": True,
+                    "not_logged": not_logged_tag
+                }
             else:
-                rich_msg = (
-                    f"[[color(14)]{time_only} {db_tag}[/]] "
-                    f"[bold {user_color_rich}]<{username}>[/]: {safe_msg}{not_logged_tag}"
-                )
+                rich_msg = {
+                    "type": "chat",
+                    "timestamp": time_only,
+                    "tags": db_tag,
+                    "channel": channel,
+                    "username": username,
+                    "color": user_color_rich,
+                    "message": safe_msg,
+                    "is_bot": False,
+                    "not_logged": not_logged_tag
+                }
             
             # Unconditionally log to the TUI so the background channel buffers populate correctly
             TUI_LOG_CALLBACK(rich_msg, channel=channel)

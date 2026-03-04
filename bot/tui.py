@@ -208,10 +208,10 @@ class MockbotDashboard(App):
             return
             
         if getattr(self, "_thread_id", None) == threading.get_ident():
-            self.log_widget.write(message)
+            self.log_widget.write(self._render_msg(message))
         else:
             try:
-                self.call_from_thread(self.log_widget.write, message)
+                self.call_from_thread(self.log_widget.write, self._render_msg(message))
             except Exception:
                 pass
     
@@ -228,39 +228,91 @@ class MockbotDashboard(App):
         
         if self.current_context == "Global":
             # Global: See literally everything interleaved
-            # This is a simplified approach; a true interleaved view would require sorting by timestamp
-            # For now, we'll show global first, then other channels
             for msg in self.log_buffers.get("global", []):
-                self.log_widget.write(msg)
+                self.log_widget.write(self._render_msg(msg))
             for key, msgs in self.log_buffers.items():
                 if key != "global":
-                    color_idx = 15
-                    if self.bot and hasattr(self.bot, 'my_logger'):
-                        color_idx = self.bot.my_logger.color_manager.get_channel_color(key)
-                    prefix = f"[{color_idx}]#{key}[/] | "
-                    
                     for msg in msgs:
-                        parts = msg.split("[/]] ", 1)
-                        if len(parts) == 2:
-                            formatted_msg = f"{parts[0]}[/]] {prefix}{parts[1]}"
-                        else:
-                            formatted_msg = f"{prefix}{msg}"
-                        self.log_widget.write(formatted_msg)
+                        self.log_widget.write(self._render_msg(msg, force_channel=key))
         elif self.current_context == "System":
             # System: Only see bot events/boot logs
             for msg in self.log_buffers.get("global", []):
-                self.log_widget.write(msg)
+                self.log_widget.write(self._render_msg(msg))
         else:
             # Channel context: Show ONLY this channel's chat
             ctx_key = self.current_context.lower().lstrip('#')
             for msg in self.log_buffers.get(ctx_key, []):
-                self.log_widget.write(msg)
+                self.log_widget.write(self._render_msg(msg))
 
     def action_clear_log(self) -> None:
         """Clear the log widget."""
         if self.log_widget:
             self.log_widget.clear()
             self._cmd_log("[italic]Log cleared.[/italic]")
+
+    def _render_msg(self, msg_obj, force_channel=None):
+        """Converts a dictionary from logger.py into a Rich Table with hanging indents."""
+        if not isinstance(msg_obj, dict):
+            # Fallback for generic string logs (e.g. system events)
+            if force_channel and isinstance(msg_obj, str):
+                color_idx = 15
+                if self.bot and hasattr(self.bot, 'my_logger'):
+                    color_idx = self.bot.my_logger.color_manager.get_channel_color(force_channel)
+                return f"[{color_idx}]#{force_channel}[/] | {msg_obj}"
+            return msg_obj
+
+        from rich.table import Table
+        from rich.text import Text
+
+        table = Table(
+            show_header=False, 
+            show_edge=False, 
+            box=None, 
+            padding=(0, 1, 0, 0),
+            collapse_padding=True
+        )
+        table.add_column("Time", justify="left", no_wrap=True)
+        
+        show_channel = msg_obj.get("channel") and (self.current_context == "Global" or force_channel)
+        if show_channel:
+            table.add_column("Channel", justify="left", no_wrap=True)
+            
+        table.add_column("User", justify="right", no_wrap=True)
+        table.add_column("Message", justify="left", ratio=1)
+        
+        time_text = Text(f"[{msg_obj['timestamp']}] {msg_obj['tags']}", style="dim")
+        
+        chan_text = None
+        if show_channel:
+            c_name = force_channel or msg_obj.get("channel")
+            color_idx = 15
+            if self.bot and hasattr(self.bot, 'my_logger'):
+                color_idx = self.bot.my_logger.color_manager.get_channel_color(c_name)
+            # Textual's Rich conversion handles ints inside color() functions
+            chan_text = Text(f"#{c_name}", style=f"color({color_idx})")
+            
+        user_color = msg_obj.get("color", "white")
+        # Ensure # is present for hex codes, unless it's a known rich color string
+        if isinstance(user_color, str) and not user_color.startswith("#") and user_color.isalnum() and len(user_color) == 6:
+            user_color = f"#{user_color}"
+
+        if msg_obj.get("is_bot"):
+            user_text = Text(f"<{msg_obj['username']}>", style="bold magenta")
+            msg_text = Text(msg_obj['message'], style="magenta italic")
+        else:
+            user_style = f"bold {user_color}" if user_color else "bold"
+            user_text = Text(f"<{msg_obj['username']}>", style=user_style)
+            msg_text = Text(msg_obj['message'], style="italic")
+            
+        if msg_obj.get("not_logged"):
+            msg_text.append(f" {msg_obj['not_logged']}", style="dim red")
+            
+        if chan_text:
+            table.add_row(time_text, chan_text, user_text, msg_text)
+        else:
+            table.add_row(time_text, user_text, msg_text)
+            
+        return table
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle when the user hits Enter in the input field."""

@@ -1,70 +1,105 @@
 import asyncio
 from collections import defaultdict
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Input, RichLog, Static, ListView, ListItem, Label, Button
+from textual.widgets import Header, Footer, Input, RichLog, Static, ListView, ListItem, Label, Button, TextArea
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual import work
 from datetime import datetime
 from textual.events import Key, Resize
+from bot.ui_managers import CommandsManagerScreen, GrammarManagerScreen, SettingsManagerScreen
 
 MAX_BUFFER = 500  # Maximum messages to keep per channel buffer
 
-class CommandInput(Input):
+class CommandInput(TextArea):
     """Custom Input widget that supports command history and basic tab completion."""
     def __init__(self, *args, **kwargs):
+        kwargs.pop('placeholder', None) # TextArea doesn't guarantee placeholder support
         super().__init__(*args, **kwargs)
-        self.history = []
-        self.history_index = -1
+        self.show_line_numbers = False
+        self.wrap = True
+        self.cmd_history = []
+        self.cmd_history_index = -1
         self.temp_value = "" # Store what user was typing before browsing history
         self.autocomplete_options = [
-            "help", "use ", "join ", "leave ", "tts", "timer", "model", 
+            "/commands", "/grammar", "/settings", "help", "use ", "join ", "leave ", "tts", "timer", "model", 
             "status", "testvoice", "lines", "chance", "dice"
         ]
         self.tab_index = -1
         self.last_tab_base = ""
 
     def add_history(self, command: str):
-        if not command or (self.history and self.history[-1] == command):
+        if not command or (self.cmd_history and self.cmd_history[-1] == command):
             return
-        self.history.append(command)
-        self.history_index = len(self.history)
+        self.cmd_history.append(command)
+        self.cmd_history_index = len(self.cmd_history)
         self.temp_value = ""
         self.tab_index = -1
 
     async def on_key(self, event: Key):
-        # Handle Up/Down for history
-        if event.key == "up":
+        # Handle Enter for submit, Shift+Enter for newline
+        if event.key == "enter":
             event.prevent_default()
-            if self.history_index == len(self.history):
-                self.temp_value = self.value
+            command_text = self.text.strip()
+            if command_text:
+                self.add_history(command_text)
+                
+                dashboard = self.app
+                dashboard._cmd_log(f"> [bold cyan]{command_text}[/bold cyan]")
+                
+                # Clear the input
+                self.text = ""
+                
+                # Process the command (mirrors the old interactive.py logic)
+                dashboard.run_worker(dashboard.handle_command(command_text))
+                
+                # Trigger an async refresh of the top dashboard bar
+                dashboard.update_status_bar()
+        elif event.key == "shift+enter" or event.key == "ctrl+j":
+            event.prevent_default()
+            self.insert("\n")
             
-            if self.history_index > 0:
-                self.history_index -= 1
-                self.value = self.history[self.history_index]
-                self.action_end()
+        # Handle Up/Down for history
+        elif event.key == "up":
+            event.prevent_default()
+            if self.cmd_history_index == len(self.cmd_history):
+                self.temp_value = self.text
+            
+            if self.cmd_history_index > 0:
+                self.cmd_history_index -= 1
+                self.text = self.cmd_history[self.cmd_history_index]
+                self.action_cursor_line_end()
         elif event.key == "down":
             event.prevent_default()
-            if self.history_index < len(self.history) - 1:
-                self.history_index += 1
-                self.value = self.history[self.history_index]
-                self.action_end()
-            elif self.history_index == len(self.history) - 1:
-                self.history_index = len(self.history)
-                self.value = self.temp_value
-                self.action_end()
+            if self.cmd_history_index < len(self.cmd_history) - 1:
+                self.cmd_history_index += 1
+                self.text = self.cmd_history[self.cmd_history_index]
+                self.action_cursor_line_end()
+            elif self.cmd_history_index == len(self.cmd_history) - 1:
+                self.cmd_history_index = len(self.cmd_history)
+                self.text = self.temp_value
+                self.action_cursor_line_end()
         
         # Handle Tab for autocompletion
         elif event.key == "tab":
             event.prevent_default()
             if self.tab_index == -1:
-                self.last_tab_base = self.value
+                words = self.text.split()
+                self.last_tab_base = words[-1] if words else ""
             
             # Find matches
-            matches = [opt for opt in self.autocomplete_options if opt.startswith(self.last_tab_base.lower())]
+            options = list(self.autocomplete_options)
+            if hasattr(self.app, 'bot') and self.app.bot:
+                options.extend([f"#{ch}" for ch in self.app.bot._joined_channels])
+                
+            matches = [opt for opt in options if opt.startswith(self.last_tab_base.lower())]
             if matches:
                 self.tab_index = (self.tab_index + 1) % len(matches)
-                self.value = matches[self.tab_index]
-                self.action_end()
+                words = self.text.split()
+                if not words:
+                    words = [""]
+                words[-1] = matches[self.tab_index]
+                self.text = " ".join(words)
+                self.action_cursor_line_end()
         else:
             # Type normally, reset tab state
             if event.is_printable:
@@ -105,7 +140,9 @@ class MockbotDashboard(App):
     
     #input_container {
         dock: bottom;
-        height: 1;
+        height: auto;
+        min-height: 1;
+        max-height: 10;
         width: 100%;
         background: transparent;
     }
@@ -117,14 +154,15 @@ class MockbotDashboard(App):
         color: $accent;
     }
     
-    Input {
+    #command_input {
         width: 1fr;
+        height: 100%;
         border: none;
         background: $surface;
         padding: 0 1;
     }
     
-    Input:focus {
+    #command_input:focus {
         border: none;
         background: $surface-lighten-2;
         color: $text;
@@ -160,11 +198,163 @@ class MockbotDashboard(App):
         content-align: right middle;
         padding-left: 1;
     }
+
+    .manager-title {
+        dock: top;
+        padding: 1 2;
+        background: $primary-background;
+        color: $text;
+        text-style: bold;
+        width: 100%;
+        content-align: center middle;
+    }
+    
+    .manager-help {
+        padding: 1 2;
+        background: $surface;
+        color: $text-muted;
+        border-bottom: solid $primary;
+        height: auto;
+    }
+    
+    .manager-actions {
+        dock: bottom;
+        height: 3;
+        padding: 0 1;
+        width: 100%;
+    }
+    
+    .manager-actions > Input {
+        width: 2fr;
+    }
+    
+    .manager-actions > Button {
+        width: 1fr;
+    }
+
+    #settings_list {
+        height: 1fr;
+        padding: 1;
+        overflow-y: auto;
+    }
+    
+    SettingRow {
+        layout: horizontal;
+        height: auto;
+        padding: 1;
+        border-bottom: solid $primary-background;
+    }
+    
+    .setting-info {
+        width: 3fr;
+        height: auto;
+    }
+    
+    .setting-key {
+        text-style: bold;
+        color: $accent;
+    }
+    
+    .setting-desc {
+        color: $text-muted;
+        height: auto;
+    }
+    
+    .setting-controls {
+        width: 2fr;
+        height: auto;
+        align: right middle;
+        layout: horizontal;
+    }
+    
+    .setting-controls > Input, .setting-controls > Select {
+        width: 15;
+        margin-right: 1;
+    }
+    
+    .manager-container Input, .setting-controls > Input {
+        border: none;
+        background: $primary-background;
+        padding: 0 1;
+        min-height: 1;
+        height: 1;
+    }
+
+    .setting-controls > Select {
+        border: none;
+        height: 1;
+        min-height: 1;
+        background: $primary-background;
+        color: $text;
+    }
+    
+    .setting-controls > Select > SelectCurrent {
+        border: none;
+        background: $primary-background;
+        color: $text;
+    }
+
+    .manager-container Input:focus, .setting-controls > Input:focus {
+        background: $surface-lighten-2;
+    }
+
+    .manager-container Button, .setting-controls > Button {
+        border: none;
+        background: $primary;
+        color: $background;
+        min-width: 10;
+        min-height: 1;
+        height: 1;
+        padding: 0 2;
+        content-align: center middle;
+    }
+
+    .manager-container Button:hover, .setting-controls > Button:hover {
+        background: $accent;
+    }
+    
+    .manager-container Button.-success {
+        background: $success;
+        color: $background;
+    }
+    
+    .manager-container Button.-success:hover {
+        background: $success-lighten-2;
+    }
+
+    .manager-container Button.-error {
+        background: $error;
+        color: $background;
+    }
+    
+    .manager-container Button.-error:hover {
+        background: $error-lighten-2;
+    }
+
+    #commands_table, #grammar_table {
+        height: 1fr;
+        padding: 0 1;
+    }
+
+    ModalScreen {
+        align: center middle;
+        background: $background 80%;
+    }
+    
+    .manager-container {
+        width: 80%;
+        height: 80%;
+        background: $surface;
+        border: solid $primary;
+    }
     """
     
     BINDINGS = [
         ("ctrl+c", "quit", "Quit"),
-        ("ctrl+l", "clear_log", "Clear Log")
+        ("ctrl+l", "clear_log", "Clear Log"),
+        ("f1", "manage_settings", "Settings"),
+        ("f2", "manage_commands", "Commands"),
+        ("f3", "manage_grammar", "Grammar")
     ]
 
     def __init__(self, bot=None):
@@ -174,6 +364,7 @@ class MockbotDashboard(App):
         self.current_context = "Global"
         # Per-channel message buffer: {"global": [...], "channelname": [...]}
         self.log_buffers = defaultdict(list)
+        self.global_interleaved_buffer = []
         
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -183,7 +374,7 @@ class MockbotDashboard(App):
             yield self.log_widget
         with Horizontal(id="input_container"):
             yield Static("mockbot >", id="input_prefix")
-            yield CommandInput(placeholder="", id="command_input")
+            yield CommandInput(id="command_input")
         yield ListView(id="channel_sidebar")
 
     def on_mount(self) -> None:
@@ -221,6 +412,10 @@ class MockbotDashboard(App):
         buf.append(message)
         if len(buf) > MAX_BUFFER:
             self.log_buffers[buf_key] = buf[-MAX_BUFFER:]
+            
+        self.global_interleaved_buffer.append((buf_key, message))
+        if len(self.global_interleaved_buffer) > (MAX_BUFFER * 5):
+            self.global_interleaved_buffer = self.global_interleaved_buffer[-(MAX_BUFFER * 5):]
         
         # Decide whether to display this message in the current view
         should_display = False
@@ -257,13 +452,12 @@ class MockbotDashboard(App):
         self.log_widget.clear()
         
         if self.current_context == "Global":
-            # Global: See literally everything interleaved
-            for msg in self.log_buffers.get("global", []):
-                self.log_widget.write(self._render_msg(msg))
-            for key, msgs in self.log_buffers.items():
-                if key != "global":
-                    for msg in msgs:
-                        self.log_widget.write(self._render_msg(msg, force_channel=key))
+            # Global: Read from the sequential interleaved buffer directly
+            for key, msg in self.global_interleaved_buffer:
+                if key == "global":
+                    self.log_widget.write(self._render_msg(msg))
+                else:
+                    self.log_widget.write(self._render_msg(msg, force_channel=key))
         elif self.current_context == "System":
             # System: Only see bot events/boot logs
             for msg in self.log_buffers.get("global", []):
@@ -279,6 +473,24 @@ class MockbotDashboard(App):
         if self.log_widget:
             self.log_widget.clear()
             self._cmd_log("[italic]Log cleared.[/italic]")
+
+    def action_manage_settings(self) -> None:
+        if self.current_context in ("Global", "System"):
+            self._cmd_log("[bold red]Error:[/bold red] Cannot manage settings in Global/System context. Use 'use #channel' first.")
+            return
+        self.push_screen(SettingsManagerScreen())
+
+    def action_manage_commands(self) -> None:
+        if self.current_context in ("Global", "System"):
+            self._cmd_log("[bold red]Error:[/bold red] Cannot manage commands in Global/System context. Use 'use #channel' first.")
+            return
+        self.push_screen(CommandsManagerScreen())
+
+    def action_manage_grammar(self) -> None:
+        if self.current_context in ("Global", "System"):
+            self._cmd_log("[bold red]Error:[/bold red] Cannot manage grammar in Global/System context. Use 'use #channel' first.")
+            return
+        self.push_screen(GrammarManagerScreen())
 
     def _render_msg(self, msg_obj, force_channel=None):
         """Converts a dictionary from logger.py into a Rich Table with hanging indents."""
@@ -362,31 +574,15 @@ class MockbotDashboard(App):
             
         return table
 
-    async def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Handle when the user hits Enter in the input field."""
-        command_text = event.value.strip()
-        if not command_text:
-            return
-            
-        # Add to history
-        self.query_one(CommandInput).add_history(command_text)
-            
-        # Echo the command to the log
-        self._cmd_log(f"> [bold cyan]{command_text}[/bold cyan]")
-        
-        # Clear the input
-        event.input.value = ""
-        
-        # Process the command (mirrors the old interactive.py logic)
-        await self.handle_command(command_text)
-        
-        # Trigger an async refresh of the top dashboard bar
-        self.update_status_bar()
+
         
     def update_prompt(self):
         """Update the input placeholder when context changes."""
-        prefix = self.query_one("#input_prefix")
-        prefix.update(f"mockbot ({self.current_context})>")
+        try:
+            prefix = self.query_one("#input_prefix")
+            prefix.update(f"mockbot ({self.current_context})>")
+        except Exception:
+            pass
         self.update_status_bar()
 
     async def _async_update_status_bar(self):
@@ -451,6 +647,15 @@ class MockbotDashboard(App):
         elif cmd == 'clear':
             self.action_clear_log()
             
+        elif cmd == '/commands':
+            self.action_manage_commands()
+            
+        elif cmd == '/grammar':
+            self.action_manage_grammar()
+            
+        elif cmd == '/settings':
+            self.action_manage_settings()
+            
         elif cmd == 'status':
             if self.bot:
                 if self.current_context == "Global":
@@ -508,14 +713,17 @@ class MockbotDashboard(App):
                 self._cmd_log("Usage: [bold yellow]say <message>[/bold yellow]")
                 return
             message = " ".join(args)
-            channel_name = self.current_context.lstrip('#')
+            channel_name = self.current_context.lstrip('#').lower()
             if self.bot:
                 # Route through the unified message queue to ensure proper rate limits and DB logging
-                await self.bot.send_message_to_channel(channel_name, message)
+                success = await self.bot.send_message_to_channel(channel_name, message)
                 
-                # Surface the message in the TUI stream log (is_bot_message=True prevents it from adding to Markov DB)
-                if hasattr(self.bot, 'my_logger'):
-                    self.bot.my_logger.log_message(channel_name, self.bot.nick, message, is_bot_message=True)
+                if success:
+                    # Surface the message in the TUI stream log (is_bot_message=True prevents it from adding to Markov DB)
+                    if hasattr(self.bot, 'my_logger'):
+                        self.bot.my_logger.log_message(channel_name, self.bot.nick, message, is_bot_message=True)
+                else:
+                    self._cmd_log(f"[bold red]Error:[/bold red] Failed to send message to Twitch channel {channel_name}.")
                 
         elif cmd == 'speak':
             if self.current_context in ("Global", "System"):
@@ -524,17 +732,20 @@ class MockbotDashboard(App):
             if not self.bot:
                 self._cmd_log("Bot instance not connected.")
                 return
-            channel_name = self.current_context.lstrip('#')
+            channel_name = self.current_context.lstrip('#').lower()
             try:
                 msg = self.bot.generate_message(channel_name)
                 if msg:
-                    await self.bot.send_message_to_channel(channel_name, msg)
+                    success = await self.bot.send_message_to_channel(channel_name, msg)
                     
-                    # Surface the message in the TUI stream log
-                    if hasattr(self.bot, 'my_logger'):
-                        self.bot.my_logger.log_message(channel_name, self.bot.nick, msg, is_bot_message=True)
-                        
-                    self._cmd_log(f"[bold green]Forcing bot to speak in {self.current_context}...[/bold green]")
+                    if success:
+                        # Surface the message in the TUI stream log
+                        if hasattr(self.bot, 'my_logger'):
+                            self.bot.my_logger.log_message(channel_name, self.bot.nick, msg, is_bot_message=True)
+                            
+                        self._cmd_log(f"[bold green]Forcing bot to speak in {self.current_context}...[/bold green]")
+                    else:
+                        self._cmd_log(f"[bold red]Error:[/bold red] Failed to send message to Twitch channel {channel_name}.")
                 else:
                     self._cmd_log(f"[bold red]Error:[/bold red] Failed to generate message for {self.current_context}.")
             except Exception as e:

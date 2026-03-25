@@ -50,7 +50,7 @@ PURPLE = "\x1b[35m"
 try:
     channels = config["settings"]["channels"].split(",")
 except Exception as e:
-    self.logger.info(f"{RED}Error reading channels from config: {e}{RESET}")
+    logger.logger.info(f"{RED}Error reading channels from config: {e}{RESET}")
     channels = []
 
 
@@ -317,6 +317,7 @@ class Bot(commands.Bot):
         
     async def send_message_to_channel(self, channel_name, message):
         """Send a message to a specific channel."""
+        channel_name = channel_name.lower()
         # Check if channel starts with # (required for Twitch)
         if not channel_name.startswith('#'):
             channel_name = f'#{channel_name}'

@@ -126,6 +126,9 @@ class GrammarManagerScreen(ModalScreen):
                 yield Input(placeholder='["option1", "option2"]', id="gram_opts_input")
                 yield Button("Add/Update", id="gram_save", variant="success")
                 yield Button("Delete Selected", id="gram_delete", variant="error")
+            with Horizontal(classes="manager-actions", id="gram_io_actions"):
+                yield Button("Export JSON Backup", id="gram_export", variant="primary")
+                yield Button("Import JSON Backup", id="gram_import", variant="warning")
             
             yield self.table
 
@@ -186,6 +189,46 @@ class GrammarManagerScreen(ModalScreen):
                 await self.load_data()
             except Exception:
                 self.app.notify("Select a row to delete.", severity="warning")
+                
+        elif event.button.id == "gram_export":
+            context = self.app.current_context.lstrip('#')
+            try:
+                import json, os
+                async with aiosqlite.connect(self.app.bot.db_file) as conn:
+                    c = await conn.cursor()
+                    await c.execute("SELECT rule_name, options_json FROM custom_grammar WHERE channel_name = ?", (context,))
+                    rows = await c.fetchall()
+                export_data = {row[0]: json.loads(row[1]) for row in rows}
+                filename = f"{context}_grammar_backup.json"
+                with open(filename, 'w') as f:
+                    json.dump(export_data, f, indent=4)
+                self.app.notify(f"Exported {len(rows)} rules to {filename}")
+            except Exception as e:
+                self.app.notify(f"Export failed: {e}", severity="error")
+
+        elif event.button.id == "gram_import":
+            context = self.app.current_context.lstrip('#')
+            filename = f"{context}_grammar_backup.json"
+            try:
+                import json, os
+                if not os.path.exists(filename):
+                    self.app.notify(f"File {filename} not found in root.", severity="error")
+                    return
+                with open(filename, 'r') as f:
+                    import_data = json.load(f)
+                
+                async with aiosqlite.connect(self.app.bot.db_file) as conn:
+                    await conn.execute("DELETE FROM custom_grammar WHERE channel_name = ?", (context,))
+                    for rule_name, options_list in import_data.items():
+                        await conn.execute(
+                            "INSERT INTO custom_grammar (channel_name, rule_name, options_json) VALUES (?, ?, ?)",
+                            (context, rule_name, json.dumps(options_list))
+                        )
+                    await conn.commit()
+                self.app.notify(f"Imported {len(import_data)} rules from {filename}")
+                await self.load_data()
+            except Exception as e:
+                self.app.notify(f"Import failed: {e}", severity="error")
 
     async def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         rule_name = event.row_key.value
@@ -313,3 +356,138 @@ class SettingsManagerScreen(ModalScreen):
                 self.app.notify(f"Updated {key} to {val}", severity="information")
             except Exception as e:
                 self.app.notify(f"Failed to update {key}: {e}", severity="error")
+
+class TimersManagerScreen(ModalScreen):
+    """Screen to manage timed message pools."""
+    
+    BINDINGS = [("escape", "app.pop_screen", "Back")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="manager-container"):
+            self.table = DataTable(id="timers_table")
+            self.table.cursor_type = "row"
+            self.table.add_columns("Timer Name", "Interval (Mins)", "Messages (JSON)")
+            
+            yield Label(f"Managing Timers for {self.app.current_context}", classes="manager-title")
+            
+            help_text = (
+                "💡 [b]What is this?[/b] Timers send automated chat messages every X minutes.\n"
+                "💡 [b]Messages:[/b] Provide a JSON array (e.g. [\"Follow!\", \"Discord!\"]) to rotate through multiple messages randomly or sequentially.\n"
+                "💡 [b]Commands:[/b] Grammar tags like [green]#weapons#[/green] work here too!"
+            )
+            yield Static(help_text, classes="manager-help")
+            
+            with Horizontal(classes="manager-actions"):
+                yield Input(placeholder="timer_name", id="timer_name_input")
+                yield Input(placeholder="Minutes (e.g. 15)", id="timer_interval_input")
+                yield Input(placeholder='["Message 1", "Message 2"]', id="timer_msgs_input")
+                yield Button("Add/Update", id="timer_save", variant="success")
+                yield Button("Delete Selected", id="timer_delete", variant="error")
+            
+            yield self.table
+
+    async def on_mount(self) -> None:
+        await self.load_data()
+
+    async def load_data(self) -> None:
+        self.table.clear()
+        if not self.app.bot: return
+        context = self.app.current_context.lstrip('#')
+        async with aiosqlite.connect(self.app.bot.db_file) as conn:
+            c = await conn.cursor()
+            await c.execute(
+                "SELECT pool_name, interval_minutes FROM timed_message_pools WHERE channel_name = ?", 
+                (context,)
+            )
+            pools = await c.fetchall()
+            
+            for pool in pools:
+                pool_name, interval = pool[0], pool[1]
+                # get messages
+                await c.execute("SELECT message_text FROM timed_messages WHERE channel_name = ? AND pool_name = ?", (context, pool_name))
+                msgs = await c.fetchall()
+                msg_list = [m[0] for m in msgs]
+                import json
+                msg_json = json.dumps(msg_list)
+                self.table.add_row(pool_name, str(interval), msg_json, key=pool_name)
+
+    async def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "timer_save":
+            name = self.query_one("#timer_name_input", Input).value.strip()
+            interval_str = self.query_one("#timer_interval_input", Input).value.strip()
+            msgs_str = self.query_one("#timer_msgs_input", Input).value.strip()
+            
+            if not name or not interval_str or not msgs_str:
+                self.app.notify("Name, interval, and messages are required.", severity="error")
+                return
+                
+            try:
+                interval = int(interval_str)
+            except ValueError:
+                self.app.notify("Interval must be an integer.", severity="error")
+                return
+                
+            import json
+            try:
+                parsed_msgs = json.loads(msgs_str)
+                if not isinstance(parsed_msgs, list) or len(parsed_msgs) == 0:
+                    raise ValueError("Must be a non-empty JSON list of strings.")
+            except Exception as e:
+                self.app.notify(f"Invalid JSON: {e}", severity="error")
+                return
+                
+            context = self.app.current_context.lstrip('#')
+            async with aiosqlite.connect(self.app.bot.db_file) as conn:
+                # Upsert pool
+                await conn.execute(
+                    "INSERT OR REPLACE INTO timed_message_pools (channel_name, pool_name, interval_minutes) VALUES (?, ?, ?)",
+                    (context, name, interval)
+                )
+                # Clear old messages
+                await conn.execute("DELETE FROM timed_messages WHERE channel_name = ? AND pool_name = ?", (context, name))
+                
+                # Insert new messages
+                for msg in parsed_msgs:
+                    await conn.execute(
+                        "INSERT INTO timed_messages (channel_name, pool_name, message_text) VALUES (?, ?, ?)",
+                        (context, name, str(msg))
+                    )
+                await conn.commit()
+            
+            self.query_one("#timer_name_input", Input).value = ""
+            self.query_one("#timer_interval_input", Input).value = ""
+            self.query_one("#timer_msgs_input", Input).value = ""
+            self.app.notify(f"Timer {name} saved.")
+            await self.load_data()
+            
+        elif event.button.id == "timer_delete":
+            try:
+                row_key = self.table.coordinate_to_cell_key(self.table.cursor_coordinate).row_key
+                pool_name = row_key.value
+                context = self.app.current_context.lstrip('#')
+                async with aiosqlite.connect(self.app.bot.db_file) as conn:
+                    # Cascade should handle timed_messages if enabled, but manual deletion is safer 
+                    await conn.execute("DELETE FROM timed_messages WHERE channel_name = ? AND pool_name = ?", (context, pool_name))
+                    await conn.execute("DELETE FROM timed_message_pools WHERE channel_name = ? AND pool_name = ?", (context, pool_name))
+                    await conn.commit()
+                self.app.notify(f"Deleted timer: {pool_name}")
+                await self.load_data()
+            except Exception:
+                self.app.notify("Select a row to delete.", severity="warning")
+
+    async def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        pool_name = event.row_key.value
+        context = self.app.current_context.lstrip('#')
+        async with aiosqlite.connect(self.app.bot.db_file) as conn:
+            c = await conn.cursor()
+            await c.execute("SELECT interval_minutes FROM timed_message_pools WHERE channel_name = ? AND pool_name = ?", (context, pool_name))
+            row = await c.fetchone()
+            if row:
+                self.query_one("#timer_name_input", Input).value = pool_name
+                self.query_one("#timer_interval_input", Input).value = str(row[0])
+                
+                await c.execute("SELECT message_text FROM timed_messages WHERE channel_name = ? AND pool_name = ?", (context, pool_name))
+                msgs = await c.fetchall()
+                msg_list = [m[0] for m in msgs]
+                import json
+                self.query_one("#timer_msgs_input", Input).value = json.dumps(msg_list)

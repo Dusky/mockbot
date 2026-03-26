@@ -680,3 +680,23 @@ def start_tts_processing(input_text, channel_name, db_file='./messages.db', mess
 def notify_new_audio_available(channel_name, message_id, full_path, text=""):
     from bot.overlay import broadcast_audio
     broadcast_audio(channel_name, full_path, text)
+
+def clear_tts_queue():
+    """Immediately attempt to kill TTS tasks and notify overlays."""
+    global tts_thread_pool
+    try:
+        from bot.overlay import broadcast_kill_audio
+        broadcast_kill_audio()
+    except Exception as e:
+        logging.error(f"Failed to broadcast audio kill signal: {e}")
+    
+    try:
+        old_pool = tts_thread_pool
+        old_pool.shutdown(wait=False, cancel_futures=True)
+        global ThreadPoolExecutor
+        if 'ThreadPoolExecutor' not in globals():
+            from concurrent.futures import ThreadPoolExecutor
+        tts_thread_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="tts-worker")
+        logging.getLogger('bot').info("[bold red]🛑 Backend TTS Queue Cleared![/bold red]")
+    except Exception as e:
+        logging.getLogger('bot').error(f"Failed to clear TTS queue natively: {e}")

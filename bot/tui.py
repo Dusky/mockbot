@@ -1,12 +1,14 @@
 import asyncio
-from collections import defaultdict
+from collections import defaultdict, deque
+import time
+import os
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Input, RichLog, Static, ListView, ListItem, Label, Button, TextArea
+from textual.widgets import Header, Footer, Input, RichLog, Static, ListView, ListItem, Label, Button, TextArea, Sparkline
 from textual.containers import Container, Horizontal, VerticalScroll
 from textual import work
 from datetime import datetime
 from textual.events import Key, Resize
-from bot.ui_managers import CommandsManagerScreen, GrammarManagerScreen, SettingsManagerScreen
+from bot.ui_managers import CommandsManagerScreen, GrammarManagerScreen, SettingsManagerScreen, TimersManagerScreen
 
 MAX_BUFFER = 500  # Maximum messages to keep per channel buffer
 
@@ -21,7 +23,7 @@ class CommandInput(TextArea):
         self.cmd_history_index = -1
         self.temp_value = "" # Store what user was typing before browsing history
         self.autocomplete_options = [
-            "/commands", "/grammar", "/settings", "help", "use ", "join ", "leave ", "tts", "timer", "model", 
+            "/commands", "/grammar", "/settings", "/timers", "/ttskill", "help", "use ", "join ", "leave ", "tts", "timer", "model", 
             "status", "testvoice", "lines", "chance", "dice"
         ]
         self.tab_index = -1
@@ -131,11 +133,36 @@ class MockbotDashboard(App):
         background: transparent;
     }
     
+    #sys_monitor {
+        dock: top;
+        height: 1;
+        width: 100%;
+        background: $boost;
+        color: $text-muted;
+        padding: 0 1;
+        layout: horizontal;
+    }
+    
+    #sys_monitor > Static {
+        text-style: bold;
+        margin-right: 1;
+    }
+    
+    #sys_monitor > Sparkline {
+        width: 15;
+        margin-right: 4;
+        height: 1;
+    }
+    
     RichLog {
         height: 100%;
         width: 100%;
         background: transparent;
         scrollbar-background: transparent;
+    }
+    
+    .hidden {
+        display: none;
     }
     
     #input_container {
@@ -331,7 +358,7 @@ class MockbotDashboard(App):
         background: $error-lighten-2;
     }
 
-    #commands_table, #grammar_table {
+    #commands_table, #grammar_table, #timers_table {
         height: 1fr;
         padding: 0 1;
     }
@@ -354,24 +381,38 @@ class MockbotDashboard(App):
         ("ctrl+l", "clear_log", "Clear Log"),
         ("f1", "manage_settings", "Settings"),
         ("f2", "manage_commands", "Commands"),
-        ("f3", "manage_grammar", "Grammar")
+        ("f3", "manage_grammar", "Grammar"),
+        ("f4", "manage_timers", "Timers"),
+        ("f5", "toggle_events", "Events (F5)"),
+        ("f6", "kill_tts", "Kill TTS")
     ]
 
     def __init__(self, bot=None):
         super().__init__()
         self.bot = bot
         self.log_widget = None
+        self.event_log_widget = None
         self.current_context = "Global"
-        # Per-channel message buffer: {"global": [...], "channelname": [...]}
         self.log_buffers = defaultdict(list)
         self.global_interleaved_buffer = []
+        self.cpu_history = deque([0.0]*15, maxlen=15)
+        self.ram_history = deque([0.0]*15, maxlen=15)
         
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield Static("🔌 [bold]Mockbot[/bold] | Global Context", id="status_bar")
+        with Horizontal(id="sys_monitor"):
+            yield Static("CPU:")
+            yield Sparkline(data=list(self.cpu_history), summary_function=max, id="cpu_spark")
+            yield Static("RAM:")
+            yield Sparkline(data=list(self.ram_history), summary_function=max, id="ram_spark")
+            
         with Container(id="log_container"):
-            self.log_widget = RichLog(highlight=False, markup=True, wrap=True)
+            self.log_widget = RichLog(highlight=False, markup=True, wrap=True, id="main_log")
+            self.event_log_widget = RichLog(highlight=False, markup=True, wrap=True, id="event_log")
+            self.event_log_widget.add_class("hidden")
             yield self.log_widget
+            yield self.event_log_widget
         with Horizontal(id="input_container"):
             yield Static("mockbot >", id="input_prefix")
             yield CommandInput(id="command_input")
@@ -387,6 +428,9 @@ class MockbotDashboard(App):
         
         # Periodically refresh the sidebar to pick up Live Stream status changes
         self.set_interval(60.0, self.update_sidebar)
+        
+        # Periodically refresh the system health (every 3 seconds)
+        self.set_interval(3.0, self.update_system_health)
 
         # Focus the input field immediately
         self.update_prompt()
@@ -399,6 +443,15 @@ class MockbotDashboard(App):
         if timer is not None:
             timer.stop()
         self._resize_timer = self.set_timer(0.3, self._repopulate_log)
+
+    def write_event(self, message: str) -> None:
+        """Write strictly to the background Event/Moderation Feed."""
+        if self.event_log_widget:
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            try:
+                self.call_from_thread(self.event_log_widget.write, f"[dim]{timestamp}[/dim] {message}")
+            except Exception:
+                self.event_log_widget.write(f"[dim]{timestamp}[/dim] {message}")
 
     def write_log(self, message, channel=None) -> None:
         """Thread-safe way to write to the log widget with channel-aware buffering."""
@@ -472,7 +525,46 @@ class MockbotDashboard(App):
         """Clear the log widget."""
         if self.log_widget:
             self.log_widget.clear()
+        if self.event_log_widget:
+            self.event_log_widget.clear()
             self._cmd_log("[italic]Log cleared.[/italic]")
+            
+    def action_toggle_events(self) -> None:
+        """Swap visibility between main chat log and event log."""
+        if self.log_widget.has_class("hidden"):
+            self.log_widget.remove_class("hidden")
+            self.event_log_widget.add_class("hidden")
+        else:
+            self.log_widget.add_class("hidden")
+            self.event_log_widget.remove_class("hidden")
+            self.write_event("[cyan]Switched to isolated Event Feed view.[/cyan]")
+            
+    def update_system_health(self) -> None:
+        try:
+            load = min(100.0, (os.getloadavg()[0] / max(1, os.cpu_count())) * 100)
+            self.cpu_history.append(load)
+        except Exception:
+            self.cpu_history.append(0.0)
+            
+        try:
+            with open('/proc/meminfo', 'r') as f:
+                lines = f.readlines()
+            mem_total = int(lines[0].split()[1])
+            mem_avail = mem_total
+            for line in lines:
+                if line.startswith('MemAvailable:'):
+                    mem_avail = int(line.split()[1])
+                    break
+            mem_avail_pct = 100.0 * (1.0 - (mem_avail / mem_total))
+            self.ram_history.append(mem_avail_pct)
+        except Exception:
+            self.ram_history.append(0.0)
+            
+        try:
+            self.query_one("#cpu_spark", Sparkline).data = list(self.cpu_history)
+            self.query_one("#ram_spark", Sparkline).data = list(self.ram_history)
+        except Exception:
+            pass
 
     def action_manage_settings(self) -> None:
         if self.current_context in ("Global", "System"):
@@ -491,6 +583,20 @@ class MockbotDashboard(App):
             self._cmd_log("[bold red]Error:[/bold red] Cannot manage grammar in Global/System context. Use 'use #channel' first.")
             return
         self.push_screen(GrammarManagerScreen())
+
+    def action_manage_timers(self) -> None:
+        if self.current_context in ("Global", "System"):
+            self._cmd_log("[bold red]Error:[/bold red] Cannot manage timers in Global/System context. Use 'use #channel' first.")
+            return
+        self.push_screen(TimersManagerScreen())
+
+    def action_kill_tts(self) -> None:
+        try:
+            from bot.tts import clear_tts_queue
+            clear_tts_queue()
+            self._cmd_log("[bold red]🛑 Sent kill switch command to active TTS Audio and backend queue![/bold red]")
+        except Exception as e:
+            self._cmd_log(f"[bold red]Failed to issue TTS Kill signal: {e}[/bold red]")
 
     def _render_msg(self, msg_obj, force_channel=None):
         """Converts a dictionary from logger.py into a Rich Table with hanging indents."""
@@ -652,6 +758,10 @@ class MockbotDashboard(App):
             
         elif cmd == '/grammar':
             self.action_manage_grammar()
+        elif cmd == '/timers':
+            self.action_manage_timers()
+        elif cmd == '/ttskill':
+            self.action_kill_tts()
             
         elif cmd == '/settings':
             self.action_manage_settings()

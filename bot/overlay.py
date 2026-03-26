@@ -306,6 +306,17 @@ async def serve_overlay(request):
                 ws.onmessage = (event) => {{
                     try {{
                         const data = JSON.parse(event.data);
+                        
+                        if (data.action === 'kill_audio') {{
+                            console.log("Killing audio playback.");
+                            player.pause();
+                            player.src = '';
+                            visualizer.classList.remove('playing');
+                            statusText.innerText = "Ready (Killed)";
+                            transcriptArea.innerHTML = '<< AUDIO KILLED >>';
+                            return;
+                        }}
+                        
                         if (data.action === 'play_audio' && data.file) {{
                             if (ttsToggle.checked) {{
                                 console.log("Playing audio:", data.file);
@@ -457,3 +468,16 @@ async def start_server(host='0.0.0.0', port=5050):
     
     logging.info(f"TTS Overlay Server started at http://localhost:{port}/overlay/<channel>")
     return runner
+
+def broadcast_kill_audio():
+    """Called by TTS system's kill switch to instantly stop any playing audio on all connected overlays."""
+    global main_loop
+    payload = json.dumps({"action": "kill_audio"})
+    
+    if main_loop is not None:
+        for channel_ws_set in connected_clients.values():
+            for ws in channel_ws_set:
+                try:
+                    asyncio.run_coroutine_threadsafe(ws.send_str(payload), main_loop)
+                except Exception as e:
+                    logging.error(f"Failed to send kill message to overlay: {e}")

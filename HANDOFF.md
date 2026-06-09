@@ -82,7 +82,7 @@ main.py
 
 2. **`core.py` still 1,342 lines** — What's left is all legitimate event handler territory: `event_message` (~200 lines), `event_ready` (~200 lines), `mockbot_wrapper` (~100 lines), `handle_speak_command` (~150 lines). Could further slim `event_message` by extracting the voice-replay trigger logic, but diminishing returns.
 
-3. **`load_last_cache_build_times()` reads from JSON file** — `brain.py` still reads `cache/cache_build_times.json` rather than using `db.get_cache_build_times_sync()` that was added to `database.py`. The DB method exists but isn't being used. Minor inconsistency.
+3. ~~**`load_last_cache_build_times()` reads from JSON file**~~ — ✅ Fixed. `brain.py` now loads via `db.get_cache_build_times_sync()` and saves via the new `db.replace_cache_build_times_sync()` (one row per channel, replaces prior rows so the `cache_build_log` table stays a current-state snapshot instead of growing unbounded). The `cache/cache_build_times.json` file is no longer read or written. General model is keyed `general_markov_model.json` in memory / `general_markov` in the DB (legacy convention preserved).
 
 ### Low priority
 4. **Schema version tracking** — `db.py` still uses `PRAGMA table_info` per-column checks every startup. A `schema_version` table was planned but not implemented. Works fine, just slow and untracked.

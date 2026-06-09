@@ -608,6 +608,24 @@ class Database:
             )
             conn.commit()
 
+    def replace_cache_build_times_sync(self, times: dict) -> None:
+        """Persist the full set of cache build times, one row per channel.
+
+        Replaces any prior row for each channel so the table stays a current-state
+        snapshot rather than growing unbounded. Mirrors MarkovBrain's flush-the-whole-
+        dict semantics now that the bot owns this table (no external writer).
+        """
+        with self.connect_sync() as conn:
+            c = conn.cursor()
+            for channel_name, ts in times.items():
+                c.execute("DELETE FROM cache_build_log WHERE channel_name = ?", (channel_name,))
+                c.execute(
+                    "INSERT INTO cache_build_log (channel_name, timestamp, duration, success, message) "
+                    "VALUES (?, ?, 0.0, 1, '')",
+                    (channel_name, ts),
+                )
+            conn.commit()
+
     # ── Channel settings (sync bulk load for __init__) ───────────────────────
 
     def load_channel_settings_sync(self) -> dict:

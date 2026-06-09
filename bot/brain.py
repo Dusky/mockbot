@@ -409,70 +409,30 @@ class MarkovBrain:
         threading.Timer(initial_delay, delayed_execution).start()
 
     def load_last_cache_build_times(self):
-        """Load the last build times of cache files from the database or create a default."""
-        try:
-            # Check if a cache_build_times file exists
-            cache_time_file = os.path.join("cache", "cache_build_times.json")
-            if os.path.exists(cache_time_file):
-                with open(cache_time_file, 'r') as f:
-                    data = json.load(f)
+        """Load the last cache build times from the cache_build_log table.
 
-                    # Convert from list to dictionary if needed
-                    if isinstance(data, list):
-                        self.logger.info("Converting cache build times from list to dictionary format...")
-                        result = {}
-                        for entry in data:
-                            if isinstance(entry, dict) and "channel" in entry and "timestamp" in entry:
-                                # Use the channel name as the key, timestamp as the value
-                                channel_key = entry["channel"]
-                                if channel_key == "general_markov":
-                                    channel_key = "general_markov_model.json"
-                                result[channel_key] = entry["timestamp"]
-                        return result
-                    return data
-            return {}
+        Keys follow the in-memory convention (the general model is keyed by its
+        cache filename); the DB stores it as "general_markov".
+        """
+        try:
+            result = {}
+            for channel_key, timestamp in self.db.get_cache_build_times_sync().items():
+                if channel_key == "general_markov":
+                    channel_key = "general_markov_model.json"
+                result[channel_key] = timestamp
+            return result
         except Exception as e:
             self.logger.info(f"Error loading cache build times: {e}")
             return {}
 
     def save_cache_build_times(self):
-        """Save the current cache build times to a file."""
+        """Persist the current cache build times to the cache_build_log table."""
         try:
-            # Ensure cache directory exists
-            if not os.path.exists("cache"):
-                os.makedirs("cache")
-
-            cache_time_file = os.path.join("cache", "cache_build_times.json")
-
-            # Convert from dictionary to list for backwards compatibility
-            # or just save as dictionary if we've already migrated
-            with open(cache_time_file, 'w') as f:
-                # Check if we need to maintain the list format for backwards compatibility
-                try:
-                    with open(cache_time_file, 'r') as read_f:
-                        old_data = json.load(read_f)
-                        if isinstance(old_data, list):
-                            # Convert our dictionary back to the list format
-                            list_data = []
-                            for key, timestamp in self.cache_build_times.items():
-                                channel_name = key
-                                if key == "general_markov_model.json":
-                                    channel_name = "general_markov"
-                                list_data.append({
-                                    "channel": channel_name,
-                                    "timestamp": timestamp,
-                                    "success": True,
-                                    "duration": 3.45  # Default duration
-                                })
-                            json.dump(list_data, f, indent=2)
-                            self.logger.info("Saved cache build times in list format for compatibility")
-                            return
-                except Exception:
-                    # If we can't read the old file, just use the dictionary format
-                    pass
-
-                # Save as dictionary
-                json.dump(self.cache_build_times, f, indent=2)
+            times = {}
+            for key, timestamp in self.cache_build_times.items():
+                channel_name = "general_markov" if key == "general_markov_model.json" else key
+                times[channel_name] = timestamp
+            self.db.replace_cache_build_times_sync(times)
         except Exception as e:
             self.logger.info(f"Error saving cache build times: {e}")
 

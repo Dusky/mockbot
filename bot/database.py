@@ -8,6 +8,10 @@ import aiosqlite
 
 from bot.db import ensure_db_setup
 
+# Re-exported so callers can catch DB integrity violations without importing
+# sqlite3 directly (keeps all DB-engine knowledge behind this module).
+IntegrityError = sqlite3.IntegrityError
+
 _VALID_CHANNEL_CONFIG_COLS = frozenset({
     "tts_enabled", "voice_enabled", "join_channel", "owner", "trusted_users",
     "ignored_users", "use_general_model", "lines_between_messages",
@@ -607,6 +611,14 @@ class Database:
                 (channel_name, datetime.now().timestamp(), duration, success, message),
             )
             conn.commit()
+
+    def get_schema_version_sync(self) -> int:
+        """Return the schema revision this DB is stamped at (0 if untracked)."""
+        with self.connect_sync() as conn:
+            c = conn.cursor()
+            c.execute("SELECT MAX(version) FROM schema_version")
+            row = c.fetchone()
+            return row[0] if row and row[0] is not None else 0
 
     def replace_cache_build_times_sync(self, times: dict) -> None:
         """Persist the full set of cache build times, one row per channel.

@@ -1,10 +1,10 @@
-import sqlite3
 from datetime import datetime
 
 from twitchio.ext import commands
 import logging
 from tabulate import tabulate
 from bot.config import config
+from bot.database import IntegrityError
 from bot.colors import YELLOW, RED, GREEN, PURPLE, RESET
 from bot.tts import start_tts_processing
 
@@ -317,7 +317,7 @@ async def mockbot_addc(self, ctx, cmd_name: str, *, response_template: str):
     try:
         await self.db.insert_command(ctx.channel.name, cmd_name, response_template)
         await ctx.send(f"Command {cmd_name} added successfully!")
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         await ctx.send(f"Command {cmd_name} already exists. Use !editc to change it.")
     except Exception as e:
         await ctx.send(f"Error saving command: {e}")
@@ -489,7 +489,7 @@ async def mockbot_timer(self, ctx, *args):
             try:
                 await self.db.insert_timed_pool(channel_name, pool_name, interval)
                 await ctx.send(f"Created timer pool '{pool_name}' (Interval: {interval}m).")
-            except sqlite3.IntegrityError:
+            except IntegrityError:
                 await ctx.send(f"Error: Timer pool '{pool_name}' already exists.")
 
         elif subcmd == 'del':

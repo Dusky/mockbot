@@ -2,10 +2,23 @@ import sqlite3
 import configparser
 import logging
 
+# Current schema version. Bump this whenever the schema below changes so the
+# version stamped into the schema_version table reflects the live structure.
+# Note: table/column creation remains idempotent and self-healing on every
+# startup — this version is for tracking/observability, not gating migrations.
+CURRENT_SCHEMA_VERSION = 1
+
 def ensure_db_setup(db_file):
     try:
         conn = sqlite3.connect(db_file)
         c = conn.cursor()
+
+        # Create 'schema_version' table — tracks which schema revision a DB is at.
+        c.execute('''CREATE TABLE IF NOT EXISTS schema_version (
+                        version INTEGER PRIMARY KEY,
+                        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )''')
+        conn.commit()
 
         # Create 'cache_build_log' table (moved earlier)
         c.execute('''CREATE TABLE IF NOT EXISTS cache_build_log (
@@ -363,6 +376,18 @@ def ensure_db_setup(db_file):
                 logging.warning(f"Failed to create index: {index_sql} - {e}")
         
         conn.commit()
+
+        # Stamp the schema version. The structural setup above is idempotent and
+        # always runs, so this is purely a record of which revision the DB is at.
+        row = c.execute("SELECT MAX(version) FROM schema_version").fetchone()
+        recorded_version = row[0] if row and row[0] is not None else 0
+        if recorded_version < CURRENT_SCHEMA_VERSION:
+            c.execute("INSERT INTO schema_version (version) VALUES (?)", (CURRENT_SCHEMA_VERSION,))
+            conn.commit()
+            logging.info(f"Schema version recorded: {recorded_version} -> {CURRENT_SCHEMA_VERSION}.")
+        else:
+            logging.debug(f"Schema version up to date (v{recorded_version}).")
+
         logging.info("Database setup completed successfully with performance indexes.")
 
         # Further code for initializing channels and handling settings...

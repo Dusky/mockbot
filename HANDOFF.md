@@ -85,13 +85,13 @@ main.py
 3. ~~**`load_last_cache_build_times()` reads from JSON file**~~ — ✅ Fixed. `brain.py` now loads via `db.get_cache_build_times_sync()` and saves via the new `db.replace_cache_build_times_sync()` (one row per channel, replaces prior rows so the `cache_build_log` table stays a current-state snapshot instead of growing unbounded). The `cache/cache_build_times.json` file is no longer read or written. General model is keyed `general_markov_model.json` in memory / `general_markov` in the DB (legacy convention preserved).
 
 ### Low priority
-4. **Schema version tracking** — `db.py` still uses `PRAGMA table_info` per-column checks every startup. A `schema_version` table was planned but not implemented. Works fine, just slow and untracked.
+4. ~~**Schema version tracking**~~ — ✅ Done. `db.py` now has a `schema_version` table and a `CURRENT_SCHEMA_VERSION` constant; `ensure_db_setup()` stamps and logs the version on startup, and `Database.get_schema_version_sync()` exposes it. Deliberately *not* version-gated: the existing per-column `PRAGMA`/`ALTER` checks remain idempotent and self-healing (PRAGMA is metadata-only, so the "slow" concern was negligible). The version is for tracking/observability and lays groundwork if gated migrations are ever wanted.
 
-5. **`overlay.py` connect_async context** — `api_get_variables()` was fixed to use `Database.get_all_variables()`, but the module still imports `aiosqlite` (unused now). Can be removed.
+5. ~~**`overlay.py` `aiosqlite` import**~~ — ✅ Done (already clean). `overlay.py` no longer imports `aiosqlite` or `sqlite3`; `api_get_variables()` uses `Database.get_all_variables()`.
 
-6. **`bot/db.py` is separate from `database.py`** — `db.py` contains `ensure_db_setup()` (schema creation + migrations), called from `Database.__init__`. It's fine architecturally but still has its own `sqlite3.connect` call. That's intentional — it's the bootstrap layer.
+6. **`bot/db.py` is separate from `database.py`** — `db.py` contains `ensure_db_setup()` (schema creation + migrations), called from `Database.__init__`. **Intentional, working as designed** — it's the bootstrap layer and legitimately owns its own `sqlite3.connect`. No action.
 
-7. **`commands.py` still imports `sqlite3`** — only for `sqlite3.IntegrityError` in one exception handler. Could use a bare `except` or re-export from `database.py`.
+7. ~~**`commands.py` imports `sqlite3`**~~ — ✅ Done. `IntegrityError` is now re-exported from `bot.database`; `commands.py` imports it from there and no longer touches `sqlite3` directly.
 
 ---
 

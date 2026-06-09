@@ -8,6 +8,31 @@ from textual.containers import Container, Horizontal, VerticalScroll, Vertical
 from textual import work
 from datetime import datetime
 from textual.events import Key, Resize
+
+# Flat dark "IRC" theme — replaces Textual's stock palette (no purple). Because the
+# CSS is written against theme tokens ($primary/$accent/$surface/...), swapping the
+# theme reskins the whole app. Tune the hexes here to taste.
+# Guarded: the Theme API (textual.theme) only exists in Textual >= 0.86; on older
+# versions this stays None and the app falls back to the stock theme rather than
+# failing to import.
+try:
+    from textual.theme import Theme
+    MOCKBOT_THEME = Theme(
+        name="mockbot",
+        dark=True,
+        background="#0c0f14",   # near-black canvas
+        surface="#161b22",      # inputs / modal bodies
+        panel="#0f141b",        # sidebar / status strips
+        primary="#3b6ea5",      # muted IRC blue — separators / status accents
+        secondary="#2aa198",    # teal
+        accent="#56b6c2",       # cyan — focus / highlights
+        foreground="#c5c8c6",
+        success="#98c379",
+        warning="#e5c07b",
+        error="#e06c75",
+    )
+except Exception:
+    MOCKBOT_THEME = None
 from bot.ui_managers import CommandsManagerScreen, GrammarManagerScreen, SettingsManagerScreen, TimersManagerScreen, TTSHistoryScreen
 
 MAX_BUFFER = 500  # Maximum messages to keep per channel buffer
@@ -195,11 +220,16 @@ class MockbotDashboard(App):
     }
     
     #channel_sidebar {
-        dock: right;
+        dock: left;
         width: 24;
         height: 100%;
         background: $panel;
-        border-left: solid $primary;
+        border-right: solid $primary;
+    }
+
+    Footer {
+        background: $panel;
+        color: $text-muted;
     }
     
     #channel_sidebar > ListItem {
@@ -442,8 +472,17 @@ class MockbotDashboard(App):
 
     def on_mount(self) -> None:
         """Called when app starts."""
+        # Activate the flat dark IRC theme before anything renders (no-op on
+        # Textual versions that predate the theme API).
+        if MOCKBOT_THEME is not None:
+            try:
+                self.register_theme(MOCKBOT_THEME)
+                self.theme = "mockbot"
+            except Exception:
+                pass
+
         self.write_log("[bold green]Mockbot Dashboard Initialized![/bold green]")
-        self.write_log("Type 'help' for commands, or 'use #channel' to switch context.")
+        self.write_log("Type '/help' for commands, or '/use #channel' to switch context.")
         
         # Set up a live clock to refresh the status bar periodically
         self.set_interval(5.0, self.update_status_bar)

@@ -186,9 +186,9 @@ class Bot(commands.Bot):
         """Delegate to MarkovBrain.print_brain_status."""
         return await self.brain.print_brain_status(channel_filter=channel_filter, out_func=out_func)
 
-    def generate_message(self, channel_name):
+    def generate_message(self, channel_name, seed=None):
         """Delegate to MarkovBrain.generate_message."""
-        return self.brain.generate_message(channel_name)
+        return self.brain.generate_message(channel_name, seed=seed)
 
     def load_text_and_build_model(self, create_individual_caches=False, target_channel=None):
         """Delegate to MarkovBrain.load_text_and_build_model (called from tui.py compile).

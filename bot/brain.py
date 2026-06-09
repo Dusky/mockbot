@@ -304,7 +304,7 @@ class MarkovBrain:
         except FileNotFoundError:
             return None
 
-    def generate_message(self, channel_name):
+    def generate_message(self, channel_name, seed=None):
         # Connect to the SQLite database
         cache_file_used = ""  # Variable to store the name of the cache file used
         model = None
@@ -351,8 +351,17 @@ class MarkovBrain:
                         self.logger.info(f"Failed to generate isolated message for {channel_name}: Not enough data.")
                         return None
 
-        # Generate a message using the chosen model
-        message = model.make_sentence()
+        # Generate a message using the chosen model. When a seed is supplied, try
+        # to make the sentence begin with it; if that is not possible in this
+        # model, fall back to normal generation.
+        message = None
+        if seed:
+            try:
+                message = model.make_sentence_with_start(seed, strict=False)
+            except Exception:
+                message = None
+        if not message:
+            message = model.make_sentence()
         if message:
             # Clean up the message to ensure all characters are printable
             message = "".join(char for char in message if char.isprintable())

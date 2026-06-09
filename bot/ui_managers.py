@@ -20,8 +20,9 @@ class LoreManagerScreen(ModalScreen):
                 yield Label("Base Channel Weight:", id="lore_bias_label")
                 yield Input(id="lore_bias_input", type="number", value="15.0")
                 yield Button("Save & Apply", id="lore_save", variant="success")
-            
+
             yield self.table
+            yield Static("", classes="manager-status")
 
     async def on_mount(self) -> None:
         await self.load_data()
@@ -109,8 +110,9 @@ class CommandsManagerScreen(ModalScreen):
                 yield Input(placeholder="Response Template", id="cmd_resp_input")
                 yield Button("Add/Update", id="cmd_save", variant="success")
                 yield Button("Delete Selected", id="cmd_delete", variant="error")
-            
+
             yield self.table
+            yield Static("", classes="manager-status")
 
     async def on_mount(self) -> None:
         await self.load_data()
@@ -193,8 +195,9 @@ class GrammarManagerScreen(ModalScreen):
             with Horizontal(classes="manager-actions", id="gram_io_actions"):
                 yield Button("Export JSON Backup", id="gram_export", variant="primary")
                 yield Button("Import JSON Backup", id="gram_import", variant="warning")
-            
+
             yield self.table
+            yield Static("", classes="manager-status")
 
     async def on_mount(self) -> None:
         await self.load_data()
@@ -387,7 +390,7 @@ class SettingsManagerScreen(ModalScreen):
             yield Label(f"Configuration for {self.app.current_context}", classes="manager-title")
             with VerticalScroll(id="settings_list"):
                 yield Label("Loading...", id="settings_loading")
-            yield Label("Esc to close · changes apply instantly", id="settings_status", classes="manager-help")
+            yield Label("Esc to close · changes apply instantly", id="settings_status", classes="manager-help manager-status")
 
     async def on_mount(self) -> None:
         # Ignore the Select.Changed events that fire while rows are first mounted;
@@ -511,8 +514,9 @@ class TimersManagerScreen(ModalScreen):
                 yield Input(placeholder='["Message 1", "Message 2"]', id="timer_msgs_input")
                 yield Button("Add/Update", id="timer_save", variant="success")
                 yield Button("Delete Selected", id="timer_delete", variant="error")
-            
+
             yield self.table
+            yield Static("", classes="manager-status")
 
     async def on_mount(self) -> None:
         await self.load_data()
@@ -614,6 +618,8 @@ class TTSHistoryScreen(ModalScreen):
                 yield Button("Refresh", id="btn_tts_refresh")
                 yield Button("🧹 Clean Orphans", id="btn_tts_clean", variant="warning")
                 yield Button("Close", id="btn_close", variant="primary")
+
+            yield Static("", classes="manager-status")
 
     async def on_mount(self) -> None:
         self.table.add_columns("Time", "Channel", "Voice", "Prompt Preview")

@@ -50,7 +50,7 @@ class CommandInput(TextArea):
         self.autocomplete_options = [
             "/use ", "/status", "/clear", "/quit",
             "/join ", "/part ",
-            "/say ", "/speak", "/testvoice ", "/poll ",
+            "/say ", "/speak ", "/testvoice ", "/poll ",
             "/trust ", "/untrust ", "/ignore ", "/unignore ", "/ignorelist",
             "/set ", "/tts ", "/voice ", "/model ", "/timer ",
             "/addc ", "/editc ", "/delc ", "/grammar ",
@@ -278,6 +278,15 @@ class MockbotDashboard(App):
         height: 3;
         padding: 0 1;
         width: 100%;
+    }
+
+    .manager-status {
+        dock: bottom;
+        height: 1;
+        width: 100%;
+        padding: 0 1;
+        background: $panel;
+        color: $text-muted;
     }
     
     .manager-actions > Input {
@@ -558,6 +567,23 @@ class MockbotDashboard(App):
         if target != "global":
             self.write_log(message, channel="global")
         self.write_log(message, channel=target)
+
+    def notify(self, message: str, *, title: str = "", severity: str = "information",
+               timeout=None, **kwargs) -> None:
+        """IRC-style feedback: no default toasts. Route to the active screen's
+        status line (`.manager-status`) if it has one, else to the command log."""
+        icon = {"information": "[green]✓[/]", "warning": "[yellow]![/]",
+                "error": "[red]✗[/]"}.get(severity, "")
+        text = f"{icon} {message}".strip()
+        status = None
+        try:
+            status = self.screen.query(".manager-status").first()
+        except Exception:
+            status = None
+        if status is not None:
+            status.update(text)
+        else:
+            self._cmd_log(text)
 
     def _repopulate_log(self):
         """Clear and refill the RichLog widget based on the current context."""
@@ -910,8 +936,10 @@ class MockbotDashboard(App):
                 self._cmd_log("Bot instance not connected.")
                 return
             channel_name = self.current_context.lstrip('#').lower()
+            # Optional seed: `speak <word...>` forces the message to start with it.
+            seed = " ".join(args) if args else None
             try:
-                msg = self.bot.generate_message(channel_name)
+                msg = self.bot.generate_message(channel_name, seed=seed)
                 if msg:
                     # In TUI speak, original_message_id is not applicable since it's forced
                     # Queue the response immediately
@@ -1431,7 +1459,7 @@ class MockbotDashboard(App):
                 ]),
                 ("Chat & Generation", [
                     ("/say <message>", "Send a chat message in the current channel"),
-                    ("/speak", "Force a Markov message (plus TTS if enabled)"),
+                    ("/speak [seed]", "Force a Markov message; [seed] starts the first word"),
                     ("/testvoice [text]", "Synthesize locally without sending to Twitch"),
                     ("/poll <min> <q> | <a> | <b>", "Start a Twitch poll (2-5 choices)"),
                 ]),

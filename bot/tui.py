@@ -572,8 +572,8 @@ class MockbotDashboard(App):
                timeout=None, **kwargs) -> None:
         """IRC-style feedback: no default toasts. Route to the active screen's
         status line (`.manager-status`) if it has one, else to the command log."""
-        icon = {"information": "[green]✓[/]", "warning": "[yellow]![/]",
-                "error": "[red]✗[/]"}.get(severity, "")
+        icon = {"information": "[green]✓[/]", "info": "[green]✓[/]",
+                "warning": "[yellow]![/]", "error": "[red]✗[/]"}.get(severity, "")
         text = f"{icon} {message}".strip()
         status = None
         try:

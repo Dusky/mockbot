@@ -390,7 +390,7 @@ class SettingsManagerScreen(ModalScreen):
             yield Label(f"Configuration for {self.app.current_context}", classes="manager-title")
             with VerticalScroll(id="settings_list"):
                 yield Label("Loading...", id="settings_loading")
-            yield Label("Esc to close · changes apply instantly", id="settings_status", classes="manager-help manager-status")
+            yield Label("Esc to close · changes apply instantly", id="settings_status", classes="manager-status")
 
     async def on_mount(self) -> None:
         # Ignore the Select.Changed events that fire while rows are first mounted;
@@ -442,7 +442,21 @@ class SettingsManagerScreen(ModalScreen):
         self.call_after_refresh(self._enable_apply)
 
     def _enable_apply(self) -> None:
+        # Snapshot the settled initial values so any later change event that
+        # merely echoes the initial value (e.g. a Select's mount-time Changed
+        # that slips past the _ready flag) is treated as a no-op.
+        self._applied = {}
+        for w in list(self.query(Select)) + list(self.query(Input)):
+            wid = w.id or ""
+            if wid.startswith("input_"):
+                self._applied[wid[len("input_"):]] = self._widget_raw(w)
         self._ready = True
+
+    @staticmethod
+    def _widget_raw(widget) -> str:
+        if isinstance(widget, Select):
+            return str(widget.value) if widget.value is not None else ""
+        return widget.value.strip()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         # The only button left in this screen opens the Lore manager.
@@ -458,16 +472,16 @@ class SettingsManagerScreen(ModalScreen):
         await self._apply_widget(event.input)
 
     async def _apply_widget(self, widget) -> None:
-        """Coerce a setting widget's value and persist it immediately."""
+        """Coerce a setting widget's value and persist it, skipping no-op changes."""
         wid = widget.id or ""
         if not wid.startswith("input_"):
             return
         key = wid[len("input_"):]
+        raw = self._widget_raw(widget)
 
-        if isinstance(widget, Select):
-            raw = str(widget.value) if widget.value is not None else ""
-        else:
-            raw = widget.value.strip()
+        # Ignore changes that don't actually alter the stored value.
+        if getattr(self, "_applied", {}).get(key) == raw:
+            return
 
         # Simple typing conversions based on known bools/ints
         val = raw
@@ -482,6 +496,7 @@ class SettingsManagerScreen(ModalScreen):
             status = None
         try:
             await self.app._update_setting(key, val)
+            self._applied[key] = raw
             if status:
                 status.update(f"[green]✓[/] {key} = {val}")
         except Exception as e:

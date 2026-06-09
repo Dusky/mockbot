@@ -24,7 +24,6 @@ from nltk.tokenize import sent_tokenize
 from functools import lru_cache
 import weakref
 from concurrent.futures import ThreadPoolExecutor
-import configparser
 
 # PYTORCH 2.6 FIX: Monkey-patch torch.load to use weights_only=False globally for Bark compatibility
 import torch

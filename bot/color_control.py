@@ -56,4 +56,4 @@ class ColorManager:
         return self.get_color(username, self.user_colors)
 
     def get_channel_color(self, channel_name):
-        return self.get_color(channel_name.lower().lstrip('#'), self.user_colors)
+        return self.get_color(channel_name.lower().lstrip('#'), self.channel_colors)

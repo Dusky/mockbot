@@ -30,7 +30,8 @@ class Config:
 
     @property
     def channels(self) -> list:
-        return self._cfg.get("settings", "channels", fallback="").split(",")
+        raw = self._cfg.get("settings", "channels", fallback="")
+        return [c for c in raw.split(",") if c.strip()]
 
     @property
     def debug_mode(self) -> bool:

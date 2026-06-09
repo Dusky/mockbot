@@ -1,7 +1,6 @@
 import logging
 import json
 import asyncio
-import aiosqlite
 from aiohttp import web
 from pathlib import Path
 
@@ -11,13 +10,20 @@ connected_clients = {}
 # Global reference to the main event loop
 main_loop = None
 
-# DB path injected by Bot.__init__ via set_overlay_db()
-_db_file: str = "messages.db"
+# Database instance injected by Bot.__init__ via init_overlay_db()
+_database = None
 
 
 def set_overlay_db(db_file: str) -> None:
-    global _db_file
-    _db_file = db_file
+    """Legacy shim — prefer init_overlay_db(database)."""
+    from bot.database import Database
+    global _database
+    _database = Database(db_file)
+
+
+def init_overlay_db(database) -> None:
+    global _database
+    _database = database
 
 async def serve_overlay(request):
     """Serve the static HTML for the OBS browser source."""
@@ -333,14 +339,10 @@ async def api_get_variables(request):
     if not channel:
         return web.json_response({"error": "Missing channel parameter"}, status=400)
         
-    variables = {}
+    if _database is None:
+        return web.json_response({"error": "Database not initialized"}, status=500)
     try:
-        async with aiosqlite.connect(_db_file) as conn:
-            c = await conn.cursor()
-            await c.execute("SELECT var_name, var_value FROM channel_variables WHERE channel_name = ?", (channel,))
-            rows = await c.fetchall()
-            for name, val in rows:
-                variables[name] = val
+        variables = await _database.get_all_variables(channel)
     except Exception as e:
         logging.error(f"Error fetching variables for overlay API: {e}")
         return web.json_response({"error": "Database error"}, status=500)

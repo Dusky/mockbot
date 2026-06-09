@@ -1,27 +1,14 @@
 import logging
-from colorama import Fore
 from datetime import datetime
 import re
 import os
-from .color_control import ColorManager 
+from .color_control import ColorManager
+from .colors import YELLOW, RED, GREEN, PURPLE, CYAN, BLUE, BRIGHT_GREEN, BRIGHT_RED, BRIGHT_YELLOW, BRIGHT_BLUE, RESET
 from logging.handlers import RotatingFileHandler
 from rich.markup import escape
 
 # Optional callback hook for the Textual TUI
 TUI_LOG_CALLBACK = None
-
-# ANSI color codes for consistent styling
-YELLOW = "\x1b[33m"
-RESET = "\x1b[0m"
-RED = "\x1b[31m"
-GREEN = "\x1b[32m"
-PURPLE = "\x1b[35m"
-CYAN = "\x1b[36m"
-BLUE = "\x1b[34m"
-BRIGHT_GREEN = "\x1b[92m"
-BRIGHT_RED = "\x1b[91m"
-BRIGHT_YELLOW = "\x1b[93m"
-BRIGHT_BLUE = "\x1b[94m"
 
 # Regex to strip ANSI escape codes
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')

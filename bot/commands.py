@@ -5,13 +5,8 @@ from twitchio.ext import commands
 import logging
 from tabulate import tabulate
 from bot.config import config
+from bot.colors import YELLOW, RED, GREEN, PURPLE, RESET
 from bot.tts import start_tts_processing
-
-YELLOW = "\x1b[33m" #xterm colors. dunno why tbh
-RESET = "\x1b[0m"
-RED = "\x1b[31m"
-GREEN = "\x1b[32m"
-PURPLE = "\x1b[35m"
 
 async def mockbot_command(self, ctx, setting=None, new_value=None, **kwargs):
     if setting is None:

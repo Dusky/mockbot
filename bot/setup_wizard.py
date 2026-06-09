@@ -53,17 +53,17 @@ def run_setup_wizard(db_file="messages.db"):
     print("✓ settings.conf created/updated.")
     
     print("Initializing Database...")
-    ensure_db_setup(db_file)
+    from bot.database import Database
+    db = Database(db_file)
     try:
-        conn = sqlite3.connect(db_file)
-        c = conn.cursor()
-        c.execute('''
-            INSERT OR IGNORE INTO channel_configs 
-            (channel_name, tts_enabled, voice_enabled, join_channel, owner, trusted_users, use_general_model)
-            VALUES (?, 0, 1, 1, ?, '', 1)
-        ''', (first_channel, owner))
-        conn.commit()
-        conn.close()
+        with db.connect_sync() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO channel_configs "
+                "(channel_name, tts_enabled, voice_enabled, join_channel, owner, trusted_users, use_general_model) "
+                "VALUES (?, 0, 1, 1, ?, '', 1)",
+                (first_channel, owner),
+            )
+            conn.commit()
         print(f"✓ Added #{first_channel} to database auto-join list.")
     except Exception as e:
         print(f"Failed to populate database: {e}")

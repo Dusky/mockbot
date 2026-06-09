@@ -1,6 +1,7 @@
 import sqlite3
 import threading
 import logging
+from contextlib import contextmanager, asynccontextmanager
 from datetime import datetime
 
 import aiosqlite
@@ -532,3 +533,109 @@ class Database:
                 raise
             finally:
                 conn.close()
+
+    # ── General-purpose connection helpers ──────────────────────────────────
+
+    @contextmanager
+    def connect_sync(self, timeout: float = 15.0):
+        """Yield a raw sqlite3 connection using this database's file path."""
+        conn = sqlite3.connect(self.db_file, timeout=timeout)
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    @asynccontextmanager
+    async def connect_async(self):
+        """Async context manager yielding an aiosqlite connection."""
+        async with aiosqlite.connect(self.db_file) as conn:
+            yield conn
+
+    # ── Bot status / heartbeat ───────────────────────────────────────────────
+
+    def set_bot_status_sync(self, key: str, value: str) -> None:
+        with self.connect_sync() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO bot_status (key, value, timestamp) VALUES (?, ?, ?)",
+                (key, value, datetime.now().isoformat()),
+            )
+            conn.commit()
+
+    # ── Connection history ───────────────────────────────────────────────────
+
+    def log_connection_event_sync(
+        self, event_type: str, details_json: str, attempt_number: int = 0
+    ) -> None:
+        try:
+            with self.connect_sync() as conn:
+                conn.execute(
+                    "INSERT INTO connection_history (timestamp, event_type, details, attempt_number) VALUES (?, ?, ?, ?)",
+                    (datetime.now().isoformat(), event_type, details_json, attempt_number),
+                )
+                conn.commit()
+        except Exception as e:
+            logging.error(f"log_connection_event_sync error: {e}")
+
+    # ── Cache build log ──────────────────────────────────────────────────────
+
+    def get_cache_build_times_sync(self) -> dict:
+        with self.connect_sync() as conn:
+            c = conn.cursor()
+            c.execute("SELECT channel_name, timestamp FROM cache_build_log ORDER BY timestamp DESC")
+            seen: dict = {}
+            for channel_name, ts in c.fetchall():
+                if channel_name not in seen:
+                    seen[channel_name] = ts
+            return seen
+
+    def save_cache_build_time_sync(
+        self, channel_name: str, duration: float, success: bool, message: str = ""
+    ) -> None:
+        with self.connect_sync() as conn:
+            conn.execute(
+                "INSERT INTO cache_build_log (channel_name, timestamp, duration, success, message) VALUES (?, ?, ?, ?, ?)",
+                (channel_name, datetime.now().timestamp(), duration, success, message),
+            )
+            conn.commit()
+
+    # ── Channel settings (sync bulk load for __init__) ───────────────────────
+
+    def load_channel_settings_sync(self) -> dict:
+        """Return {channel: {trusted_users, ignored_users, time_between_messages, lines_between_messages}}."""
+        settings: dict = {}
+        with self.connect_sync() as conn:
+            c = conn.cursor()
+            c.execute(
+                "SELECT channel_name, trusted_users, ignored_users, "
+                "time_between_messages, lines_between_messages FROM channel_configs"
+            )
+            for channel, trusted, ignored, time_between, lines_between in c.fetchall():
+                settings[channel] = {
+                    "trusted_users": [u for u in (trusted or "").split(",") if u],
+                    "ignored_users": [u for u in (ignored or "").split(",") if u],
+                    "time_between_messages": time_between,
+                    "lines_between_messages": lines_between,
+                }
+        return settings
+
+    def get_all_join_channels_sync(self) -> list:
+        """Sync version of get_all_join_channels for use before event loop starts."""
+        with self.connect_sync() as conn:
+            c = conn.cursor()
+            c.execute("SELECT channel_name FROM channel_configs WHERE join_channel = 1 ORDER BY channel_name")
+            return [r[0] for r in c.fetchall()]
+
+    def insert_channels_sync(self, channels: list) -> None:
+        """Insert channels with default config if they don't already exist."""
+        with self.connect_sync() as conn:
+            for channel in channels:
+                conn.execute(
+                    "INSERT INTO channel_configs "
+                    "(channel_name, tts_enabled, voice_enabled, join_channel, owner, "
+                    "trusted_users, ignored_users, use_general_model, lines_between_messages, "
+                    "time_between_messages, currently_connected, tts_delay_enabled, tts_reward) "
+                    "SELECT ?, 0, 0, 1, ?, '', '', 1, 100, 0, 0, 0, '' "
+                    "WHERE NOT EXISTS(SELECT 1 FROM channel_configs WHERE channel_name = ?)",
+                    (channel, channel, channel),
+                )
+            conn.commit()

@@ -428,36 +428,16 @@ async def mockbot_poll(self, ctx, *args):
             await ctx.send(f"Invalid duration: {duration_minutes_str}")
             return
             
-        duration_seconds = int(duration_minutes * 60)
-        # Twitch Poll duration must be between 15 and 1800 seconds
-        duration_seconds = max(15, min(1800, duration_seconds))
-        
         choices = parts[1:]
         if len(choices) > 5:
             await ctx.send("Twitch polls can have at most 5 choices.")
             return
 
-        clean_channel = ctx.channel.name.lstrip('#')
-        users = await self.fetch_users(names=[clean_channel])
-        if not users:
-            await ctx.send("Failed to fetch channel from Twitch API.")
-            return
-            
-        broadcaster = users[0]
-        
-        token = config.tmi_token
-        if token.startswith("oauth:"):
-            token = token[6:]
-
-        await broadcaster.create_poll(
-            token=token,
-            title=question,
-            choices=choices,
-            duration=duration_seconds,
-            channel_points_voting_enabled=False
-        )
-        
-        await ctx.send(f"Poll started: {question} ({duration_minutes_str}m)!")
+        ok = await self.create_poll_via_api(ctx.channel.name, question, choices, duration_minutes)
+        if ok:
+            await ctx.send(f"Poll started: {question} ({duration_minutes_str}m)!")
+        else:
+            await ctx.send("Failed to create poll. Check the bot's channel permissions and OAuth scopes.")
     except Exception as e:
         await ctx.send(f"Failed to create poll: {e}")
 

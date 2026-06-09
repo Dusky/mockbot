@@ -293,6 +293,44 @@ class Bot(commands.Bot):
             # Call the original mockbot_command for other settings
             await mockbot_command(self, ctx, setting, args[0] if args else None, enable_tts=self.enable_tts)
 
+    async def create_poll_via_api(self, channel_name, title, choices, duration_minutes):
+        """Create a Twitch poll via the Helix API.
+
+        Shared by the !poll command and the TUI poll action. The TUI fires this as
+        a background task, so outcomes are surfaced through my_logger (TUI-visible)
+        rather than only via the return value. Returns True on success, False otherwise.
+        """
+        clean_channel = channel_name.lstrip('#')
+        choices = [c for c in choices if c]
+        if not (2 <= len(choices) <= 5):
+            self.my_logger.error(f"Poll needs between 2 and 5 choices (got {len(choices)}).", channel=clean_channel)
+            return False
+        # Twitch requires poll duration to be between 15 and 1800 seconds.
+        duration_seconds = max(15, min(1800, int(duration_minutes * 60)))
+        try:
+            users = await self.fetch_users(names=[clean_channel])
+            if not users:
+                self.my_logger.error(f"Could not fetch #{clean_channel} from the Twitch API.", channel=clean_channel)
+                return False
+
+            token = config.tmi_token
+            if token.startswith("oauth:"):
+                token = token[6:]
+
+            await users[0].create_poll(
+                token=token,
+                title=title,
+                choices=choices,
+                duration=duration_seconds,
+                channel_points_voting_enabled=False,
+            )
+            self.logger.info(f"Poll created in {clean_channel}: '{title}' {choices} ({duration_seconds}s)")
+            return True
+        except Exception as e:
+            self.my_logger.error(f"Failed to create poll in #{clean_channel}: {e}", channel=clean_channel)
+            self.logger.error(f"create_poll_via_api error for {clean_channel}: {e}")
+            return False
+
     def get_channel_voice_preset(self, channel_name):
         return tts_handler.get_channel_voice_preset(self, channel_name)
 

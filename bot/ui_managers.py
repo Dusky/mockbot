@@ -347,8 +347,7 @@ class SettingRow(Horizontal):
                 return
             else:
                 yield Input(value=str(self.current_value), id=f"input_{self.setting_key}")
-
-            yield Button("Update", id=f"btn_{self.setting_key}", variant="primary")
+            # No per-row Update button: changes apply on Select change / Input submit.
 
 
 class SettingsManagerScreen(ModalScreen):
@@ -388,12 +387,16 @@ class SettingsManagerScreen(ModalScreen):
             yield Label(f"Configuration for {self.app.current_context}", classes="manager-title")
             with VerticalScroll(id="settings_list"):
                 yield Label("Loading...", id="settings_loading")
+            yield Label("Esc to close · changes apply instantly", id="settings_status", classes="manager-help")
 
     async def on_mount(self) -> None:
+        # Ignore the Select.Changed events that fire while rows are first mounted;
+        # only user-driven changes (after the first refresh) should write to the DB.
+        self._ready = False
         if not self.app.bot:
             self.query_one("#settings_loading").update("Bot offline. Cannot fetch settings.")
             return
-            
+
         context = self.app.current_context.lstrip('#')
         row = await self.app.bot.db.get_channel_config(context)
 
@@ -431,37 +434,56 @@ class SettingsManagerScreen(ModalScreen):
                 desc = self.SETTINGS_META.get(key, "No description available.")
                 settings_list.mount(SettingRow(key, row[key], desc))
 
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
-        btn_id = event.button.id
-        if btn_id == "btn_enabled_lore_manage":
+        # Rows are mounted; enable apply only after the initial render settles so
+        # the Selects' mount-time Changed events don't trigger spurious writes.
+        self.call_after_refresh(self._enable_apply)
+
+    def _enable_apply(self) -> None:
+        self._ready = True
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        # The only button left in this screen opens the Lore manager.
+        if event.button.id == "btn_enabled_lore_manage":
             self.app.push_screen(LoreManagerScreen())
+
+    async def on_select_changed(self, event: Select.Changed) -> None:
+        if not getattr(self, "_ready", False):
             return
-            
-        if btn_id and btn_id.startswith("btn_"):
-            key = btn_id[4:]
-            
-            # Check if input is Select or Input
-            widgetNodes = self.query(f"#input_{key}")
-            if not widgetNodes: return
-            
-            widget = widgetNodes.first()
-            if isinstance(widget, Select):
-                input_val = str(widget.value) if widget.value is not None else ""
-            else:
-                input_val = widget.value.strip()
-            
-            # Simple typing conversions based on known bools/ints
-            val = input_val
-            if input_val.isdigit():
-                val = int(input_val)
-            elif input_val.replace(".", "", 1).isdigit():
-                val = float(input_val)
-                
-            try:
-                await self.app._update_setting(key, val)
-                self.app.notify(f"Updated {key} to {val}", severity="information")
-            except Exception as e:
-                self.app.notify(f"Failed to update {key}: {e}", severity="error")
+        await self._apply_widget(event.select)
+
+    async def on_input_submitted(self, event: Input.Submitted) -> None:
+        await self._apply_widget(event.input)
+
+    async def _apply_widget(self, widget) -> None:
+        """Coerce a setting widget's value and persist it immediately."""
+        wid = widget.id or ""
+        if not wid.startswith("input_"):
+            return
+        key = wid[len("input_"):]
+
+        if isinstance(widget, Select):
+            raw = str(widget.value) if widget.value is not None else ""
+        else:
+            raw = widget.value.strip()
+
+        # Simple typing conversions based on known bools/ints
+        val = raw
+        if raw.isdigit():
+            val = int(raw)
+        elif raw.replace(".", "", 1).isdigit():
+            val = float(raw)
+
+        try:
+            status = self.query_one("#settings_status", Label)
+        except Exception:
+            status = None
+        try:
+            await self.app._update_setting(key, val)
+            if status:
+                status.update(f"[green]✓[/] {key} = {val}")
+        except Exception as e:
+            if status:
+                status.update(f"[red]✗[/] {key}: {e}")
 
 class TimersManagerScreen(ModalScreen):
     """Screen to manage timed message pools."""

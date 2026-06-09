@@ -55,11 +55,16 @@ DB: `messages.db` (SQLite, 135MB+, canonical — ignore any other .db files)
 
 ```
 main.py
-  └── bot/core.py          Bot class (~1342 lines, thin dispatcher)
+  └── bot/core.py          Bot class (~707 lines, thin dispatcher)
         ├── bot/brain.py           MarkovBrain
         ├── bot/channel_manager.py ChannelManager
         ├── bot/custom_commands.py CustomCommandHandler
         ├── bot/connection.py      ConnectionStateManager
+        ├── bot/handlers/          Event/command bodies (delegated from Bot)
+        │     ├── startup.py         event_ready 10-step sequence (run)
+        │     ├── pubsub.py          Bits + Channel Point redemptions
+        │     ├── tts.py             voice preset/delay lookup, generate_tts_sync, !speak
+        │     └── raw_data.py        IRC NOTICE parsing
         ├── bot/tasks/             Background async loops
         ├── bot/database.py        Database DAO (all SQL lives here)
         ├── bot/config.py          Config singleton
@@ -73,6 +78,13 @@ main.py
         └── bot/utils.py           LRUCache, convert_size
 ```
 
+**Handler pattern:** TwitchIO dispatches events by method name (`event_ready`,
+`event_message`, …) and `@commands.command`s must live on the `Bot` class, so
+those stay as *thin* methods that delegate into `bot/handlers/` functions taking
+`bot` as the first arg — same shape as `bot/tasks/`. What remains in `core.py` as
+real logic: `__init__` (composition), the proxy properties, `mockbot_wrapper`
+(command sub-dispatch), and `event_message` (the message→generate→TTS pipeline).
+
 ---
 
 ## Known remaining issues (backlog)
@@ -80,7 +92,7 @@ main.py
 ### Medium priority
 1. ~~**Voice preset validation removed**~~ — ✅ Fixed. `Database.voice_preset_exists()` checks the `voice_options` table, and the `commands.py` `voice_preset` setter rejects unknown codes with "Invalid voice preset" before saving (restores pre-refactor behavior via the DB abstraction layer).
 
-2. **`core.py` still 1,342 lines** — What's left is all legitimate event handler territory: `event_message` (~200 lines), `event_ready` (~200 lines), `mockbot_wrapper` (~100 lines), `handle_speak_command` (~150 lines). Could further slim `event_message` by extracting the voice-replay trigger logic, but diminishing returns.
+2. ~~**`core.py` still 1,342 lines**~~ — ✅ Slimmed to **707 lines**. Extracted `event_ready`, the pubsub handlers, TTS orchestration (`get_channel_voice_preset`/`get_tts_delay_setting`/`generate_tts_sync`/`is_tts_enabled`/`handle_speak_command`), and `event_raw_data` into the new `bot/handlers/` package (thin delegators remain on `Bot`). Removed dead module-level functions (`fetch_users`, `insert_initial_channels_to_db`) and the duplicate `fetch_initial_channels` (now uses `Database.get_all_join_channels_sync()`). Pruned unused imports (`markovify`, `sqlite3`, `tabulate`, `LRUCache`/`convert_size`, `threading`, `timezone`, `PURPLE`). Also fixed a latent `NameError` in `handle_speak_command` (`author_name` was undefined → now `ctx.author.name`). **Structural only — no hot-path logic was rewritten.** What's left in `core.py` is `__init__`, proxy properties, `mockbot_wrapper`, and `event_message`.
 
 3. ~~**`load_last_cache_build_times()` reads from JSON file**~~ — ✅ Fixed. `brain.py` now loads via `db.get_cache_build_times_sync()` and saves via the new `db.replace_cache_build_times_sync()` (one row per channel, replaces prior rows so the `cache_build_log` table stays a current-state snapshot instead of growing unbounded). The `cache/cache_build_times.json` file is no longer read or written. General model is keyed `general_markov_model.json` in memory / `general_markov` in the DB (legacy convention preserved).
 

@@ -8,15 +8,15 @@ import sqlite3
 from datetime import datetime, timezone
 import os
 import json
-from collections import OrderedDict
 import threading
 from tabulate import tabulate
 from bot.logger import Logger
-from bot.color_control import ColorManager
 from bot.commands import mockbot_command
 from bot.config import config
 from bot.colors import YELLOW, RED, GREEN, PURPLE, RESET
 from bot.tts import process_text, start_tts_processing
+from bot.utils import LRUCache, convert_size
+from bot.connection import ConnectionStateManager
 
 
 logger = Logger()
@@ -32,154 +32,6 @@ try:
 except Exception as e:
     logger.logger.info(f"{RED}Error reading channels from config: {e}{RESET}")
     channels = []
-
-
-class LRUCache:
-    """Memory-efficient LRU (Least Recently Used) cache to prevent memory leaks."""
-    
-    def __init__(self, maxsize=1000):
-        self.maxsize = maxsize
-        self.cache = OrderedDict()
-    
-    def __contains__(self, key):
-        return key in self.cache
-    
-    def __getitem__(self, key):
-        if key in self.cache:
-            # Move to end (most recently used)
-            self.cache.move_to_end(key)
-            return self.cache[key]
-        raise KeyError(key)
-    
-    def __setitem__(self, key, value):
-        if key in self.cache:
-            # Update existing key and move to end
-            self.cache[key] = value
-            self.cache.move_to_end(key)
-        else:
-            # Add new key
-            self.cache[key] = value
-            # Remove oldest if over size limit
-            if len(self.cache) > self.maxsize:
-                self.cache.popitem(last=False)  # Remove oldest (first) item
-    
-    def get(self, key, default=None):
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
-
-class ConnectionStateManager:
-    """Manages WebSocket connection state and reconnection logic with exponential backoff."""
-
-    def __init__(self, bot_instance):
-        self.bot = bot_instance
-        self.state = "disconnected"  # disconnected, connecting, connected, reconnecting
-        self.reconnect_attempts = 0
-        self.last_attempt_time = None
-        self.current_delay = 5  # Start at 5 seconds
-        self.max_delay = 300  # Cap at 5 minutes
-        self.base_delay = 5
-        self.reconnect_task = None
-        self.logger = logging.getLogger("connection_manager")
-
-    def calculate_backoff_delay(self):
-        """Exponential backoff: 5s, 10s, 20s, 40s, 80s, 160s, 300s (max)."""
-        delay = min(self.base_delay * (2 ** self.reconnect_attempts), self.max_delay)
-        return delay
-
-    async def attempt_reconnect(self):
-        """Attempt to reconnect with exponential backoff."""
-        self.state = "reconnecting"
-        self.reconnect_attempts += 1
-        self.last_attempt_time = time.time()
-        self.current_delay = self.calculate_backoff_delay()
-
-        self.logger.warning(
-            f"{YELLOW}Reconnection attempt #{self.reconnect_attempts}, "
-            f"waiting {self.current_delay}s before retry...{RESET}"
-        )
-
-        # Log to database
-        self._log_connection_event("reconnect_attempt", {
-            "attempt": self.reconnect_attempts,
-            "delay": self.current_delay
-        })
-
-        # Emit to admin dashboard
-        if hasattr(self.bot, 'socketio_emitter') and self.bot.socketio_emitter:
-            try:
-                self.bot.socketio_emitter({
-                    'event': 'connection_state_changed',
-                    'state': 'reconnecting',
-                    'attempts': self.reconnect_attempts,
-                    'next_delay': self.current_delay
-                })
-            except Exception as e:
-                self.logger.error(f"Failed to emit reconnection state: {e}")
-
-        try:
-            # Wait for backoff delay
-            await asyncio.sleep(self.current_delay)
-
-            # Close existing connection if still open
-            if hasattr(self.bot, '_ws') and self.bot._ws and not self.bot._ws.is_closed:
-                await self.bot._ws.close()
-
-            # Attempt reconnection
-            self.logger.info(f"{GREEN}Attempting to reconnect to Twitch...{RESET}")
-            await self.bot.connect()
-
-            # Success!
-            self.state = "connected"
-            total_attempts = self.reconnect_attempts
-            self.reconnect_attempts = 0
-            self.current_delay = self.base_delay
-
-            self.logger.info(
-                f"{GREEN}Successfully reconnected after {total_attempts} attempt(s)!{RESET}"
-            )
-
-            self._log_connection_event("reconnect_success", {
-                "total_attempts": total_attempts
-            })
-
-            if hasattr(self.bot, 'socketio_emitter') and self.bot.socketio_emitter:
-                try:
-                    self.bot.socketio_emitter({
-                        'event': 'connection_state_changed',
-                        'state': 'connected',
-                        'attempts': 0
-                    })
-                except Exception as e:
-                    self.logger.error(f"Failed to emit connected state: {e}")
-
-        except Exception as e:
-            self.logger.error(
-                f"{RED}Reconnection attempt #{self.reconnect_attempts} failed: {e}{RESET}"
-            )
-
-            self._log_connection_event("reconnect_failed", {
-                "error": str(e),
-                "attempt": self.reconnect_attempts
-            })
-
-            # Schedule next attempt (recursive)
-            self.reconnect_task = asyncio.create_task(self.attempt_reconnect())
-
-    def _log_connection_event(self, event_type, details):
-        """Log connection events to database."""
-        self.bot.db.log_connection_event_sync(
-            event_type, json.dumps(details), self.reconnect_attempts
-        )
-
-    def mark_connected(self):
-        """Mark connection as successful and reset counters."""
-        self.state = "connected"
-        self.reconnect_attempts = 0
-        self.current_delay = self.base_delay
-        self._log_connection_event("connected", {"channels": list(self.bot._joined_channels)})
 
 
 class Bot(commands.Bot):
@@ -202,35 +54,19 @@ class Bot(commands.Bot):
             initial_channels=initial_channels,
         )
         
-        # Initialize other variables
-        # print("Initializing Bot class...")
         self.prefix = prefix
         self.my_logger = Logger()
         self.my_logger.setup_logger()
         self.owner = None
         self.channels = initial_channels
-        self.trusted_users = []
-        self.ignored_users = []
-        self.chat_line_count = 0
-        self.last_message_time = time.time()
         self.last_global_message_time = datetime.now()
         self.is_sleeping = False
-        
-        # PERFORMANCE: Use memory-efficient caches with size limits to prevent memory leaks
-        self.user_colors = LRUCache(maxsize=1000)  # Limit to 1000 users
-        self.channel_colors = LRUCache(maxsize=100)  # Limit to 100 channels
         self.logger = logging.getLogger("bot")
         self.logger.setLevel(logging.INFO)
         formatter = logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s")
         handler = logging.FileHandler(filename="logs/mockbot.log", encoding="utf-8", mode="w")
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
-        self.color_manager = ColorManager()
-        self.channel_chat_line_count = {channel: 0 for channel in self.channels}
-        self.channel_last_message_time = {
-            channel: time.time() for channel in self.channels
-        }
-        self.channel_settings = {}  # Initialize the channel settings dictionary
         self.message_queue = [] # Queue for async DB bulk inserts
         self.db_flush_task = None
         self.db_file = db_file
@@ -240,1050 +76,129 @@ class Bot(commands.Bot):
         _tts_mod.init_tts_db(self.db)
         from bot import overlay as _overlay_mod
         _overlay_mod.init_overlay_db(self.db)
-        self.load_channel_settings()  # Populate channel settings
+        from bot.channel_manager import ChannelManager
+        self.channel_manager = ChannelManager(self, self.db, self.logger, self.my_logger, initial_channels)
+        self.channel_manager.load_channel_settings()  # Populate channel settings
 
         self.rebuild_cache = rebuild_cache
-        
-        # Add cache update threshold setting
-        self.cache_update_threshold = 3600 * 24  # 24 hours by default
-        self.cache_build_times = {}  # Initialize as empty dict
-        
-        # Load cache build times before attempting to build model
-        self.cache_build_times = self.load_last_cache_build_times()
-        # print(f"Loaded cache build times: {self.cache_build_times}")
-        
-        self.load_text_and_build_model()
-        self.first_model_update = True
-        
-        # Conditional call to update_model_periodically based on rebuild_cache flag
+        from bot.brain import MarkovBrain
+        self.brain = MarkovBrain(self.db, self.logger, self.my_logger, nick, rebuild_cache)
+        self.brain.cache_build_times = self.brain.load_last_cache_build_times()
+        self.brain.load_text_and_build_model()
         if self.rebuild_cache:
-            self.update_model_periodically()
+            self.brain.update_model_periodically()
         
         self.enable_tts = enable_tts
         if self.enable_tts:
             from bot import tts
             tts.initialize_tts()
-        
-        # Read verbose_heartbeat_log setting
+
         self.verbose_heartbeat_log = config.getboolean('settings', 'verbose_heartbeat_log', fallback=False)
-            # print(f"{YELLOW}Warning: 'verbose_heartbeat_log' not found in settings.conf, defaulting to False.{RESET}")
-
-        self._joined_channels = set()
-
         self.start_time = time.time()
 
-        # Initialize connection state manager for automatic reconnection
         self.connection_manager = ConnectionStateManager(self)
         self.pubsub_pool = pubsub.PubSubPool(self)
         self._channel_ids = {}
-        self.socketio_emitter = None  # Will be set by webapp for real-time updates
+        self.socketio_emitter = None
 
         self.message_request_check = None
-
-        self.message_request_check = self.loop.create_task(self.message_request_checker())
-        
         self.live_streamers = set()
-        self.live_stream_monitor_task = self.loop.create_task(self.live_stream_monitor_loop())
-        
-    async def send_message_to_channel(self, channel_name, message, log_to_tui=False):
-        """Send a message to a specific channel."""
-        channel_name = channel_name.lower()
-        # Check if channel starts with # (required for Twitch)
-        if not channel_name.startswith('#'):
-            channel_name = f'#{channel_name}'
-            
-        # Make sure we're in the channel
-        if channel_name not in self._joined_channels:
-            self.logger.info(f"Joining channel {channel_name} before sending message...")
-            await self.join_channel(channel_name)
-            
-        # Send the message
-        channel = self.get_channel(channel_name.lstrip('#'))  # TwitchIO gets channels without #
-        if channel:
-            await channel.send(message)
-            self.logger.info(f"Message sent to {channel_name}: {message}")
-            if log_to_tui:
-                try:
-                    self.my_logger.log_message(channel.name, self.nick, message, is_bot_message=True)
-                except Exception:
-                    pass
-            return True
-        else:
-            self.logger.info(f"Failed to find channel {channel_name}")
-            return False
-    
-    async def leave_channel(self, channel_name):
-        """Leave a channel with proper cleanup."""
-        try:
-            # Ensure the channel name is properly formatted with # prefix for our tracking
-            if not channel_name.startswith('#'):
-                channel_name = f'#{channel_name}'
-            
-            # TwitchIO part_channels expects channel names WITHOUT # prefix
-            clean_name = channel_name.lstrip('#')
-            
-            self.logger.info(f"{YELLOW}Attempting to leave channel: {channel_name} (clean: {clean_name}){RESET}")
-            
-            # Mark as disconnected in the database first
-            try:
-                async with self.db.connect_async() as conn:
-                    c = await conn.cursor()
-                    await c.execute(
-                        "UPDATE channel_configs SET currently_connected = 0 WHERE channel_name = ?",
-                        (clean_name,)
-                    )
-                    await conn.commit()
-                self.logger.info(f"{YELLOW}Marked {clean_name} as disconnected in database{RESET}")
-            except Exception as db_error:
-                self.logger.info(f"{RED}Database error when leaving {clean_name}: {db_error}{RESET}")
-            
-            # Actually leave the channel
-            try:
-                # This is the TwitchIO API call to leave a channel
-                await self.part_channels([clean_name])
-                
-                # Remove from joined channel tracking
-                if channel_name in self._joined_channels:
-                    self._joined_channels.remove(channel_name)
-                
-                # Force an immediate heartbeat update to sync the joined channel status
-                self.update_heartbeat_file()
-                
-                self.logger.info(f"{GREEN}✅ Successfully left channel: {channel_name}{RESET}")
-                return True
-            except Exception as e:
-                self.logger.info(f"{RED}Failed to leave channel {channel_name}: {e}{RESET}")
-                return False
-                
-        except Exception as e:
-            self.logger.info(f"{RED}Exception when leaving channel {channel_name}: {e}{RESET}")
-            return False
+
+        from bot.custom_commands import CustomCommandHandler
+        self.custom_cmd_handler = CustomCommandHandler(self.db, self.logger, self.my_logger, self)
+
+    # ---------------------------------------------------------------------------
+    # Proxy properties so existing callers continue to work via self.*
+    # ---------------------------------------------------------------------------
+    @property
+    def general_model(self):
+        return self.brain.general_model
+
+    @general_model.setter
+    def general_model(self, value):
+        self.brain.general_model = value
+
+    @property
+    def models(self):
+        return self.brain.models
+
+    @property
+    def cache_build_times(self):
+        return self.brain.cache_build_times
+
+    @cache_build_times.setter
+    def cache_build_times(self, value):
+        self.brain.cache_build_times = value
+
+    # ---------------------------------------------------------------------------
+
+    # ── ChannelManager proxies ────────────────────────────────────────────────
+
+    @property
+    def _joined_channels(self):
+        return self.channel_manager._joined_channels
+
+    @_joined_channels.setter
+    def _joined_channels(self, value):
+        self.channel_manager._joined_channels = value
+
+    @property
+    def channel_settings(self):
+        return self.channel_manager.channel_settings
+
+    @property
+    def channel_chat_line_count(self):
+        return self.channel_manager.channel_chat_line_count
+
+    @property
+    def channel_last_message_time(self):
+        return self.channel_manager.channel_last_message_time
 
     async def join_channel(self, channel_name):
-        """Join a channel with proper formatting and error handling."""
-        try:
-            # Ensure the channel name is properly formatted with # prefix for our tracking
-            if not channel_name.startswith('#'):
-                channel_name = f'#{channel_name}'
-            
-            # TwitchIO join_channels expects channel names WITHOUT # prefix
-            # The library will strip # internally if present
-            clean_name = channel_name.lstrip('#')
-            
-            # print(f"{YELLOW}Attempting to join channel: {channel_name} (clean: {clean_name}){RESET}")
-            
-            # Join the channel
-            try:
-                # The actual join operation
-                await self.join_channels([clean_name])
-                join_success = True
-                
-                # Verify that the join was successful by checking connection
-                channel_obj = self.get_channel(clean_name)
-                if not channel_obj:
-                    self.logger.info(f"{YELLOW}Warning: Could not verify channel object for {clean_name} after joining{RESET}")
-                
-            except Exception as join_error:
-                join_success = False
-                self.logger.info(f"{RED}Error in join_channels operation: {join_error}{RESET}")
-                raise
-            
-            if join_success:
-                # Update tracking in multiple places to ensure consistency
-                
-                # 1. Add to our tracking set with # prefix
-                self._joined_channels.add(channel_name)
-                
-                # 2. Make sure it's in self.channels list (also with # prefix)
-                if channel_name not in self.channels:
-                    self.channels.append(channel_name)
-                    
-                # Initialize timers for new channels so they don't instant-fire
-                if channel_name not in self.channel_last_message_time:
-                    self.channel_last_message_time[channel_name] = time.time()
-                
-                # 3. Update database to mark channel as connected
-                try:
-                    async with self.db.connect_async() as conn:
-                        c = await conn.cursor()
-                        
-                        # First check if channel exists in channel_configs
-                        await c.execute("SELECT 1 FROM channel_configs WHERE channel_name = ?", (clean_name,))
-                        if not await c.fetchone():
-                            # Create entry if it doesn't exist
-                            self.logger.info(f"{YELLOW}Creating new channel config for {clean_name}{RESET}")
-                            await c.execute('''
-                                INSERT INTO channel_configs 
-                                (channel_name, tts_enabled, voice_enabled, join_channel, owner, 
-                                trusted_users, ignored_users, use_general_model, lines_between_messages, time_between_messages, currently_connected, tts_delay_enabled, tts_reward)
-                                VALUES (?, 0, 1, 1, ?, '', '', 1, 50, 15, 1, 0, '')
-                            ''', (clean_name, clean_name))
-                        else:
-                            # Update existing entry - mark as joined
-                            await c.execute(
-                                "UPDATE channel_configs SET join_channel = 1, currently_connected = 1 WHERE channel_name = ?",
-                                (clean_name,)
-                            )
-                            
-                        await conn.commit()
-                    
-                    # Force an immediate heartbeat update to sync the joined channel status
-                    self.update_heartbeat_file()
-                    
-                except Exception as db_error:
-                    self.logger.info(f"{RED}Database update error for channel {clean_name}: {db_error}{RESET}")
-                
-                # print(f"{GREEN}✅ Successfully joined channel: {channel_name}{RESET}")
-                return True
-            else:
-                self.logger.info(f"{RED}❌ Failed to join channel: {channel_name}{RESET}")
-                return False
-                
-        except Exception as e:
-            self.logger.info(f"{RED}❌ Failed to join channel {channel_name}: {e}{RESET}")
-            return False
+        return await self.channel_manager.join_channel(channel_name)
 
-    def load_channel_settings(self):
-        self.channel_settings = self.db.load_channel_settings_sync()
+    async def leave_channel(self, channel_name):
+        return await self.channel_manager.leave_channel(channel_name)
+
+    async def send_message_to_channel(self, channel_name, message, log_to_tui=False):
+        return await self.channel_manager.send_message_to_channel(channel_name, message, log_to_tui)
+
+    async def print_channel_status(self, channel_filter=None, out_func=None):
+        return await self.channel_manager.print_channel_status(channel_filter, out_func)
+
+    async def fetch_channel_settings(self, channel_name):
+        return await self.channel_manager.fetch_channel_settings(channel_name)
+
+    async def add_trusted_user(self, channel_name, username):
+        return await self.channel_manager.add_trusted_user(channel_name, username)
+
+    def ensure_channel_configs(self):
+        return self.channel_manager.ensure_channel_configs()
 
     async def check_and_join_channels(self, silent=False):
-        """Join all channels marked for joining in the database.
-        
-        Args:
-            silent (bool): If True, suppresses routine logging for periodic checks
-        """
-        try:
-            # Get channels from database
-            channels_to_join = await self.db.get_all_join_channels()
-            
-            if not silent:
-                self.logger.info(f"{YELLOW}Found {len(channels_to_join)} channels to join from database{RESET}")
-            
-            # If no channels found in database, check config file
-            if not channels_to_join and config.channels:
-                config_channels = config.channels
-                channels_to_join = [ch.strip() for ch in config_channels if ch.strip()]
-                if not silent:
-                    self.logger.info(f"{YELLOW}No channels in database, using {len(channels_to_join)} from config file{RESET}")
-            
-            join_success = 0
-            join_failure = 0
-            new_joins = 0
-            
-            # Join each channel with improved error handling
-            for channel in channels_to_join:
-                try:
-                    # Make sure channel has # prefix
-                    channel_name = f"#{channel.lstrip('#')}"
-                    
-                    # Skip if already joined
-                    if channel_name in self._joined_channels:
-                        if not silent:
-                            self.logger.info(f"{GREEN}Already joined channel: {channel_name}{RESET}")
-                        join_success += 1
-                        continue
-                    
-                    # Attempt to join
-                    # print(f"{YELLOW}Attempting to join channel: {channel_name}{RESET}")
-                    success = await self.join_channel(channel_name)
-                    
-                    if success:
-                        join_success += 1
-                        new_joins += 1
-                        self.logger.info(f"{GREEN}✓ Joined {channel_name}{RESET}")
-                    else:
-                        join_failure += 1
-                        self.logger.info(f"{RED}✗ Failed {channel_name}{RESET}")
-                        
-                except Exception as e:
-                    join_failure += 1
-                    self.logger.info(f"{RED}Error joining channel {channel}: {str(e)}{RESET}")
-            
-            # Summary - only show if there's activity or not silent
-            if not silent or new_joins > 0 or join_failure > 0:
-                self.logger.info(f"{GREEN}Channel joining complete: {join_success} succeeded, {join_failure} failed{RESET}")
-            
-        except Exception as e:
-            self.logger.info(f"{RED}Error in check_and_join_channels: {str(e)}{RESET}")
-    
-    async def setup_periodic_channel_check(self, interval=300):  # 5 minutes
-        """Set up a periodic task to check for new channels."""
-        async def check_periodically():
-            while True:
-                await asyncio.sleep(interval)
-                await self.check_and_join_channels(silent=True)  # Periodic check, silent mode
-        
-        # Start the periodic task
-        self.loop.create_task(check_periodically())
-        # print(f"Started periodic channel check (every {interval} seconds)")
-    
-    def ensure_channel_configs(self):
-        """Make sure all channels have config entries in the database with proper defaults."""
-        with self.db.connect_sync() as conn:
-            c = conn.cursor()
-            for channel in self.channels:
-                clean_channel = channel.lstrip('#')
-                c.execute("SELECT 1 FROM channel_configs WHERE channel_name = ?", (clean_channel,))
-                if not c.fetchone():
-                    self.logger.info(f"Creating config for channel: {clean_channel}")
-                    c.execute(
-                        "INSERT INTO channel_configs "
-                        "(channel_name, tts_enabled, voice_enabled, join_channel, owner, "
-                        "trusted_users, ignored_users, use_general_model, lines_between_messages, "
-                        "time_between_messages, currently_connected, tts_delay_enabled, tts_reward) "
-                        "VALUES (?, 0, 1, 1, ?, '', '', 1, 50, 15, 0, 0, '')",
-                        (clean_channel, clean_channel),
-                    )
-            conn.commit()
-        self.load_channel_settings()
-    
-    async def print_channel_status(self, channel_filter=None, out_func=None):
-        """Print a status table showing all channels (or a specific channel) and their configurations."""
-        out = out_func or self.my_logger.print_message
-        try:
-            async with self.db.connect_async() as conn:
-                c = await conn.cursor()
-                
-                table_data = []
-                
-                if channel_filter:
-                    await c.execute('''
-                        SELECT channel_name, owner, trusted_users, ignored_users, voice_enabled, tts_enabled, 
-                               join_channel, time_between_messages, lines_between_messages, use_general_model, random_chance, log_dice
-                        FROM channel_configs
-                        WHERE channel_name = ?
-                    ''', (channel_filter,))
-                else:
-                    await c.execute('''
-                        SELECT channel_name, owner, trusted_users, ignored_users, voice_enabled, tts_enabled, 
-                               join_channel, time_between_messages, lines_between_messages, use_general_model, random_chance, log_dice
-                        FROM channel_configs
-                    ''')
-                
-                rows = await c.fetchall()
-                if not rows and channel_filter:
-                    self.my_logger.print_message(f"No configuration found for #{channel_filter}")
-                    return
+        return await self.channel_manager.check_and_join_channels(silent)
 
-                for row in rows:
-                    channel, owner, trusted, ignored, voice, tts, join_enabled, time_between, lines_between, use_general, random_chance, log_dice = row
-                    
-                    # Format owner with color
-                    owner_display = f"[{self.my_logger.color_manager.get_user_color(owner)}]{owner}[/]" if owner else "None"
-                    
-                    # Format trusted users with colors
-                    if trusted and trusted.strip():
-                        trusted_display = ", ".join(
-                            f"[{self.my_logger.color_manager.get_user_color(user.strip())}]{user.strip()}[/]"
-                            for user in trusted.split(",") if user.strip()
-                        )
-                    else:
-                        trusted_display = ""
-                        
-                    # Format settings
-                    voice_status = "[green]enabled[/green]" if voice else "[red]disabled[/red]"
-                    tts_status = "[green]enabled[/green]" if tts else "[red]disabled[/red]"
-                    model_status = "[green]general[/green]" if use_general else "[magenta]individual[/magenta]"
-                    
-                    # Check if channel is actually joined
-                    is_joined = f"#{channel}" in self._joined_channels
-                    join_status = "[green]joined[/green]" if is_joined else "[red]not joined[/red]"
-                    
-                    # Format time and lines settings
-                    time_status = f"[green]{time_between}[/green]" if time_between > 0 else "[red]0[/red]"
-                    lines_status = f"[green]{lines_between}[/green]" if lines_between > 0 else "[red]0[/red]"
-                    
-                    # Format chance
-                    chance_status = f"[cyan]{random_chance}%[/cyan]" if random_chance > 0 else "[yellow]0.0%[/yellow]"
-                    
-                    # Format log dice
-                    log_dice_status = "[green]on[/green]" if log_dice else "[red]off[/red]"
-                    
-                    channel_display = f"[{self.my_logger.color_manager.get_channel_color(channel)}]#{channel}[/]"
-                    
-                    # Add to table
-                    table_data.append([
-                        channel_display, 
-                        owner_display,
-                        trusted_display,
-                        voice_status,
-                        tts_status,
-                        join_status,
-                        model_status,
-                        time_status,
-                        lines_status,
-                        chance_status,
-                        log_dice_status
-                    ])
-            
-            from rich.table import Table
-            from rich import box
-            table = Table(
-                title="Channel Configurations",
-                title_style="bold cyan",
-                box=box.ROUNDED,
-                border_style="dim",
-                header_style="bold white",
-                padding=(0, 1),
-            )
-            headers = [
-                ("Channel", "left"),
-                ("Owner", "left"),
-                ("Trusted Users", "left"),
-                ("Voice", "center"),
-                ("TTS", "center"),
-                ("Autojoin", "center"),
-                ("Model", "center"),
-                ("Time", "right"),
-                ("Lines", "right"),
-                ("Chance", "right"),
-                ("Log Dice", "center"),
-            ]
-            for h, j in headers:
-                table.add_column(h, justify=j)
-            for row in table_data:
-                table.add_row(*row)
-            out(table)
-        
-        except Exception as e:
-            out(f"Error printing channel status: {e}")
+    async def setup_periodic_channel_check(self, interval=300):
+        return await self.channel_manager.setup_periodic_channel_check(interval)
+
+    def load_channel_settings(self):
+        return self.channel_manager.load_channel_settings()
+
+    # ── End ChannelManager proxies ────────────────────────────────────────────
 
     async def print_brain_status(self, channel_filter=None, out_func=None):
-        """Print a status table showing the number of lines loaded for each channel's Markov brain and cache metadata."""
-        out = out_func or self.my_logger.print_message
-        try:
-            async with self.db.connect_async() as conn:
-                c = await conn.cursor()
-                
-                # Get use_general_model for channels
-                await c.execute('SELECT channel_name, use_general_model FROM channel_configs')
-                channel_models = {row[0]: row[1] for row in await c.fetchall()}
-                
-                table_data = []
-                import os
-                import datetime
-
-                if channel_filter:
-                    clean_channel = channel_filter.lstrip('#')
-                    use_general = channel_models.get(clean_channel, 1) # Default to 1 (general) if not found
-                    model_type = "General" if use_general else "Individual"
-                    
-                    if use_general:
-                        cache_file_path = os.path.join("cache", "general_markov_model.json")
-                        model_name = "general_markov_model"
-                    else:
-                        cache_file_path = os.path.join("cache", f"{clean_channel}_model.json")
-                    model_name = f"{clean_channel}_model"
-                    
-                    await c.execute('SELECT COUNT(*) FROM messages WHERE is_bot_response = 0 AND channel = ?', (clean_channel,))
-                    row = await c.fetchone()
-                    msg_count = row[0] if row else 0
-                    chan_color_hex = self.my_logger.color_manager.get_channel_color(clean_channel)
-                    out(f"\n🧠 [bold]Detailed Brain Stats for [{chan_color_hex}]#{clean_channel}[/]:[/bold]")
-                    out(f"  • Raw Messages in DB: {msg_count:,}")
-                    out(f"  • Source Model:       {model_type} ({model_name})")
-                    
-                    if os.path.exists(cache_file_path):
-                        size_bytes = os.path.getsize(cache_file_path)
-                        cache_size_str = f"{size_bytes / 1024:.1f} KB"
-                        mtime = os.path.getmtime(cache_file_path)
-                        dt = datetime.datetime.fromtimestamp(mtime)
-                        
-                        out(f"  • Cache File Size:    {cache_size_str}")
-                        out(f"  • Last Compiled:      {dt.strftime('%Y-%m-%d %H:%M:%S')}")
-                        
-                        try:
-                            with open(cache_file_path, 'r', encoding='utf-8') as f:
-                                json_str = f.read()
-                            import markovify
-                            import json
-                            model = markovify.NewlineText.from_json(json_str)
-                            
-                            state_size = model.state_size
-                            num_parsed_sentences = len(model.parsed_sentences) if model.parsed_sentences else 0
-                            
-                            # Dictionary representation of the chain
-                            chain_model = model.chain.model
-                            num_states = len(chain_model) if isinstance(chain_model, dict) else "Unknown"
-                            
-                            # Top start words
-                            try:
-                                starts = chain_model.get((markovify.chain.BEGIN,) * state_size, {})
-                                top_starts = sorted(starts.items(), key=lambda x: x[1], reverse=True)[:5]
-                                top_starts_str = ", ".join([f"'{w[0]}': {c}" if isinstance(w, tuple) else f"'{w}': {c}" for w, c in top_starts])
-                            except Exception:
-                                top_starts_str = "Unavailable"
-                                
-                            out(f"  • State Size:         {state_size}")
-                            out(f"  • Sentences Parsed:   {num_parsed_sentences:,}")
-                            out(f"  • Unique States:      {num_states:,}" if isinstance(num_states, int) else f"  • Unique States:      {num_states}")
-                            out(f"  • Top Start Words:    {top_starts_str}")
-
-                        except Exception as e:
-                            out(f"  • Error parsing cache: {str(e)}")
-                    else:
-                        out(f"  • Cache Status:       Not generated yet")
-                    
-                    out("")
-                    return
-                
-                # Get total counts per channel from DB
-                await c.execute('''
-                    SELECT channel, COUNT(*) as count 
-                    FROM messages 
-                    WHERE is_bot_response = 0 
-                    GROUP BY channel 
-                    ORDER BY channel
-                ''')
-                
-                total_lines = 0
-                
-                # Pre-fetch general model stats
-                gen_cache_size_str = "N/A"
-                gen_last_compiled_str = "None"
-                gen_cache_file_path = os.path.join("cache", "general_markov_model.json")
-                if os.path.exists(gen_cache_file_path):
-                    size_bytes = os.path.getsize(gen_cache_file_path)
-                    gen_cache_size_str = f"{size_bytes / 1024:.1f} KB"
-                    mtime = os.path.getmtime(gen_cache_file_path)
-                    dt = datetime.datetime.fromtimestamp(mtime)
-                    gen_last_compiled_str = dt.strftime('%Y-%m-%d %H:%M:%S')
-
-                for row in await c.fetchall():
-                    channel, count = row
-                    if channel:
-                        clean_channel = channel.lstrip('#')
-                        
-                        use_general = channel_models.get(clean_channel, 1) # Default to 1 (general) if not found
-                        model_type = "General" if use_general else "Individual"
-                        
-                        if use_general:
-                            cache_size_str = gen_cache_size_str
-                            last_compiled_str = gen_last_compiled_str
-                        else:
-                            cache_size_str = "N/A"
-                            last_compiled_str = "None"
-                            cache_file_path = os.path.join("cache", f"{clean_channel}_model.json")
-                            if os.path.exists(cache_file_path):
-                                size_bytes = os.path.getsize(cache_file_path)
-                                cache_size_str = f"{size_bytes / 1024:.1f} KB"
-                                
-                                mtime = os.path.getmtime(cache_file_path)
-                                dt = datetime.datetime.fromtimestamp(mtime)
-                                last_compiled_str = dt.strftime('%Y-%m-%d %H:%M:%S')
-                                
-                        # Add to table
-                        table_data.append([
-                            f"[{self.my_logger.color_manager.get_channel_color(clean_channel)}]#{clean_channel}[/]", 
-                            f"{count:,}",
-                            model_type,
-                            cache_size_str,
-                            last_compiled_str
-                        ])
-                        total_lines += count
-                 
-                total_label = "[bold yellow]Total[/bold yellow]"
-                table_data.append([total_label, f"{total_lines:,}", "", "", ""])
-                
-                from rich.table import Table
-                from rich import box
-                table = Table(
-                    title="Brain Statistics",
-                    title_style="bold cyan",
-                    box=box.ROUNDED,
-                    border_style="dim",
-                    header_style="bold white",
-                    padding=(0, 1),
-                )
-                headers = [
-                    ("Channel", "left"),
-                    ("Lines in Brain", "right"),
-                    ("Model Type", "center"),
-                    ("Cache Size", "right"),
-                    ("Last Compiled", "center"),
-                ]
-                for h, j in headers:
-                    table.add_column(h, justify=j)
-                for row in table_data:
-                    table.add_row(*row)
-                out(table)
-                
-                
-                # Check for cached general model (standalone print below the table)
-                if gen_cache_size_str != "N/A":
-                    self.my_logger.print_message(f"\nGeneral Model Cache Size: {gen_cache_size_str}")
-                    self.my_logger.print_message(f"General Model Last Compiled: {gen_last_compiled_str}")
-                else:
-                    self.my_logger.print_message("\nGeneral Model Cache: Not generated yet")
-                    
-        except Exception as e:
-            self.my_logger.print_message(f"Error printing brain status: {e}")
-
-    def compile_lore_caches(self):
-        """Pre-compiles .txt files from the lore/ folder into markovify JSON caches."""
-        import os
-        import markovify
-        
-        lore_dir = "lore/"
-        cache_dir = "cache/"
-        if not os.path.exists(lore_dir):
-            os.makedirs(lore_dir)
-            return
-
-
-        for filename in os.listdir(lore_dir):
-            if filename.endswith(".txt"):
-                txt_path = os.path.join(lore_dir, filename)
-                cache_path = os.path.join(cache_dir, f"lore_{filename}_model.json")
-                
-                # Check if cache needs updating (if lore txt is newer than cache)
-                needs_update = True
-                if os.path.exists(cache_path):
-                    txt_mtime = os.path.getmtime(txt_path)
-                    cache_mtime = os.path.getmtime(cache_path)
-                    if cache_mtime > txt_mtime:
-                        needs_update = False
-                
-                if needs_update or getattr(self, 'rebuild_cache', False):
-                    try:
-                        with open(txt_path, "r", encoding="utf-8", errors="ignore") as f:
-                            text = f.read()
-                        if text.strip():
-                            # Remove hex addresses commonly found in game text dumps like 0x1d2d9b8:
-                            import re
-                            text = re.sub(r'0x[0-9a-fA-F]+:\s*', '', text)
-                            
-                            lore_model = markovify.NewlineText(text)
-                            with open(cache_path, "w") as cf:
-                                cf.write(lore_model.to_json())
-                            self.my_logger.print_message(f"Compiled lore model for {filename}")
-                    except Exception as e:
-                        self.logger.error(f"Failed to compile lore {filename}: {e}")
-
-    def load_text_and_build_model(self, create_individual_caches=False, target_channel=None):
-        self.compile_lore_caches()
-        cache_directory = "cache/"
-        if not os.path.exists(cache_directory):
-            os.makedirs(cache_directory)
-        self.text = ""  # Text for the general model
-        self.models = {}  # Dictionary for channel-specific models
-        total_lines = 0
-        files_data = []
-
-        self.cache_build_times = self.load_last_cache_build_times()
-        line_threshold = 50
-
-        with self.db.connect_sync() as conn:
-            c = conn.cursor()
-
-            # ONE-TIME MIGRATION: Migrating old logs/*.txt to DB if they exist
-            directory = "logs/"
-            if os.path.exists(directory):
-                import datetime
-                for filename in os.listdir(directory):
-                    if filename.endswith(".txt"):
-                        file_path = os.path.join(directory, filename)
-                        channel_name = filename[:-4]
-                        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                            lines = [line.strip() for line in f if line.strip()]
-                        if lines:
-                            self.my_logger.print_message(f"Migrating {len(lines)} legacy log entries for #{channel_name} to database...")
-                            timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
-                            c.executemany(
-                                "INSERT INTO messages (message, timestamp, channel, author_name, is_bot_response) VALUES (?, ?, ?, ?, 0)",
-                                [(line, timestamp, channel_name, "legacy_user") for line in lines]
-                            )
-                        os.rename(file_path, file_path + ".imported")
-                conn.commit()
-
-            # Get active channels
-            c.execute("SELECT channel_name FROM channel_configs")
-            valid_channels = set(row[0] for row in c.fetchall())
-
-            # Grab all non-bot messages ordered by channel
-            c.execute("SELECT channel, message, author_name FROM messages WHERE is_bot_response = 0 ORDER BY channel")
-            rows = c.fetchall()
-
-        # Group messages by channel and generate user stats
-        channel_messages = {}
-        user_stats = {}
-        
-        for row in rows:
-            # Handle standard unpacking based on length
-            if len(row) == 3:
-                channel, msg, author = row
-            else:
-                channel, msg = row[0], row[1]
-                author = None
-                
-            if author:
-                author_lower = author.lower()
-                if author_lower not in user_stats:
-                    user_stats[author_lower] = {
-                        'messages': 0,
-                        'chars': 0,
-                        'words': 0
-                    }
-                user_stats[author_lower]['messages'] += 1
-                user_stats[author_lower]['chars'] += len(msg)
-                user_stats[author_lower]['words'] += len(msg.split())
-                
-            if channel:
-                channel_name = channel.lstrip('#')
-                if channel_name not in channel_messages:
-                    channel_messages[channel_name] = []
-                channel_messages[channel_name].append(msg)
-                
-        # Save user stats to model cache
-        try:
-            import json
-            with open(os.path.join(cache_directory, "user_model_stats.json"), 'w') as f:
-                json.dump(user_stats, f)
-        except Exception as e:
-            self.logger.error(f"Failed to save user model stats to cache: {e}")
-                
-        for channel_name, msgs in channel_messages.items():
-            if not msgs: continue
-            file_text = "\n".join(msgs) + "\n"
-            line_count = len(msgs)
-            total_lines += line_count
-            self.text += file_text
-
-            cache_status = f"{RED}Unchanged{RESET}"
-            
-            should_compile_individual = create_individual_caches and channel_name in valid_channels and line_count >= line_threshold
-            if target_channel and target_channel != "Global" and channel_name != target_channel.lstrip('#'):
-                should_compile_individual = False
-                
-            if should_compile_individual:
-                cache_file_path = os.path.join(cache_directory, f"{channel_name}_model.json")
-                cache_status = self.create_channel_model(channel_name, file_text, cache_file_path)
-
-            files_data.append([
-                channel_name, 
-                f"{line_count:,}", 
-                cache_status, 
-                "General Model" if cache_status == f"{RED}Unchanged{RESET}" else f"{channel_name}_model.json"
-            ])
-
-        if self.text:
-            self.general_model = markovify.NewlineText(self.text)
-            
-            should_compile_general = True
-            if target_channel and target_channel != "Global":
-                should_compile_general = False
-                
-            general_cache_file_path = os.path.join(cache_directory, "general_markov_model.json")
-            last_build_time = self.cache_build_times.get("general_markov_model.json")
-            general_cache_status = f"{RED}Unchanged{RESET}"
-            
-            if should_compile_general and (self.rebuild_cache or last_build_time is None):
-                self.save_general_model_to_cache(general_cache_file_path)
-                general_cache_status = f"{GREEN}Updated{RESET}"
-                # Update build time
-                self.cache_build_times["general_markov_model.json"] = time.time()
-                self.save_cache_build_times()
-
-        # Add total and general model status to table
-        total_label = f"{YELLOW}Total{RESET}"
-        files_data.append([total_label, f"{total_lines:,}", general_cache_status, "general_markov_model.json"])
-
-        # Print the table outside the loop, after processing all files
-        headers = ["Channel", "Brain Size", "Brain Status", "Brain"]
-        # print(tabulate(files_data, headers=headers, tablefmt="pretty", numalign="right"))
-        self.my_logger.print_message(f"Brain loaded: {total_lines:,} lines active.")
-
-    def determine_cache_status(self, channel_name, file_text, create_individual_caches, cache_directory):
-        """Determine cache status for a given channel"""
-        cache_file_path = os.path.join(cache_directory, f"{channel_name}_model.json")
-        cache_status = "Unchanged"
-        cache_file_display = "general_markov_model.json"
-
-        # Check for DB-registered channels
-        with self.db.connect_sync() as conn:
-            c = conn.cursor()
-            c.execute("SELECT channel_name FROM channel_configs")
-            valid_channels = set(row[0] for row in c.fetchall())
-
-        if channel_name in valid_channels and create_individual_caches:
-            channel_model = markovify.NewlineText(file_text)
-            self.models[channel_name] = channel_model
-            
-            # Check if the cache file needs to be updated
-            # Note: Checking last build time or model differences to decide
-            last_build_time = self.cache_build_times.get(channel_name)
-            if self.rebuild_cache or last_build_time is None:
-                with open(cache_file_path, 'w') as cache_file:
-                    cache_file.write(channel_model.to_json())
-                cache_status = "Updated"
-                # Update the build time
-                self.cache_build_times[channel_name] = time.time()
-                
-            cache_file_display = f"{channel_name}_model.json"
-
-        return cache_status, cache_file_display
-
-    def cache_individual_model(self, channel_name, model, cache_file_path):
-        model_json = model.to_json()
-        with open(cache_file_path, "w") as f:
-            f.write(model_json)
-
-    def create_channel_model(self, channel_name, file_text, cache_file_path):
-        """Create a model for a specific channel and save it to the cache."""
-        try:
-            chan_color = self.my_logger.color_manager.get_channel_color(channel_name)
-            self.my_logger.print_message(f"Compiling individual brain model for [{chan_color}]#{channel_name}[/]...")
-            channel_model = markovify.NewlineText(file_text)
-            self.models[channel_name] = channel_model
-            
-            # Check if we should update cache
-            last_build_time = self.cache_build_times.get(channel_name)
-            if self.rebuild_cache or last_build_time is None:
-                with open(cache_file_path, 'w') as cache_file:
-                    cache_file.write(channel_model.to_json())
-            
-            # Update build time
-            self.cache_build_times[channel_name] = time.time()
-            self.save_cache_build_times()
-            return f"[green]Updated[/]"
-        except Exception as e:
-            self.my_logger.print_message(f"Error creating model for {channel_name}: {e}")
-            return f"[red]Error[/]"
-
-    def save_general_model_to_cache(self, cache_file_path):
-        """Save the general model to the cache."""
-        try:
-            with open(cache_file_path, 'w') as cache_file:
-                cache_file.write(self.general_model.to_json())
-            return True
-        except Exception as e:
-            self.my_logger.print_message(f"Error saving general model to cache: {e}")
-            return False
-
-
-    def load_model_from_cache(self, channel_name):
-        cache_file_path = os.path.join("cache", f"{channel_name}_model.json")
-        try:
-            with open(cache_file_path, "r") as f:
-                model_json = f.read()
-                channel_model = markovify.NewlineText.from_json(model_json)
-                
-            # Check for lore configs
-            enabled_lore_str = ""
-            lore_bias = 15.0
-            try:
-                with self.db.connect_sync() as conn:
-                    c = conn.cursor()
-                    c.execute("SELECT enabled_lore, lore_bias FROM channel_configs WHERE channel_name = ?", (channel_name,))
-                    row = c.fetchone()
-                    if row:
-                        if row[0]: enabled_lore_str = row[0]
-                        if len(row) > 1 and row[1] is not None: lore_bias = float(row[1])
-            except Exception as e:
-                self.logger.error(f"Error fetching enabled_lore: {e}")
-                
-            if not enabled_lore_str:
-                return channel_model
-                
-            # Combine lore
-            lores = [l.strip() for l in enabled_lore_str.split(",") if l.strip()]
-            models_to_combine = [channel_model]
-            weights = [lore_bias] # Configurable channel base multiplier
-            
-            for lore_file in lores:
-                lore_cache_path = os.path.join("cache", f"lore_{lore_file}_model.json")
-                if os.path.exists(lore_cache_path):
-                    with open(lore_cache_path, "r") as f:
-                        lore_json = f.read()
-                        lore_model = markovify.NewlineText.from_json(lore_json)
-                        models_to_combine.append(lore_model)
-                        weights.append(1.0)
-                        
-            if len(models_to_combine) > 1:
-                return markovify.combine(models_to_combine, weights)
-            return channel_model
-            
-        except FileNotFoundError:
-            return None
-
+        """Delegate to MarkovBrain.print_brain_status."""
+        return await self.brain.print_brain_status(channel_filter=channel_filter, out_func=out_func)
 
     def generate_message(self, channel_name):
-        # Connect to the SQLite database
-        cache_file_used = ""  # Variable to store the name of the cache file used
-        model = None
+        """Delegate to MarkovBrain.generate_message."""
+        return self.brain.generate_message(channel_name)
 
-        with self.db.connect_sync() as conn:
-            c = conn.cursor()
-            # Check the database to see if this channel should use the general model
-            c.execute(
-                "SELECT use_general_model FROM channel_configs WHERE channel_name = ?",
-                (channel_name,),
-            )
-            result = c.fetchone()
-
-            # Determine which model to use and add debug information
-            if result and result[0]:
-                model = self.general_model
-                cache_file_used = "general_markov_model.json"
-            else:
-                model = self.load_model_from_cache(channel_name)
-                if model:
-                    cache_file_used = f"{channel_name}_model.json"
-                else:
-                    # If explicitly set to NOT use general model, we must NOT fall back to it.
-                    # Build an ephemeral model dynamically from the DB for this channel.
-                    c.execute("SELECT message FROM messages WHERE channel = ? AND is_bot_response = 0", (channel_name,))
-                    rows = c.fetchall()
-                    if rows:
-                        text = "\n".join(row[0] for row in rows if row[0])
-                        if text.strip():
-                            try:
-                                model = markovify.NewlineText(text)
-                                cache_file_used = f"{channel_name}_dynamic_fallback"
-                                self.my_logger.log_message(
-                                    channel_name,
-                                    "TwitchSystem",
-                                    f"[bold yellow]⚠️ Missing Brain Cache! Used slow dynamic fallback. Please run 'compile' to build the brain.[/bold yellow]",
-                                    is_bot_message=True
-                                )
-                            except Exception as e:
-                                self.logger.error(f"Failed to build dynamic model for {channel_name}: {e}")
-
-                    # If we still have no model (e.g. channel has zero messages), return early
-                    if not model:
-                        self.logger.info(f"Failed to generate isolated message for {channel_name}: Not enough data.")
-                        return None
-
-        # Generate a message using the chosen model
-        message = model.make_sentence()
-        if message:
-            # Clean up the message to ensure all characters are printable
-            message = "".join(char for char in message if char.isprintable())
-            # Save and return the generated message
-            self.save_message(message, channel_name)
-            return message
-        else:
-            # If no message was generated, return None and add debug information
-            print(
-                f"[DEBUG] Failed to generate message for channel: {channel_name} using cache file: {cache_file_used}"
-            )
-            return None
-
-
-    def save_message(self, message, channel_name):
-        with self.db.connect_sync() as conn:
-            c = conn.cursor()
-            c.execute(
-                """INSERT INTO messages (message, timestamp, channel, state_size, message_length, author_name, is_bot_response)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    message,
-                    datetime.now(timezone.utc).isoformat(), # Store timestamp as ISO string in UTC
-                    channel_name,
-                    self.general_model.state_size if hasattr(self.general_model, 'state_size') else None, # Ensure general_model exists
-                    len(message),
-                    self.nick, # Bot's name as author
-                    1 # Mark as bot response
-                ),
-            )
-            conn.commit()
-
-
-    def update_model_periodically(self, interval=86400, initial_delay=120):
-        #self.my_logger.info("update_model_periodically called")
-        def delayed_execution():
-            try:
-                if self.rebuild_cache:
-                    # Rebuild cache including individual caches
-                    self.load_text_and_build_model(create_individual_caches=True)
-                    #self.my_logger.info("Brain rebuild requested.")
-                else:
-                    # Check if the general model cache is loaded
-                    cache_loaded = self.load_model_from_cache("general_markov_model.json")
-                    if not cache_loaded:
-                        # Just rebuild the general model
-                        self.load_text_and_build_model(create_individual_caches=False)
-                        self.my_logger.info("Markov model updated.")
-                    else:
-                        self.my_logger.info("Markov model loaded from cache.")
-            except Exception as e:
-                self.my_logger.error(f"Error during model update: {e}")
-            finally:
-                # Schedule the next execution
-                threading.Timer(interval, delayed_execution).start()
-
-        # Start the first execution after the initial delay
-        threading.Timer(initial_delay, delayed_execution).start()
-
-    def load_last_cache_build_times(self):
-        """Load the last build times of cache files from the database or create a default."""
-        try:
-            # Check if a cache_build_times file exists
-            cache_time_file = os.path.join("cache", "cache_build_times.json")
-            if os.path.exists(cache_time_file):
-                with open(cache_time_file, 'r') as f:
-                    import json
-                    data = json.load(f)
-                    
-                    # Convert from list to dictionary if needed
-                    if isinstance(data, list):
-                        self.logger.info("Converting cache build times from list to dictionary format...")
-                        result = {}
-                        for entry in data:
-                            if isinstance(entry, dict) and "channel" in entry and "timestamp" in entry:
-                                # Use the channel name as the key, timestamp as the value
-                                channel_key = entry["channel"]
-                                if channel_key == "general_markov":
-                                    channel_key = "general_markov_model.json"
-                                result[channel_key] = entry["timestamp"]
-                        return result
-                    return data
-            return {}
-        except Exception as e:
-            self.logger.info(f"Error loading cache build times: {e}")
-            return {}
-        
-    def save_cache_build_times(self):
-        """Save the current cache build times to a file."""
-        try:
-            # Ensure cache directory exists
-            if not os.path.exists("cache"):
-                os.makedirs("cache")
-            
-            cache_time_file = os.path.join("cache", "cache_build_times.json")
-            
-            # Convert from dictionary to list for backwards compatibility
-            # or just save as dictionary if we've already migrated
-            with open(cache_time_file, 'w') as f:
-                import json
-                # Check if we need to maintain the list format for backwards compatibility
-                try:
-                    with open(cache_time_file, 'r') as read_f:
-                        old_data = json.load(read_f)
-                        if isinstance(old_data, list):
-                            # Convert our dictionary back to the list format
-                            list_data = []
-                            for key, timestamp in self.cache_build_times.items():
-                                channel_name = key
-                                if key == "general_markov_model.json":
-                                    channel_name = "general_markov"
-                                list_data.append({
-                                    "channel": channel_name,
-                                    "timestamp": timestamp,
-                                    "success": True,
-                                    "duration": 3.45  # Default duration
-                                })
-                            json.dump(list_data, f, indent=2)
-                            self.logger.info("Saved cache build times in list format for compatibility")
-                            return
-                except:
-                    # If we can't read the old file, just use the dictionary format
-                    pass
-                
-                # Save as dictionary
-                json.dump(self.cache_build_times, f, indent=2)
-        except Exception as e:
-            self.logger.info(f"Error saving cache build times: {e}")
+    def load_text_and_build_model(self, create_individual_caches=False, target_channel=None):
+        """Delegate to MarkovBrain.load_text_and_build_model (called from tui.py compile).
+        Syncs Bot.rebuild_cache to the brain before delegating so tui.py's flag override works."""
+        self.brain.rebuild_cache = self.rebuild_cache
+        return self.brain.load_text_and_build_model(create_individual_caches=create_individual_caches, target_channel=target_channel)
 
     @commands.command(name="mockbot", aliases=["mb"])
     async def mockbot_wrapper(self, ctx, setting=None, *args):
@@ -1381,35 +296,6 @@ class Bot(commands.Bot):
         else:
             # Call the original mockbot_command for other settings
             await mockbot_command(self, ctx, setting, args[0] if args else None, enable_tts=self.enable_tts)
-
-    @staticmethod
-    def convert_size(size_bytes):
-        if size_bytes == 0:
-            return "0B"
-        size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
-        i = int(math.floor(math.log(size_bytes, 1024)))
-        p = math.pow(1024, i)
-        s = round(size_bytes / p, 2)
-        return f"{s} {size_name[i]}"
-
-    async def fetch_channel_settings(self, channel_name):
-        try:
-            async with self.db.connect_async() as conn:
-                c = await conn.cursor()
-                await c.execute(
-                    "SELECT lines_between_messages, time_between_messages, tts_enabled, voice_enabled, random_chance, log_dice FROM channel_configs WHERE channel_name = ?",
-                    (channel_name,)
-                )
-                row = await c.fetchone()
-                if row:
-                    random_chance = float(row[4]) if len(row) > 4 and row[4] is not None else 0.0
-                    log_dice = bool(row[5]) if len(row) > 5 and row[5] is not None else False
-                    return row[0], row[1], row[2], row[3], random_chance, log_dice  # lines, time, tts, voice, chance, log_dice
-                else:
-                    return 0, 0, False, False, 0.0, False  # Default values
-        except Exception as e:
-            self.logger.info(f"SQLite error in fetch_channel_settings: {e}")
-            return 0, 0, False, False, 0.0, False
 
     def get_channel_voice_preset(self, channel_name):
         """Fetch the voice_preset for a given channel from the database."""
@@ -1645,20 +531,24 @@ class Bot(commands.Bot):
         try:
             if verbose:
                 self.logger.info(f"{YELLOW}Step 8: Setting up heartbeat...{RESET}")
-            self.update_heartbeat_file()
-            self.loop.create_task(self.heartbeat_task())
+            from bot.tasks import heartbeat as _heartbeat_mod
+            _heartbeat_mod.update_heartbeat_file(self)
+            self.loop.create_task(_heartbeat_mod.heartbeat_loop(self))
             if verbose:
                 self.logger.info(f"{GREEN}✅ Heartbeat task started{RESET}")
         except Exception as e:
             self.logger.info(f"{RED}❌ Error setting up heartbeat: {e}{RESET}")
-            
+
         # Step 9: Start background DB writer & Timed Message Loop
         try:
             if verbose:
                 self.logger.info(f"{YELLOW}Step 9: Starting background DB writer, Timed Message Loop, and Sleep Monitor...{RESET}")
-            self.db_flush_task = self.loop.create_task(self.background_db_writer())
-            self.timed_msg_task = self.loop.create_task(self.timed_message_loop())
-            self.sleep_monitor_task = self.loop.create_task(self.sleep_monitor_loop())
+            from bot.tasks import db_writer, timed_messages, sleep_monitor, message_requests, live_stream_monitor
+            self.db_flush_task = self.loop.create_task(db_writer.background_db_writer(self))
+            self.timed_msg_task = self.loop.create_task(timed_messages.timed_message_loop(self))
+            self.sleep_monitor_task = self.loop.create_task(sleep_monitor.sleep_monitor_loop(self))
+            self.message_request_check = self.loop.create_task(message_requests.message_request_checker(self))
+            self.live_stream_monitor_task = self.loop.create_task(live_stream_monitor.live_stream_monitor_loop(self))
             if verbose:
                 self.logger.info(f"{GREEN}✅ Background loops started{RESET}")
         except Exception as e:
@@ -1739,196 +629,6 @@ class Bot(commands.Bot):
 
         # Mark connection as successful for reconnection manager
         self.connection_manager.mark_connected()
-
-    async def sleep_monitor_loop(self):
-        """Monitors global chat activity and suspends heavy background tasks during long quiet periods (15m)."""
-        self.logger.info("Smart Sleep Monitor started.")
-        while True:
-            try:
-                await asyncio.sleep(60.0)  # Check every minute
-                delta = (datetime.now() - self.last_global_message_time).total_seconds()
-                
-                # If total silence > 15 minutes and we aren't asleep yet
-                if delta > 900 and not self.is_sleeping:
-                    self.is_sleeping = True
-                    self.logger.info("Global chat has been silent for 15+ minutes. Entering Smart Sleep Mode.")
-                    self.my_logger.print_message("[dim italic]Entering Smart Sleep Mode due to inactivity...[/dim italic]")
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                self.logger.error(f"Error in sleep monitor: {e}")
-
-    async def timed_message_loop(self):
-        """Background asynchronous task that periodically evaluates and sends Timed Messages."""
-        self.logger.info("Timed message loop started.")
-        while True:
-            try:
-                await asyncio.sleep(60.0)  # Check every 60 seconds
-                if self.is_sleeping:
-                    continue  # Do not dispatch timed messages or query DB if the bot is globally sleeping
-                
-                try:
-                    import random
-                    async with self.db.connect_async() as conn:
-                        c = await conn.cursor()
-                        
-                        # Find pools where the interval has elapsed since last_sent_time
-                        # and verify the bot is currently in the channel
-                        await c.execute("""
-                            SELECT pool_name, channel_name 
-                            FROM timed_message_pools 
-                            WHERE (julianday(CURRENT_TIMESTAMP) - julianday(last_sent_time)) * 1440 >= interval_minutes
-                        """)
-                        ready_pools = await c.fetchall()
-                        
-                        for pool_name, channel_name in ready_pools:
-                            # Verify bot is in channel
-                            if f"#{channel_name}" not in self._joined_channels:
-                                continue
-                                
-                            # Retrieve all messages for this pool
-                            await c.execute(
-                                "SELECT message_text FROM timed_messages WHERE pool_name = ? AND channel_name = ?",
-                                (pool_name, channel_name)
-                            )
-                            messages = await c.fetchall()
-                            
-                            if messages:
-                                # Pick a random message from the pool
-                                msg_text = random.choice(messages)[0]
-                                
-                                # Process Tracery if it contains '#'
-                                if '#' in msg_text:
-                                    import tracery
-                                    from tracery.modifiers import base_english
-                                    
-                                    # Fetch grammar rules for this channel + global rules
-                                    await c.execute(
-                                        "SELECT rule_name, options_json FROM custom_grammar WHERE channel_name = ? OR channel_name = 'global'",
-                                        (channel_name,)
-                                    )
-                                    grammar_rows = await c.fetchall()
-                                    
-                                    rules = {}
-                                    import json
-                                    for rule_name, options_json in grammar_rows:
-                                        try:
-                                            rules[rule_name] = json.loads(options_json)
-                                        except:
-                                            pass
-                                            
-                                    rules["origin"] = [msg_text]
-                                    rules["streamer"] = [channel_name]
-                                    grammar = tracery.Grammar(rules)
-                                    grammar.add_modifiers(base_english)
-                                    msg_text = grammar.flatten("#origin#")
-
-                                # Send the timed message
-                                channel_obj = self.get_channel(channel_name)
-                                if channel_obj and msg_text:
-                                    await channel_obj.send(msg_text)
-                                    self.my_logger.log_message(channel_name, self.nick, msg_text, is_bot_message=True)
-                                    
-                                    # Update the last_sent_time so the interval resets
-                                    await c.execute(
-                                        "UPDATE timed_message_pools SET last_sent_time = CURRENT_TIMESTAMP WHERE pool_name = ? AND channel_name = ?",
-                                        (pool_name, channel_name)
-                                    )
-                                    await conn.commit()
-                except Exception as loop_db_error:
-                    self.logger.error(f"Database error in timed messages loop: {loop_db_error}")
-
-            except asyncio.CancelledError:
-                self.logger.info("Timed message loop cancelled.")
-                break
-            except Exception as e:
-                self.logger.error(f"Unexpected error in timed message loop: {e}")
-
-    async def flush_db_queue(self):
-        """Force flush remaining messages in the queue to the database."""
-        if not self.message_queue:
-            return
-            
-        messages_to_insert = list(self.message_queue)
-        self.message_queue.clear()
-        
-        try:
-            async with self.db.connect_async() as conn:
-                c = await conn.cursor()
-                await c.executemany(
-                    """INSERT INTO messages (twitch_message_id, message, author_name, timestamp, channel, is_bot_response, message_length, tts_processed)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    messages_to_insert
-                )
-                await conn.commit()
-            self.logger.info(f"Forcibly flushed {len(messages_to_insert)} messages to DB during shutdown.")
-        except Exception as e:
-            self.logger.error(f"Failed to cleanly flush message queue: {e}")
-
-    async def background_db_writer(self):
-        """Background asynchronous task that periodically commits queued messages to the database in bulk."""
-        self.logger.info("Background DB writer started.")
-        while True:
-            try:
-                await asyncio.sleep(2.0)  # Flush every 2 seconds
-                
-                if not self.message_queue:
-                    continue
-                    
-                # Take a shallow copy and clear the main list lock-free
-                messages_to_insert = list(self.message_queue)
-                self.message_queue.clear()
-
-                try:
-                    async with self.db.connect_async() as conn:
-                        c = await conn.cursor()
-                        await c.executemany(
-                            """INSERT INTO messages (twitch_message_id, message, author_name, timestamp, channel, is_bot_response, message_length, tts_processed)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                            messages_to_insert
-                        )
-                        await conn.commit()
-                except Exception as db_err:
-                    self.logger.error(f"Failed bulk inserting messages to DB: {db_err}")
-                    # Re-queue the messages so they aren't lost if the DB momentarily locked
-                    self.message_queue.extend(messages_to_insert)
-            except asyncio.CancelledError:
-                self.logger.info("Background DB writer cancelled. Flushing remaining messages...")
-                await self.flush_db_queue()
-                break
-            except Exception as e:
-                self.logger.error(f"Unexpected error in background DB writer: {e}")
-                await asyncio.sleep(2.0)
-
-    async def live_stream_monitor_loop(self):
-        """Periodically check which of our joined channels are currently live on Twitch."""
-        # Wait a bit before first check so bot can init fully
-        await asyncio.sleep(15)
-        while True:
-            try:
-                if self._joined_channels:
-                    check_channels = [c.lstrip('#') for c in self._joined_channels]
-                    live_set = set()
-                    
-                    # fetch_streams takes a max of 100 user logins at a time
-                    for i in range(0, len(check_channels), 100):
-                        chunk = check_channels[i:i+100]
-                        try:
-                            streams = await self.fetch_streams(user_logins=chunk)
-                            for stream in streams:
-                                live_set.add(stream.user.name.lower())
-                        except Exception as chunk_err:
-                            self.logger.error(f"Failed to fetch stream chunk: {chunk_err}")
-                            
-                    self.live_streamers = live_set
-                    
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                self.logger.error(f"Unexpected error in live stream monitor: {e}")
-                
-            # Check every 3 minutes to avoid API spam
-            await asyncio.sleep(180)
 
     async def event_pubsub_bits(self, event: pubsub.PubSubBitsMessage):
         """Handle incoming Bits/Cheers via PubSub."""
@@ -2190,161 +890,8 @@ class Bot(commands.Bot):
         lines_between, time_between, tts_enabled, voice_enabled, random_chance, log_dice = await self.fetch_channel_settings(channel_name)
 
         # --- CUSTOM COMMANDS & GRAMMAR (Funtoon Style) ---
-        # Any message's first word could technically be a custom command trigger, no "!" required.
-        command_parts = message.content.split(maxsplit=1)
-        if command_parts:
-            cmd_name = command_parts[0].lower()
-            cmd_input = command_parts[1] if len(command_parts) > 1 else ""
-            
-            # Check db for custom command, prioritizing channel-specific, then global
-            try:
-                async with self.db.connect_async() as conn:
-                    c = await conn.cursor()
-                    await c.execute(
-                        "SELECT response_template FROM custom_commands WHERE (channel_name = ? OR channel_name = 'global') AND command_name = ? ORDER BY channel_name DESC LIMIT 1",
-                        (channel_name, cmd_name)
-                    )
-                    cmd_row = await c.fetchone()
-                    
-                    if cmd_row:
-                        response_template = cmd_row[0]
-                        
-                        # Fetch grammar rules for this channel + global rules
-                        await c.execute(
-                            "SELECT rule_name, options_json FROM custom_grammar WHERE channel_name = ? OR channel_name = 'global'",
-                            (channel_name,)
-                        )
-                        grammar_rows = await c.fetchall()
-                        
-                        rules = {}
-                        import json
-                        for rule_name, options_json in grammar_rows:
-                            try:
-                                # Prioritize channel rules over global rules if they have the same name (by overwriting)
-                                rules[rule_name] = json.loads(options_json)
-                            except:
-                                pass
-                                
-                        # Inject built-in variables as static rules
-                        rules["sender"] = [message.author.name]
-                        rules["streamer"] = [channel_name]
-                        rules["input"] = [cmd_input]
-                        
-                        # Generate response using Tracery
-                        import tracery
-                        from tracery.modifiers import base_english
-                        grammar = tracery.Grammar(rules)
-                        grammar.add_modifiers(base_english)
-                        
-                        # Replace <{...}> syntax with Tracery #...# syntax for variables
-                        formatted_template = response_template.replace("<{sender}>", "#sender#")
-                        formatted_template = formatted_template.replace("<{streamer}>", "#streamer#")
-                        formatted_template = formatted_template.replace("<{input}>", "#input#")
-                        
-                        # Unescape \< and << that funtoon uses to prevent parsing
-                        formatted_template = formatted_template.replace("\\<", "<").replace("<<", "<")
-                        
-                        generated_response = grammar.flatten(formatted_template)
-                        
-                        # --- VARIABLE MACROS INTERCEPTOR ---
-                        import re
-                        
-                        # Find all var_add tags: {var_add:name:value}
-                        for var_name, change_val in re.findall(r'\{var_add:(.+?):(-?\d+)\}', generated_response):
-                            try:
-                                await c.execute(
-                                    "INSERT INTO channel_variables (channel_name, var_name, var_value) VALUES (?, ?, ?) "
-                                    "ON CONFLICT(channel_name, var_name) DO UPDATE SET var_value = var_value + ?",
-                                    (channel_name, var_name, int(change_val), int(change_val))
-                                )
-                                await conn.commit()
-                            except Exception as e:
-                                self.logger.error(f"Error processing var_add for {var_name}: {e}")
-                                
-                        # Find all var_set tags: {var_set:name:value}
-                        for var_name, new_val in re.findall(r'\{var_set:(.+?):(-?\d+)\}', generated_response):
-                            try:
-                                await c.execute(
-                                    "INSERT INTO channel_variables (channel_name, var_name, var_value) VALUES (?, ?, ?) "
-                                    "ON CONFLICT(channel_name, var_name) DO UPDATE SET var_value = ?",
-                                    (channel_name, var_name, int(new_val), int(new_val))
-                                )
-                                await conn.commit()
-                            except Exception as e:
-                                self.logger.error(f"Error processing var_set for {var_name}: {e}")
-
-                        # Clean the action tags from the output so they don't print in chat
-                        generated_response = re.sub(r'\{var_add:.+?:-?\d+\}', '', generated_response)
-                        generated_response = re.sub(r'\{var_set:.+?:-?\d+\}', '', generated_response)
-
-                        # Process <{var:X}> syntax to read variables AFTER updates run
-                        # E.g. Deaths: <{var:deaths}>
-                        for var_name in set(re.findall(r'<\{var:(.+?)\}>', generated_response)):
-                            await c.execute(
-                                "SELECT var_value FROM channel_variables WHERE channel_name = ? AND var_name = ?",
-                                (channel_name, var_name)
-                            )
-                            row = await c.fetchone()
-                            val = row[0] if row else 0
-                            generated_response = generated_response.replace(f'{{var:{var_name}}}', str(val))
-                            # We need to ensure we replace the `<{...}>` completely because tracery regex or something might interfere
-                            # It's cleaner to handle both <{...}> and just raw {var:...} if needed
-                            generated_response = generated_response.replace(f'<{{var:{var_name}}}>', str(val))
-                        
-                        # --- MODERATION ACTION INTERCEPTOR ---
-                        import re
-                        timeout_match = re.search(r'\{timeout:(.+?):(\d+)\}', generated_response)
-                        if timeout_match:
-                            target_user = timeout_match.group(1).strip()
-                            duration = int(timeout_match.group(2))
-                            
-                            # Clean the generated response so the tag doesn't show in chat
-                            generated_response = re.sub(r'\{timeout:(.+?):(\d+)\}', '', generated_response).strip()
-                            
-                            # Security Check
-                            # The sender MUST be a moderator, the broadcaster, the global bot owner, OR they are targeting themselves.
-                            bot_owner = config.owner.lower()
-                            
-                            is_mod = message.author.is_mod
-                            is_broadcaster = message.author.is_broadcaster
-                            is_owner = message.author.name.lower() == bot_owner
-                            is_self_target = target_user.lower() == message.author.name.lower()
-                            
-                            if is_mod or is_broadcaster or is_owner or is_self_target:
-                                # Fetch Broadcaster (to act as the channel context) and Target User
-                                try:
-                                    channel_users = await self.fetch_users(names=[channel_name])
-                                    target_users = await self.fetch_users(names=[target_user])
-                                    if channel_users and target_users and hasattr(self, 'bot_user_id'):
-                                        channel_user_obj = channel_users[0]
-                                        target_user_obj = target_users[0]
-                                        
-                                        tmi_token = config.get("auth", "tmi_token")
-                                        if tmi_token.startswith("oauth:"):
-                                            tmi_token = tmi_token[6:]
-                                            
-                                        await channel_user_obj.timeout_user(
-                                            token=tmi_token,
-                                            moderator_id=self.bot_user_id,
-                                            user_id=target_user_obj.id,
-                                            duration=duration,
-                                            reason="MockBot Custom Command"
-                                        )
-                                        self.logger.info(f"Successfully timed out {target_user} for {duration}s via Custom Command!")
-                                except Exception as e:
-                                    self.logger.error(f"Failed to execute moderation action: {e}")
-                            else:
-                                self.logger.warning(f"{message.author.name} attempted to use a moderation custom command without permissions.")
-
-                        # Send the custom command response
-                        channel_obj = self.get_channel(channel_name)
-                        if channel_obj and generated_response:
-                            await channel_obj.send(generated_response)
-                            self.my_logger.log_message(channel_name, self.nick, generated_response, is_bot_message=True)
-                            
-                        return # Exit early! Don't process it as a regular message or core command
-            except Exception as e:
-                self.logger.error(f"Error processing custom command {cmd_name} in {channel_name}: {e}")
+        if await self.custom_cmd_handler.handle(message, channel_name):
+            return
 
         # Handle any core bot commands in the message.
         await self.handle_commands(message)
@@ -2512,299 +1059,10 @@ class Bot(commands.Bot):
         except Exception as e:
             self.logger.info(f"Error stopping bot: {e}")
 
-    async def add_trusted_user(self, channel_name, username):
-        """Add a user to the trusted users list for a channel."""
-        try:
-            # Remove # prefix for database storage
-            clean_channel = channel_name.lstrip('#')
-
-            with self.db.connect_sync() as conn:
-                c = conn.cursor()
-
-                # Get current trusted users
-                c.execute("SELECT trusted_users FROM channel_configs WHERE channel_name = ?", (clean_channel,))
-                row = c.fetchone()
-
-                if row:
-                    current_trusted = row[0]
-
-                    # Add the new user
-                    trusted_users = []
-                    if current_trusted and current_trusted.strip():
-                        trusted_users = [u.strip() for u in current_trusted.split(',')]
-
-                    if username not in trusted_users:
-                        trusted_users.append(username)
-
-                    # Update the database
-                    new_trusted = ','.join(trusted_users)
-                    c.execute("UPDATE channel_configs SET trusted_users = ? WHERE channel_name = ?",
-                             (new_trusted, clean_channel))
-                    conn.commit()
-
-                    # Update the channel settings in memory
-                    if clean_channel in self.channel_settings:
-                        self.channel_settings[clean_channel]['trusted_users'] = trusted_users
-
-                    self.logger.info(f"Added {username} to trusted users for {channel_name}")
-                    return True
-                else:
-                    self.logger.info(f"Channel {channel_name} not found in database")
-                    return False
-        except Exception as e:
-            self.logger.info(f"Error adding trusted user: {e}")
-            return False
-
-    async def heartbeat_task(self):
-        """Update the heartbeat file periodically."""
-        while True:
-            self.update_heartbeat_file()
-            await asyncio.sleep(60)  # Update every 60 seconds
-
     def update_heartbeat_file(self):
-        """Write current bot status to heartbeat file and database."""
-        try:
-            import json
-            # from utils.web_utils import get_verbose_logs_setting # No longer needed from web_utils
-            
-            # Check for verbose logs setting (now from self.verbose_heartbeat_log)
-            # verbose_logs = get_verbose_logs_setting() # Replaced by self.verbose_heartbeat_log
-            
-            # Get current joined channels - strip # for consistent matching
-            # We use a list comprehension to get only the channel names from _joined_channels
-            # This ensures we only list truly joined channels
-            channels_list = [channel.lstrip('#') for channel in self._joined_channels]
-            
-            # Remove empty strings from the list
-            channels_list = [ch for ch in channels_list if ch]
-            
-            # Current timestamp for consistency
-            current_time = time.time()
-            formatted_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
-            data = {
-                "timestamp": current_time,
-                "nick": self.nick,
-                "channels": channels_list,  # Store channels without # prefix
-                "uptime": current_time - self.start_time,
-                "tts_enabled": self.enable_tts,
-                "pid": os.getpid()
-            }
-            
-            # Write to heartbeat JSON file
-            with open("bot_heartbeat.json", "w") as f:
-                json.dump(data, f)
-                
-            # Also update the PID file to ensure it exists
-            with open("bot.pid", "w") as f:
-                f.write(str(os.getpid()))
-                
-            if self.verbose_heartbeat_log: # Use the new config setting
-                self.logger.info(f"{YELLOW}Heartbeat: Raw channels from _joined_channels: {channels_list}{RESET}")
-            
-            # Update the database for web UI connection status
-            try:
-                self.db.set_bot_status_sync('last_heartbeat', formatted_time)
-                self.db.set_bot_status_sync('connected_channels', ','.join(channels_list))
-                with self.db.connect_sync() as conn:
-                    conn.execute("UPDATE channel_configs SET currently_connected = 0")
-                    for channel in channels_list:
-                        clean_channel = channel.lstrip('#')
-                        conn.execute(
-                            "UPDATE channel_configs SET currently_connected = 1 WHERE channel_name = ?",
-                            (clean_channel,),
-                        )
-                    conn.commit()
-                if self.verbose_heartbeat_log:
-                    self.my_logger.log_info(f"Heartbeat: Updated database heartbeat at {formatted_time}")
-                    self.logger.info(f"{YELLOW}Heartbeat: Processed connected channels for DB: {channels_list}{RESET}")
-            except Exception as db_error:
-                self.my_logger.error(f"Heartbeat: Error updating database heartbeat: {db_error}")
-                
-        except Exception as e:
-            self.my_logger.error(f"Heartbeat: Error updating heartbeat file: {e}")
-
-    async def check_message_requests(self):
-        """Check for message requests from the web interface"""
-        # First check for task restart requests
-        restart_file = 'bot_task_restart.json'
-        if os.path.exists(restart_file):
-            try:
-                with open(restart_file, 'r') as f:
-                    import json
-                    restart_data = json.load(f)
-                
-                task_name = restart_data.get('task', '')
-                self.logger.info(f"{YELLOW}Found task restart request for {task_name}{RESET}")
-                
-                if task_name == 'message_request_checker' and self.message_request_check:
-                    # Cancel the existing task
-                    try:
-                        self.message_request_check.cancel()
-                        self.logger.info(f"{YELLOW}Cancelled existing message_request_checker task{RESET}")
-                    except:
-                        pass
-                    
-                    # Create a new task
-                    self.message_request_check = self.loop.create_task(self.message_request_checker())
-                    self.logger.info(f"{GREEN}Restarted message_request_checker task{RESET}")
-                
-                # Remove the restart file
-                try:
-                    os.remove(restart_file)
-                except Exception as e:
-                    self.logger.error(f"{RED}Error removing restart file: {e}{RESET}")
-            except Exception as e:
-                self.logger.error(f"{RED}Error processing restart request: {e}{RESET}")
-                try:
-                    os.remove(restart_file)
-                except:
-                    pass
-        
-        # Now check for message requests
-        request_file = 'bot_message_request.json'
-        
-        if os.path.exists(request_file):
-            self.logger.info(f"{YELLOW}Found message request file{RESET}")
-            try:
-                # Read the request file
-                with open(request_file, 'r') as f:
-                    import json
-                    data = json.load(f)
-                
-                # Log the request details
-                request_id = data.get('request_id', 'unknown')
-                action = data.get('action', 'unknown')
-                force = data.get('force', False)
-                self.logger.info(f"{YELLOW}Processing message request{RESET}: ID={request_id}, Action={action}, Force={force}")
-                
-                # Process the message request
-                if data['action'] == 'send_message':
-                    channel = data['channel']
-                    message = data['message']
-                    
-                    # Make sure the channel is in the correct format
-                    if not channel.startswith('#'):
-                        channel = f"#{channel}"
-                    
-                    self.logger.info(f"{YELLOW}Attempting to send message to {channel}{RESET}: {message[:50]}...")
-                    
-                    try:
-                        # Try to get the channel object first
-                        channel_obj = self.get_channel(channel.lstrip('#'))
-                        success = False
-                        
-                        if channel_obj:
-                            # Send directly with channel object
-                            await channel_obj.send(message)
-                            self.logger.info(f"{GREEN}Successfully sent message via channel object to {channel}{RESET}")
-                            success = True
-                        else:
-                            # Fallback to our helper method
-                            sent = await self.send_message_to_channel(channel, message)
-                            if sent:
-                                self.logger.info(f"{GREEN}Successfully sent message via helper to {channel}{RESET}")
-                                success = True
-                            else:
-                                self.logger.error(f"{RED}Failed to send message to {channel}{RESET}")
-                                
-                                # Try to join the channel and send again - especially if force flag is set
-                                self.logger.info(f"{YELLOW}Attempting to join {channel} and retry...{RESET}")
-                                join_success = await self.join_channel(channel)
-                                
-                                if join_success:
-                                    # Try sending one more time - with a slight delay to ensure the join completes
-                                    await asyncio.sleep(0.5)
-                                    
-                                    # Try to get channel object again
-                                    channel_obj = self.get_channel(channel.lstrip('#'))
-                                    if channel_obj:
-                                        try:
-                                            await channel_obj.send(message)
-                                            self.logger.info(f"{GREEN}Successfully sent message on retry to {channel}{RESET}")
-                                            success = True
-                                        except Exception as send_error:
-                                            self.logger.error(f"{RED}Error sending message on retry: {send_error}{RESET}")
-                                    else:
-                                        # Last fallback - try helper again
-                                        sent = await self.send_message_to_channel(channel, message)
-                                        if sent:
-                                            self.logger.info(f"{GREEN}Successfully sent message on second retry to {channel}{RESET}")
-                                            success = True
-                                        else:
-                                            self.logger.error(f"{RED}Failed to send message on second retry to {channel}{RESET}")
-                                else:
-                                    self.logger.error(f"{RED}Failed to join channel {channel}{RESET}")
-                        
-                        # Log the final result
-                        if success:
-                            self.logger.info(f"{GREEN}Message request processed successfully{RESET}: Sent to {PURPLE}{channel}{RESET}")
-                            # Save message to logs
-                            channel_clean = channel.lstrip('#')
-                            self.my_logger.log_message(channel_clean, self.nick, message, is_bot_message=True)
-                            
-                            # Generate TTS if enabled for this channel
-                            try:
-                                # Fetch channel settings to check if TTS is enabled
-                                lines_between, time_between, tts_enabled, voice_enabled, _, _ = await self.fetch_channel_settings(channel_clean)
-                                
-                                if self.enable_tts and tts_enabled:
-                                    # Generate a unique message ID for TTS processing
-                                    import time
-                                    message_id = int(time.time() * 1000)  # Use timestamp as message ID
-                                    timestamp_str = datetime.now().isoformat()
-                                    
-                                    # Get voice preset for this channel
-                                    voice_preset_for_tts = self.channel_settings.get(channel_clean, {}).get('voice_preset', 'v2/en_speaker_0')
-                                    
-                                    self.logger.info(f"Starting TTS processing for generated message. Channel: {channel_clean}, Text: '{message[:30]}...'")
-                                    start_tts_processing(
-                                        input_text=message,
-                                        channel_name=channel_clean,
-                                        message_id=message_id,
-                                        timestamp_str=timestamp_str,
-                                        voice_preset_override=voice_preset_for_tts,
-                                        db_file=self.db_file
-                                    )
-                                    self.logger.info("TTS processing initiated for generated message.")
-                                    
-                            except Exception as tts_error:
-                                self.logger.error(f"Error starting TTS for generated message in {channel_clean}: {tts_error}")
-                        else:
-                            self.logger.error(f"{RED}Failed to send message to {channel} after all attempts{RESET}")
-                            
-                    except Exception as send_error:
-                        self.logger.error(f"{RED}Error sending message to {channel}: {send_error}{RESET}")
-                
-                # Always remove the request file after processing
-                try:
-                    os.remove(request_file)
-                    self.logger.info(f"{GREEN}Removed processed request file{RESET}")
-                except Exception as rm_error:
-                    self.logger.error(f"{RED}Error removing request file: {rm_error}{RESET}")
-                
-            except Exception as e:
-                self.logger.error(f"{RED}Error processing message request: {e}{RESET}")
-                
-                # Rename the file to avoid repeated errors
-                try:
-                    error_file = f"{request_file}.error.{int(time.time())}"
-                    os.rename(request_file, error_file)
-                    self.logger.info(f"{YELLOW}Renamed error file to {error_file}{RESET}")
-                except Exception as rename_error:
-                    self.logger.error(f"{RED}Error renaming request file: {rename_error}{RESET}")
-                    try:
-                        # Last resort: try to delete it
-                        os.remove(request_file)
-                        self.logger.info(f"{YELLOW}Deleted error file as fallback{RESET}")
-                    except:
-                        pass
-
-    async def message_request_checker(self):
-        """Periodically check for message requests"""
-        while True:
-            await self.check_message_requests()
-            await asyncio.sleep(2)  # Check every 2 seconds
+        """Delegation: write current bot status to heartbeat file and database."""
+        from bot.tasks.heartbeat import update_heartbeat_file
+        update_heartbeat_file(self)
 
     def is_tts_enabled(self, channel_name):
         """Check if TTS is enabled for a channel"""

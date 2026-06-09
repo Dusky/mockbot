@@ -105,6 +105,16 @@ class Database:
             )
             return await c.fetchone()
 
+    async def voice_preset_exists(self, voice_code: str) -> bool:
+        """Return True if voice_code is a known preset in the voice_options table."""
+        async with aiosqlite.connect(self.db_file) as conn:
+            c = await conn.cursor()
+            await c.execute(
+                "SELECT 1 FROM voice_options WHERE voice_code = ? LIMIT 1",
+                (voice_code,),
+            )
+            return await c.fetchone() is not None
+
     async def get_all_ignored_users(self, channel: str | None = None) -> list:
         async with aiosqlite.connect(self.db_file) as conn:
             c = await conn.cursor()

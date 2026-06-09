@@ -78,7 +78,7 @@ main.py
 ## Known remaining issues (backlog)
 
 ### Medium priority
-1. **Voice preset validation removed** — `commands.py` `voice_preset` setter now accepts any string without checking the `voice_options` table. Invalid presets are stored silently and fail at TTS time. The old code validated against the DB before saving.
+1. ~~**Voice preset validation removed**~~ — ✅ Fixed. `Database.voice_preset_exists()` checks the `voice_options` table, and the `commands.py` `voice_preset` setter rejects unknown codes with "Invalid voice preset" before saving (restores pre-refactor behavior via the DB abstraction layer).
 
 2. **`core.py` still 1,342 lines** — What's left is all legitimate event handler territory: `event_message` (~200 lines), `event_ready` (~200 lines), `mockbot_wrapper` (~100 lines), `handle_speak_command` (~150 lines). Could further slim `event_message` by extracting the voice-replay trigger logic, but diminishing returns.
 

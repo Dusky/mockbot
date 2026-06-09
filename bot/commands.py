@@ -181,6 +181,10 @@ async def mockbot_command(self, ctx, setting=None, new_value=None, **kwargs):
             await ctx.send("You do not have permission to change the voice preset.")
             return
 
+        if not await self.db.voice_preset_exists(new_value):
+            await ctx.send(f"Invalid voice preset: {new_value}.")
+            return
+
         await self.db.set_channel_field(ctx.channel.name, "voice_preset", new_value)
         await ctx.send(f"Voice preset updated to {new_value} for channel {ctx.channel.name}.")
 

@@ -23,8 +23,15 @@ class CommandInput(TextArea):
         self.cmd_history_index = -1
         self.temp_value = "" # Store what user was typing before browsing history
         self.autocomplete_options = [
-            "/commands", "/grammar", "/settings", "/timers", "/ttskill", "/help", "help", "use ", "join ", "leave ", "tts", "timer", "model", 
-            "status", "testvoice", "lines", "chance", "dice"
+            "/use ", "/status", "/clear", "/quit",
+            "/join ", "/part ",
+            "/say ", "/speak", "/testvoice ", "/poll ",
+            "/trust ", "/untrust ", "/ignore ", "/unignore ", "/ignorelist",
+            "/set ", "/tts ", "/voice ", "/model ", "/timer ",
+            "/addc ", "/editc ", "/delc ", "/grammar ",
+            "/brain", "/stats", "/compile",
+            "/settings", "/commands", "/timers", "/ttshistory", "/ttskill",
+            "/help",
         ]
         self.tab_index = -1
         self.last_tab_base = ""
@@ -757,28 +764,34 @@ class MockbotDashboard(App):
         """Process CLI commands natively."""
         parts = text.split()
         cmd = parts[0].lower()
+        # Accept an optional leading slash so every command shares one IRC-style
+        # convention (/cmd) while bare forms keep working.
+        if len(cmd) > 1 and cmd.startswith('/'):
+            cmd = cmd[1:]
         args = parts[1:]
-        
+
         if cmd in ['quit', 'exit', 'q']:
             self._cmd_log("[bold red]Shutting down...[/bold red]")
             if self.bot:
                 await self.bot.close()
             self.exit()
-            
+
         elif cmd == 'clear':
             self.action_clear_log()
-            
-        elif cmd == '/commands':
+
+        elif cmd == 'commands':
             self.action_manage_commands()
-            
-        elif cmd == '/grammar':
-            self.action_manage_grammar()
-        elif cmd == '/timers':
+
+        elif cmd == 'timers':
             self.action_manage_timers()
-        elif cmd == '/ttskill':
+
+        elif cmd == 'ttskill':
             self.action_kill_tts()
-            
-        elif cmd == '/settings':
+
+        elif cmd == 'ttshistory':
+            self.action_manage_tts_history()
+
+        elif cmd == 'settings':
             self.action_manage_settings()
             
         elif cmd == 'status':
@@ -1302,8 +1315,11 @@ class MockbotDashboard(App):
                 self._cmd_log(f"[bold red]Timer Error:[/bold red] {e}")
 
         elif cmd == 'grammar':
+            if not args:
+                self.action_manage_grammar()
+                return
             if len(args) < 2:
-                self._cmd_log("Usage: grammar <add|list|clear> <rule> [text]")
+                self._cmd_log("Usage: [bold yellow]/grammar <add|list|clear> <rule> [text][/bold yellow]  (or /grammar alone to open the manager)")
                 return
             action = args[0].lower()
             rule = args[1].lower()
@@ -1358,63 +1374,74 @@ class MockbotDashboard(App):
                     self._cmd_log(f"[bold red]Error compiling caches:[/bold red] {e}")
             threading.Thread(target=_compile).start()
 
-        elif cmd in ['help', '/help']:
+        elif cmd == 'help':
             from rich.table import Table
             from rich import box
-            table = Table(
-                title="Available Commands",
-                title_style="bold cyan",
-                show_header=False,
-                box=box.SIMPLE,
-                border_style="dim",
-                padding=(0, 1),
-            )
-            
-            # Format: (Command, Description)
-            commands = [
-                ("[green]/commands[/]", "Open Commands Manager UI"),
-                ("[green]/grammar[/]", "Open Grammar Manager UI"),
-                ("[green]/settings[/]", "Open Settings Manager UI"),
-                ("[green]/timers[/]", "Open Timers Manager UI"),
-                ("[green]/ttskill[/]", "Kill active TTS Audio & Queue"),
-                ("[green]status[/]", "Show status table (context-aware)"),
-                ("[green]use \\[channel][/]", "Switch context (empty clears to global)"),
-                ("[green]join <#channel>[/]", "Join a channel"),
-                ("[green]part <#channel>[/]", "Leave a channel"),
-                ("[green]say <message>[/]", "Send chat (in channel context)"),
-                ("[green]speak[/]", "Force generating a Markov message in channel context"),
-                ("[green]tts <on|off>[/]", "Toggle TTS (audio generation) for current context"),
-                ("[green]voice <on|off>[/]", "Toggle Voice (another audio toggle) for current context"),
-                ("[green]trust <user>[/]", "Add user to trusted users (allows command usage)"),
-                ("[green]untrust <user>[/]", "Remove user from trusted users"),
-                ("[green]ignore <user>[/]", "Ignore user (global context = all channels)"),
-                ("[green]unignore <user>[/]", "Unignore user (global context = all channels)"),
-                ("[green]ignorelist[/]", "Show ignored users per channel"),
-                ("[green]timer <add|del|msg|list>[/]", "Manage scheduled message pools for this channel"),
-                ("[green]model <gen|indivi>[/]", "Toggle Markov model type (general/individual)"),
-                ("[green]set <key> <val>[/]", "Set specific config values. Keys and expected values:"),
-                ("[dim]  set voice <model_name>[/]", "  Sets the TTS voice preset (e.g. v2/en_speaker_5)"),
-                ("[dim]  set lines <number>[/]", "  Lines limit before auto-speaking"),
-                ("[dim]  set time <seconds>[/]", "  Time delay limit before auto-speaking"),
-                ("[dim]  set chance <0-100>[/]", "  Random chance to speak%"),
-                ("[dim]  set bits|points <on|off>[/]", "  Toggle PubSub features"),
-                ("[green]poll <args>[/]", "Create a poll (e.g. poll 5 Yes/No? | Yes | No)"),
-                ("[green]addc <cmd> <rsp>[/]", "Add custom command (use <{sender}> <{streamer}> <{input}>)"),
-                ("[green]editc <cmd> <rsp>[/]", "Edit custom command"),
-                ("[green]delc <cmd>[/]", "Delete custom command"),
-                ("[green]grammar <action>[/]", "Manage grammatical word pools (add, list, clear) <rule> [text]"),
-                ("[green]compile[/]", "Force rebuild of all JSON Brain caches synchronously"),
-                ("[green]brain, stats[/]", "Show number of lines loaded per channel"),
-                ("[green]quit, exit, q[/]", "Exit bot")
+
+            # Grouped, kept in sync with the dispatcher above and the `set` handler.
+            groups = [
+                ("Navigation", [
+                    ("/use [channel]", "Switch context; no arg returns to Global"),
+                    ("/status", "Status table for the current context"),
+                    ("/clear", "Clear the message log (Ctrl+L)"),
+                    ("/quit", "Exit the bot (aliases: exit, q)"),
+                ]),
+                ("Channels", [
+                    ("/join <#channel>", "Join a Twitch channel"),
+                    ("/part <#channel>", "Leave a Twitch channel"),
+                ]),
+                ("Chat & Generation", [
+                    ("/say <message>", "Send a chat message in the current channel"),
+                    ("/speak", "Force a Markov message (plus TTS if enabled)"),
+                    ("/testvoice [text]", "Synthesize locally without sending to Twitch"),
+                    ("/poll <min> <q> | <a> | <b>", "Start a Twitch poll (2-5 choices)"),
+                ]),
+                ("Moderation", [
+                    ("/trust <user>", "Add a trusted user (may use bot commands)"),
+                    ("/untrust <user>", "Remove a trusted user"),
+                    ("/ignore <user>", "Ignore a user (Global = all channels)"),
+                    ("/unignore <user>", "Stop ignoring a user"),
+                    ("/ignorelist", "List ignored users per channel"),
+                ]),
+                ("Configuration", [
+                    ("/set <key> <value>", "Set a channel config value (keys below)"),
+                    ("/tts <on|off>", "Toggle TTS audio generation"),
+                    ("/voice <on|off>", "Toggle custom AI voice output"),
+                    ("/model <general|individual>", "Choose the Markov model type"),
+                ]),
+                ("Custom Commands & Grammar", [
+                    ("/addc <cmd> <response>", "Add a command; tags <{sender}> <{streamer}> <{input}>"),
+                    ("/editc <cmd> <response>", "Edit a custom command"),
+                    ("/delc <cmd>", "Delete a custom command"),
+                    ("/grammar [add|list|clear <rule> [text]]", "Edit grammar pools; no args opens the manager"),
+                ]),
+                ("Brain", [
+                    ("/brain", "Lines loaded per channel (alias: /stats)"),
+                    ("/compile", "Rebuild the Markov brain caches"),
+                ]),
+                ("Timed Messages", [
+                    ("/timers", "Open the timed-messages manager"),
+                    ("/timer <add|del|msg|list>", "Manage timed-message pools inline"),
+                ]),
+                ("Managers & TTS", [
+                    ("/settings", "Open the channel settings manager"),
+                    ("/commands", "Open the custom commands manager"),
+                    ("/ttshistory", "Open the TTS history browser"),
+                    ("/ttskill", "Stop active TTS audio and clear its queue"),
+                ]),
             ]
-            
-            table.add_column("Command", style="bold")
-            table.add_column("Description", style="dim italic")
-            
-            for cmd_str, desc in commands:
-                table.add_row(cmd_str, desc)
-                
+
+            table = Table(show_header=False, box=box.SIMPLE, padding=(0, 1), expand=False)
+            table.add_column("Command", style="bold", no_wrap=True)
+            table.add_column("Description", style="dim")
+            for cat, rows in groups:
+                table.add_row(f"[bold cyan]{cat}[/]", "")
+                for c, d in rows:
+                    table.add_row(f"  [green]{c}[/]", d)
+                table.add_row("", "")
             self._cmd_log(table)
+            self._cmd_log("[dim]/set keys:[/] lines, time, chance, model, log_dice, voice, delay, bits, points")
+            self._cmd_log("[dim]Commands also work without the leading '/'. Tab completes; Up/Down browse history.[/]")
 
         else:
             self._cmd_log(f"[italic]Unknown command:[/italic] {cmd}")

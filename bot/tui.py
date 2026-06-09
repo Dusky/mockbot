@@ -23,7 +23,7 @@ class CommandInput(TextArea):
         self.cmd_history_index = -1
         self.temp_value = "" # Store what user was typing before browsing history
         self.autocomplete_options = [
-            "/commands", "/grammar", "/settings", "/timers", "/ttskill", "help", "use ", "join ", "leave ", "tts", "timer", "model", 
+            "/commands", "/grammar", "/settings", "/timers", "/ttskill", "/help", "help", "use ", "join ", "leave ", "tts", "timer", "model", 
             "status", "testvoice", "lines", "chance", "dice"
         ]
         self.tab_index = -1
@@ -404,6 +404,7 @@ class MockbotDashboard(App):
     def __init__(self, bot=None):
         super().__init__()
         self.bot = bot
+        self._thread_id = __import__("threading").get_ident()
         self.log_widget = None
         self.event_log_widget = None
         self.current_context = "Global"
@@ -1452,7 +1453,7 @@ class MockbotDashboard(App):
                     self._cmd_log(f"[bold red]Error compiling caches:[/bold red] {e}")
             threading.Thread(target=_compile).start()
 
-        elif cmd == 'help':
+        elif cmd in ['help', '/help']:
             from rich.table import Table
             from rich import box
             table = Table(
@@ -1466,6 +1467,11 @@ class MockbotDashboard(App):
             
             # Format: (Command, Description)
             commands = [
+                ("[green]/commands[/]", "Open Commands Manager UI"),
+                ("[green]/grammar[/]", "Open Grammar Manager UI"),
+                ("[green]/settings[/]", "Open Settings Manager UI"),
+                ("[green]/timers[/]", "Open Timers Manager UI"),
+                ("[green]/ttskill[/]", "Kill active TTS Audio & Queue"),
                 ("[green]status[/]", "Show status table (context-aware)"),
                 ("[green]use \\[channel][/]", "Switch context (empty clears to global)"),
                 ("[green]join <#channel>[/]", "Join a channel"),

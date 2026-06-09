@@ -1176,27 +1176,45 @@ class Bot(commands.Bot):
             (channel_name,),
         )
         result = c.fetchone()
-        conn.close()
 
         cache_file_used = ""  # Variable to store the name of the cache file used
+        model = None
 
         # Determine which model to use and add debug information
         if result and result[0]:
             model = self.general_model
-            cache_file_used = (
-                "general_markov_model.json"  # Name of the general model cache file
-            )
+            cache_file_used = "general_markov_model.json"
         else:
             model = self.load_model_from_cache(channel_name)
             if model:
-                cache_file_used = (
-                    f"{channel_name}_model.json"  # Specific model cache file
-                )
+                cache_file_used = f"{channel_name}_model.json"
             else:
-                model = self.general_model
-                cache_file_used = (
-                    "general_markov_model.json"  # Fallback to general model cache file
-                )
+                # If explicitly set to NOT use general model, we must NOT fall back to it.
+                # Build an ephemeral model dynamically from the DB for this channel.
+                c.execute("SELECT message FROM messages WHERE channel = ? AND is_bot_response = 0", (channel_name,))
+                rows = c.fetchall()
+                if rows:
+                    text = "\n".join(row[0] for row in rows if row[0])
+                    if text.strip():
+                        try:
+                            model = markovify.NewlineText(text)
+                            cache_file_used = f"{channel_name}_dynamic_fallback"
+                            self.my_logger.log_message(
+                                channel_name,
+                                "TwitchSystem",
+                                f"[bold yellow]⚠️ Missing Brain Cache! Used slow dynamic fallback. Please run 'compile' to build the brain.[/bold yellow]",
+                                is_bot_message=True
+                            )
+                        except Exception as e:
+                            self.logger.error(f"Failed to build dynamic model for {channel_name}: {e}")
+                
+                # If we still have no model (e.g. channel has zero messages), return early
+                if not model:
+                    conn.close()
+                    self.logger.info(f"Failed to generate isolated message for {channel_name}: Not enough data.")
+                    return None
+
+        conn.close()
 
         # Generate a message using the chosen model
         message = model.make_sentence()
@@ -1552,6 +1570,38 @@ class Bot(commands.Bot):
         except Exception as e:
             self.logger.error(f"Error in generate_tts_sync for {channel_name}: {e}")
             return False
+
+    async def event_raw_data(self, data: str):
+        """Intercept raw IRC data to catch Twitch dropping messages or sending notices."""
+        if "NOTICE" in data:
+            self.logger.info(f"{RED}Twitch IRC NOTICE: {data.strip()}{RESET}")
+            try:
+                # Format: @msg-id=... :tmi.twitch.tv NOTICE #channel :Message
+                parts = data.split(" :", 1)
+                if len(parts) > 1:
+                    notice_msg = parts[1].strip()
+                    # Extract channel if present
+                    channel = "global"
+                    if " NOTICE #" in data:
+                        channel = data.split(" NOTICE #")[1].split(" :")[0].strip()
+                    
+                    # Format user-friendly actionable notices
+                    display_msg = f"[bold red]NOTICE: {notice_msg}[/bold red]"
+                    
+                    if "follower-only" in notice_msg.lower():
+                        display_msg = f"[bold yellow]⚠️ Cannot Send Message[/bold yellow]: #{channel} is in Follower-Only mode!\n[cyan]Action Required:[/cyan] Log into the bot's Twitch account and go to https://twitch.tv/{channel} to follow them, or type '/mod {self.nick}' from the broadcaster account."
+                    elif "verified phone number" in notice_msg.lower():
+                        display_msg = f"[bold yellow]⚠️ Cannot Send Message[/bold yellow]: #{channel} requires a verified phone number!\n[cyan]Action Required:[/cyan] Go to https://www.twitch.tv/settings/security to verify the bot's phone number, or type '/mod {self.nick}' from the broadcaster account."
+                    elif "verified email" in notice_msg.lower():
+                        display_msg = f"[bold yellow]⚠️ Cannot Send Message[/bold yellow]: #{channel} requires a verified email address!\n[cyan]Action Required:[/cyan] Go to https://www.twitch.tv/settings/security to verify the bot's email, or type '/mod {self.nick}' from the broadcaster account."
+                    elif "subscriber" in notice_msg.lower():
+                        display_msg = f"[bold yellow]⚠️ Cannot Send Message[/bold yellow]: #{channel} is in Subscriber-Only mode!\n[cyan]Action Required:[/cyan] You must subscribe to the channel, or type '/mod {self.nick}' from the broadcaster account."
+                    elif "banned" in notice_msg.lower():
+                        display_msg = f"[bold red]🚫 BANNED[/bold red]: The bot is banned from talking in #{channel}."
+
+                    self.my_logger.log_message(channel, "TwitchSystem", display_msg, is_bot_message=True)
+            except Exception:
+                pass
 
     async def event_ready(self):
         """Handle the bot ready event."""

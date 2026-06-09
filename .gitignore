@@ -90,4 +90,5 @@ badwords.txt
 
 # Third-party Voice Engines
 Applio/
+voices/
 app.log.*

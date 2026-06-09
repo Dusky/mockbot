@@ -66,18 +66,9 @@ async def handle_channel_points(bot, event):
             voice_preset_override=voice_preset
         )
 
-    # Forward this to the custom command logic if the reward title matches a command!
-    # We simulate a Twitch message object since our custom command logic requires one.
-    class DummyMessage:
-        def __init__(self, author_name, content, ch):
-            self.author = type('DummyAuthor', (), {'name': author_name})()
-            self.content = content
-            self.channel = type('DummyChannel', (), {'name': ch.lstrip('#')})()
-
     # If the reward title matches a custom command, execute it!
     # We prefix it with '!' just in case it's defined that way in DB.
     cmd_trigger = reward_title if reward_title.startswith('!') else f"!{reward_title}"
-    dummy_msg = DummyMessage(user_name, f"{cmd_trigger} {event.input or ''}", channel_name)
 
     # Check custom commands first (simulating what event_message does)
     try:

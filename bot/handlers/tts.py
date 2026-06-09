@@ -24,8 +24,7 @@ def get_tts_delay_setting(bot, channel_name):
     try:
         clean_channel_name = channel_name.lstrip('#')
         cfg = bot.db.get_tts_config_sync(clean_channel_name)
-        result = [cfg.get("tts_delay_enabled", False)]
-        enabled = bool(result[0]) if result else False
+        enabled = bool(cfg.get("tts_delay_enabled", False))
         if enabled:
             bot.logger.debug(f"TTS delay enabled for channel {clean_channel_name}")
         else:

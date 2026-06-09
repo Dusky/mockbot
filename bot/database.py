@@ -110,13 +110,22 @@ class Database:
             return await c.fetchone()
 
     async def voice_preset_exists(self, voice_code: str) -> bool:
-        """Return True if voice_code is a known preset in the voice_options table."""
+        """Return True if voice_code is a known preset in the voice_options table.
+
+        voice_options is seeded out-of-band (web UI / manual), not by this app. If
+        the table is absent, fall back to accepting the value rather than crashing
+        the command — so preset changes still work on DBs that never created it.
+        """
         async with aiosqlite.connect(self.db_file) as conn:
             c = await conn.cursor()
-            await c.execute(
-                "SELECT 1 FROM voice_options WHERE voice_code = ? LIMIT 1",
-                (voice_code,),
-            )
+            try:
+                await c.execute(
+                    "SELECT 1 FROM voice_options WHERE voice_code = ? LIMIT 1",
+                    (voice_code,),
+                )
+            except sqlite3.OperationalError as e:
+                logging.warning(f"voice_options unavailable ({e}); skipping voice preset validation.")
+                return True
             return await c.fetchone() is not None
 
     async def get_all_ignored_users(self, channel: str | None = None) -> list:

@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 import bot.webui.auth as auth
+import bot.webui.settings_api as settings_api
 import bot.webui.tts_source as tts_src
 from bot.events import (
     BotStatus,
@@ -270,6 +271,48 @@ def create_app(bot=None, hub: WebUIHub | None = None, *, auth_cfg=None,
         if not request.session.get("user"):
             return RedirectResponse("/auth/twitch/login", status_code=302)
         return HTMLResponse(tts_src.SOURCES_HTML)
+
+    @app.get("/settings")
+    async def settings_page(request: Request):
+        if not request.session.get("user"):
+            return RedirectResponse("/auth/twitch/login", status_code=302)
+        return FileResponse(os.path.join(_STATIC_DIR, "settings.html"))
+
+    def _authz_channel(channel: str, user: dict) -> str:
+        """Clean channel name if the user may manage it, else 403."""
+        ch = channel.lstrip("#").lower()
+        allowed = {c.lower() for c in tts_src.authorized_channels(db_file, user["login"], owner)}
+        if ch not in allowed:
+            raise HTTPException(403, "not authorized for this channel")
+        return ch
+
+    @app.get("/api/settings/{channel}")
+    async def get_settings(channel: str, user=Depends(_require_user)):
+        ch = _authz_channel(channel, user)
+        return {"channel": ch, "schema": settings_api.settings_schema(),
+                "values": settings_api.get_values(db_file, ch)}
+
+    @app.post("/api/settings/{channel}")
+    async def save_settings(channel: str, request: Request, user=Depends(_require_user)):
+        ch = _authz_channel(channel, user)
+        payload = await request.json()
+        applied, errors = settings_api.apply_settings(db_file, ch, payload)
+        if applied and bot is not None:
+            try:  # refresh the bot's in-memory settings cache
+                bot.load_channel_settings()
+            except Exception:
+                logger.exception("webui: failed to refresh channel settings cache")
+        return {"channel": ch, "applied": applied, "errors": errors}
+
+    @app.post("/api/channels/{channel}/{action}")
+    async def channel_connection(channel: str, action: str, user=Depends(_require_user)):
+        ch = _authz_channel(channel, user)
+        if action not in ("join", "leave"):
+            raise HTTPException(404, "unknown action")
+        if bot is None or not hasattr(bot, f"{action}_channel"):
+            raise HTTPException(503, "bot unavailable")
+        await getattr(bot, f"{action}_channel")(ch)
+        return {"channel": ch, "action": action, "joined": action == "join"}
 
     @app.get("/api/status")
     async def api_status(user=Depends(_require_user)):

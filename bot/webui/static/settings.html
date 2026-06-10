@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mockbot — Settings</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel-2:#172033; --inset:#0b1220;
+    --border:#334155; --border-soft:#26324a;
+    --text:#f1f5f9; --muted:#94a3b8; --dim:#64748b;
+    --indigo:#818cf8; --indigo-deep:#6366f1; --sky:#38bdf8; --teal:#5eead4;
+    --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
+    --mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1200px 600px at 80% -10%, rgba(99,102,241,.10), transparent 60%),var(--bg);color:var(--text);font-family:var(--sans);font-size:14px}
+  [x-cloak]{display:none!important}
+  .topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:rgba(15,23,42,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:700}
+  .brand .logo{font-size:1.15rem}.brand .ver{color:var(--dim);font:600 .7rem var(--mono)}
+  .topmeta a{color:var(--dim);text-decoration:none;font-size:.82rem}.topmeta a:hover{color:var(--text)}
+  .shell{display:grid;grid-template-columns:208px 1fr;min-height:calc(100vh - 49px)}
+  .side{border-right:1px solid var(--border);padding:18px 12px;display:flex;flex-direction:column;gap:4px}
+  .nav{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;color:var(--muted);text-decoration:none;font-weight:600}
+  .nav:hover{background:var(--panel-2);color:var(--text)}
+  .nav.active{background:linear-gradient(90deg,rgba(99,102,241,.22),rgba(99,102,241,.05));color:#fff;border:1px solid var(--border-soft)}
+  .side .spacer{flex:1}
+  .main{padding:20px 22px;display:flex;flex-direction:column;gap:18px;min-width:0;padding-bottom:90px}
+  .headrow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .headrow h1{font-size:1.2rem;margin:0}
+  select.chan,select.ctl,input.ctl{background:var(--inset);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font:inherit}
+  select.chan{font:600 .95rem var(--mono)}
+  .btn{background:var(--indigo-deep);color:#fff;border:0;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer}
+  .btn:hover{filter:brightness(1.1)} .btn.ghost{background:var(--panel)}
+  .btn:disabled{opacity:.45;cursor:default;filter:none}
+  .joinpill{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;background:var(--panel);border:1px solid var(--border);font:600 .8rem var(--sans)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}.dot.ok{background:var(--ok)}
+  .cat{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .cat h2{margin:0;padding:12px 16px;font-size:.8rem;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);border-bottom:1px solid var(--border-soft)}
+  .field{display:grid;grid-template-columns:1fr 280px;gap:14px;align-items:center;padding:13px 16px;border-bottom:1px solid var(--border-soft)}
+  .field:last-child{border-bottom:0}
+  .field .label{font:600 .92rem var(--mono);color:var(--text)}
+  .field .desc{color:var(--dim);font-size:.8rem;margin-top:3px;font-family:var(--sans)}
+  .field .ctlwrap{justify-self:end;width:100%;display:flex;justify-content:flex-end}
+  select.ctl,input.ctl{width:100%}
+  .switch{display:inline-flex;align-items:center;gap:9px;cursor:pointer;user-select:none}
+  .track{width:42px;height:24px;border-radius:999px;background:#3a1414;border:1px solid var(--border);position:relative;transition:background .15s}
+  .track.on{background:#064e3b}
+  .knob{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#e2e8f0;transition:left .15s}
+  .track.on .knob{left:20px}
+  .switch .state{font:700 .72rem var(--sans);color:var(--muted);min-width:26px}
+  .savebar{position:fixed;bottom:0;left:208px;right:0;display:flex;align-items:center;gap:14px;padding:12px 22px;background:rgba(15,23,42,.92);backdrop-filter:blur(8px);border-top:1px solid var(--border)}
+  .savebar .count{color:var(--muted);font-size:.85rem}
+  .toast{font-size:.85rem}.toast.ok{color:var(--teal)}.toast.err{color:#fca5a5}
+  @media(max-width:900px){.shell{grid-template-columns:1fr}.side{flex-direction:row;overflow:auto}.field{grid-template-columns:1fr}.field .ctlwrap{justify-self:start}.savebar{left:0}}
+</style>
+</head>
+<body x-data="settings" x-cloak>
+  <div class="topbar">
+    <div class="brand"><span class="logo">🤖</span> mockbot <span class="ver">settings</span></div>
+    <div class="topmeta"><a href="/auth/logout">log out ⎋</a></div>
+  </div>
+  <div class="shell">
+    <aside class="side">
+      <a class="nav" href="/monitor">📡 Monitor</a>
+      <a class="nav" href="/sources">🎙️ TTS Sources</a>
+      <a class="nav active" href="/settings">⚙️ Settings</a>
+      <div class="spacer"></div>
+      <a class="nav" href="/auth/logout" style="color:var(--dim)">⎋ Log out</a>
+    </aside>
+
+    <main class="main">
+      <div class="headrow">
+        <h1>Channel settings</h1>
+        <select class="chan" x-model="channel" @change="select($event.target.value)">
+          <template x-for="c in chans" :key="c.channel"><option :value="c.channel" x-text="'#'+c.channel"></option></template>
+        </select>
+        <span class="joinpill"><span class="dot" :class="cur().joined?'ok':''"></span> <span x-text="cur().joined?'connected':'not joined'"></span></span>
+        <button class="btn ghost" x-show="!cur().joined" @click="conn('join')">Join</button>
+        <button class="btn ghost" x-show="cur().joined" @click="conn('leave')">Leave</button>
+        <div style="flex:1"></div>
+        <span class="toast" :class="err?'err':'ok'" x-text="msg"></span>
+      </div>
+
+      <template x-for="cat in schema" :key="cat.category">
+        <section class="cat">
+          <h2 x-text="cat.category"></h2>
+          <template x-for="f in cat.fields" :key="f.key">
+            <div class="field">
+              <div>
+                <div class="label" x-text="f.key"></div>
+                <div class="desc" x-text="f.description"></div>
+              </div>
+              <div class="ctlwrap">
+                <!-- bool toggle -->
+                <template x-if="f.control==='bool_select'">
+                  <div class="switch" @click="toggle(f.key)">
+                    <div class="track" :class="isBool(f.key)?'on':''"><div class="knob"></div></div>
+                    <span class="state" x-text="isBool(f.key)?'ON':'OFF'"></span>
+                  </div>
+                </template>
+                <!-- enum / dynamic select -->
+                <template x-if="f.control==='select'">
+                  <select class="ctl" @change="set(f.key,$event.target.value)">
+                    <template x-for="opt in f.choices" :key="opt[1]">
+                      <option :value="opt[1]" :selected="String(values[f.key])===String(opt[1])" x-text="opt[0]"></option>
+                    </template>
+                  </select>
+                </template>
+                <!-- text / number / lore (free text) -->
+                <template x-if="f.control==='input' || f.control==='lore_button'">
+                  <input class="ctl" :type="numType(f)" :min="f.min" :max="f.max"
+                         :value="values[f.key]" @input="set(f.key,$event.target.value)">
+                </template>
+              </div>
+            </div>
+          </template>
+        </section>
+      </template>
+      <div x-show="schema.length===0" style="color:var(--dim);padding:24px">No settings — pick a channel.</div>
+    </main>
+  </div>
+
+  <div class="savebar">
+    <button class="btn" :disabled="dirtyCount()===0" @click="save()">Save changes</button>
+    <span class="count" x-text="dirtyCount()===0 ? 'No unsaved changes' : (dirtyCount()+' unsaved change'+(dirtyCount()===1?'':'s'))"></span>
+    <div style="flex:1"></div>
+    <span class="toast" :class="err?'err':'ok'" x-text="msg"></span>
+  </div>
+
+  <script defer src="/static/settings.js"></script>
+  <script defer src="/static/vendor/alpine.min.js"></script>
+</body>
+</html>

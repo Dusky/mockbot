@@ -66,50 +66,19 @@ async def handle_channel_points(bot, event):
             voice_preset_override=voice_preset
         )
 
-    # If the reward title matches a custom command, execute it!
-    # We prefix it with '!' just in case it's defined that way in DB.
+    # If the reward title matches a custom command, run it through the shared
+    # evaluator (same Tracery/var-macro engine as chat; no moderation context here).
+    # We prefix it with '!' just in case it's defined that way in the DB.
     cmd_trigger = reward_title if reward_title.startswith('!') else f"!{reward_title}"
-
-    # Check custom commands first (simulating what event_message does)
+    clean_channel = channel_name.lstrip('#')
     try:
-        async with bot.db.connect_async() as conn:
-            c = await conn.cursor()
-            await c.execute(
-                "SELECT response_template FROM custom_commands WHERE (channel_name = ? OR channel_name = 'global') AND command_name = ? ORDER BY channel_name = 'global' ASC LIMIT 1",
-                (channel_name.lstrip('#'), cmd_trigger)
-            )
-            row = await c.fetchone()
-            if row:
-                response_template = row[0]
-                # Fetch grammar
-                await c.execute("SELECT rule_name, options_json FROM custom_grammar WHERE channel_name = ? OR channel_name = 'global'", (channel_name.lstrip('#'),))
-                db_rules = await c.fetchall()
-
-                import tracery
-                import json
-                from tracery.modifiers import base_english
-
-                rules = {}
-                for r_name, o_json in db_rules:
-                    rules[r_name] = json.loads(o_json)
-
-                rules["sender"] = [user_name]
-                rules["streamer"] = [channel_name.lstrip('#')]
-                rules["input"] = [event.input or ""]
-
-                grammar = tracery.Grammar(rules)
-                grammar.add_modifiers(base_english)
-
-                # Pre-replace the exact tags
-                formatted_template = response_template.replace("<{sender}>", "#sender#").replace("<{streamer}>", "#streamer#").replace("<{input}>", "#input#")
-
-                final_response = grammar.flatten(formatted_template)
-                channel = bot.get_channel(channel_name.lstrip('#'))
-                if channel:
-                    await channel.send(final_response)
-
-                # Also log it
-                bot.logger.info(f"Custom command triggered by channel points: {cmd_trigger} -> {final_response}")
-
+        final_response = await bot.custom_cmd_handler.evaluate(
+            clean_channel, cmd_trigger, event.input or "", sender=user_name, author=None,
+        )
+        if final_response:
+            channel = bot.get_channel(clean_channel)
+            if channel:
+                await channel.send(final_response)
+            bot.logger.info(f"Custom command triggered by channel points: {cmd_trigger} -> {final_response}")
     except Exception as e:
         bot.logger.error(f"Error evaluating custom command from channel points: {e}")

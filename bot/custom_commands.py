@@ -15,7 +15,7 @@ class CustomCommandHandler:
         self._bot = bot_ref
 
     async def handle(self, message, channel_name: str) -> bool:
-        """Check if the message matches a custom command and process it. Returns True if handled."""
+        """Check if a chat message matches a custom command and run it. Returns True if handled."""
         command_parts = message.content.split(maxsplit=1)
         if not command_parts:
             return False
@@ -24,102 +24,131 @@ class CustomCommandHandler:
         cmd_input = command_parts[1] if len(command_parts) > 1 else ""
 
         try:
-            async with self.db.connect_async() as conn:
-                c = await conn.cursor()
-                await c.execute(
-                    "SELECT response_template FROM custom_commands "
-                    "WHERE (channel_name = ? OR channel_name = 'global') AND command_name = ? "
-                    "ORDER BY channel_name DESC LIMIT 1",
-                    (channel_name, cmd_name),
-                )
-                cmd_row = await c.fetchone()
-                if not cmd_row:
-                    return False
+            generated = await self.evaluate(
+                channel_name, cmd_name, cmd_input,
+                sender=message.author.name, author=message.author,
+            )
+        except Exception as e:
+            self.logger.error(f"Error processing custom command {cmd_name} in {channel_name}: {e}")
+            return False
 
-                response_template = cmd_row[0]
+        if generated is None:
+            return False  # no such command
 
-                # Fetch grammar rules for this channel + global
-                await c.execute(
-                    "SELECT rule_name, options_json FROM custom_grammar "
-                    "WHERE channel_name = ? OR channel_name = 'global'",
-                    (channel_name,),
-                )
-                grammar_rows = await c.fetchall()
-                rules = {}
-                for rule_name, options_json in grammar_rows:
-                    try:
-                        rules[rule_name] = json.loads(options_json)
-                    except Exception:
-                        pass
+        channel_obj = self._bot.get_channel(channel_name)
+        if channel_obj and generated:
+            await channel_obj.send(generated)
+            self.my_logger.log_message(channel_name, self._bot.nick, generated, is_bot_message=True)
+        return True
 
-                # Built-in variables
-                rules["sender"] = [message.author.name]
-                rules["streamer"] = [channel_name]
-                rules["input"] = [cmd_input]
+    async def evaluate(self, channel_name: str, cmd_name: str, cmd_input: str,
+                       sender: str, author=None):
+        """Render a custom command's response template, or None if no such command.
 
-                # Generate response via Tracery
-                import tracery
-                from tracery.modifiers import base_english
-                grammar = tracery.Grammar(rules)
-                grammar.add_modifiers(base_english)
+        Shared by chat (`handle`) and channel-point redemptions. Performs the
+        variable macros ({var_add}/{var_set}/<{var:X}>) and Tracery grammar. The
+        {timeout:user:secs} moderation macro only runs when `author` (a Twitch
+        chatter exposing is_mod/is_broadcaster) is supplied — channel-point
+        redemptions have no moderation context, so the tag is stripped without action.
+        """
+        cmd_name = cmd_name.lower()
+        async with self.db.connect_async() as conn:
+            c = await conn.cursor()
+            await c.execute(
+                "SELECT response_template FROM custom_commands "
+                "WHERE (channel_name = ? OR channel_name = 'global') AND command_name = ? "
+                "ORDER BY channel_name DESC LIMIT 1",
+                (channel_name, cmd_name),
+            )
+            cmd_row = await c.fetchone()
+            if not cmd_row:
+                return None
 
-                formatted = response_template.replace("<{sender}>", "#sender#")
-                formatted = formatted.replace("<{streamer}>", "#streamer#")
-                formatted = formatted.replace("<{input}>", "#input#")
-                formatted = formatted.replace("\\<", "<").replace("<<", "<")
-                generated = grammar.flatten(formatted)
+            response_template = cmd_row[0]
 
-                # Variable macros — {var_add:name:value}
-                for var_name, change_val in re.findall(r'\{var_add:(.+?):(-?\d+)\}', generated):
-                    try:
-                        await c.execute(
-                            "INSERT INTO channel_variables (channel_name, var_name, var_value) VALUES (?, ?, ?) "
-                            "ON CONFLICT(channel_name, var_name) DO UPDATE SET var_value = var_value + ?",
-                            (channel_name, var_name, int(change_val), int(change_val)),
-                        )
-                        await conn.commit()
-                    except Exception as e:
-                        self.logger.error(f"Error processing var_add for {var_name}: {e}")
+            # Fetch grammar rules for this channel + global
+            await c.execute(
+                "SELECT rule_name, options_json FROM custom_grammar "
+                "WHERE channel_name = ? OR channel_name = 'global'",
+                (channel_name,),
+            )
+            grammar_rows = await c.fetchall()
+            rules = {}
+            for rule_name, options_json in grammar_rows:
+                try:
+                    rules[rule_name] = json.loads(options_json)
+                except Exception:
+                    pass
 
-                # Variable macros — {var_set:name:value}
-                for var_name, new_val in re.findall(r'\{var_set:(.+?):(-?\d+)\}', generated):
-                    try:
-                        await c.execute(
-                            "INSERT INTO channel_variables (channel_name, var_name, var_value) VALUES (?, ?, ?) "
-                            "ON CONFLICT(channel_name, var_name) DO UPDATE SET var_value = ?",
-                            (channel_name, var_name, int(new_val), int(new_val)),
-                        )
-                        await conn.commit()
-                    except Exception as e:
-                        self.logger.error(f"Error processing var_set for {var_name}: {e}")
+            # Built-in variables
+            rules["sender"] = [sender]
+            rules["streamer"] = [channel_name]
+            rules["input"] = [cmd_input]
 
-                # Strip action tags from output
-                generated = re.sub(r'\{var_add:.+?:-?\d+\}', '', generated)
-                generated = re.sub(r'\{var_set:.+?:-?\d+\}', '', generated)
+            # Generate response via Tracery
+            import tracery
+            from tracery.modifiers import base_english
+            grammar = tracery.Grammar(rules)
+            grammar.add_modifiers(base_english)
 
-                # Read-variable substitution — <{var:X}>
-                for var_name in set(re.findall(r'<\{var:(.+?)\}>', generated)):
+            formatted = response_template.replace("<{sender}>", "#sender#")
+            formatted = formatted.replace("<{streamer}>", "#streamer#")
+            formatted = formatted.replace("<{input}>", "#input#")
+            formatted = formatted.replace("\\<", "<").replace("<<", "<")
+            generated = grammar.flatten(formatted)
+
+            # Variable macros — {var_add:name:value}
+            for var_name, change_val in re.findall(r'\{var_add:(.+?):(-?\d+)\}', generated):
+                try:
                     await c.execute(
-                        "SELECT var_value FROM channel_variables WHERE channel_name = ? AND var_name = ?",
-                        (channel_name, var_name),
+                        "INSERT INTO channel_variables (channel_name, var_name, var_value) VALUES (?, ?, ?) "
+                        "ON CONFLICT(channel_name, var_name) DO UPDATE SET var_value = var_value + ?",
+                        (channel_name, var_name, int(change_val), int(change_val)),
                     )
-                    row = await c.fetchone()
-                    val = row[0] if row else 0
-                    generated = generated.replace(f'{{var:{var_name}}}', str(val))
-                    generated = generated.replace(f'<{{var:{var_name}}}>', str(val))
+                    await conn.commit()
+                except Exception as e:
+                    self.logger.error(f"Error processing var_add for {var_name}: {e}")
 
-                # Moderation macro — {timeout:user:seconds}
-                timeout_match = re.search(r'\{timeout:(.+?):(\d+)\}', generated)
-                if timeout_match:
-                    target_user = timeout_match.group(1).strip()
-                    duration = int(timeout_match.group(2))
-                    generated = re.sub(r'\{timeout:(.+?):(\d+)\}', '', generated).strip()
+            # Variable macros — {var_set:name:value}
+            for var_name, new_val in re.findall(r'\{var_set:(.+?):(-?\d+)\}', generated):
+                try:
+                    await c.execute(
+                        "INSERT INTO channel_variables (channel_name, var_name, var_value) VALUES (?, ?, ?) "
+                        "ON CONFLICT(channel_name, var_name) DO UPDATE SET var_value = ?",
+                        (channel_name, var_name, int(new_val), int(new_val)),
+                    )
+                    await conn.commit()
+                except Exception as e:
+                    self.logger.error(f"Error processing var_set for {var_name}: {e}")
 
+            # Strip action tags from output
+            generated = re.sub(r'\{var_add:.+?:-?\d+\}', '', generated)
+            generated = re.sub(r'\{var_set:.+?:-?\d+\}', '', generated)
+
+            # Read-variable substitution — <{var:X}>
+            for var_name in set(re.findall(r'<\{var:(.+?)\}>', generated)):
+                await c.execute(
+                    "SELECT var_value FROM channel_variables WHERE channel_name = ? AND var_name = ?",
+                    (channel_name, var_name),
+                )
+                row = await c.fetchone()
+                val = row[0] if row else 0
+                generated = generated.replace(f'{{var:{var_name}}}', str(val))
+                generated = generated.replace(f'<{{var:{var_name}}}>', str(val))
+
+            # Moderation macro — {timeout:user:seconds} (requires a chatter author)
+            timeout_match = re.search(r'\{timeout:(.+?):(\d+)\}', generated)
+            if timeout_match:
+                target_user = timeout_match.group(1).strip()
+                duration = int(timeout_match.group(2))
+                generated = re.sub(r'\{timeout:(.+?):(\d+)\}', '', generated).strip()
+
+                if author is not None:
                     bot_owner = config.owner.lower()
-                    is_mod = message.author.is_mod
-                    is_broadcaster = message.author.is_broadcaster
-                    is_owner = message.author.name.lower() == bot_owner
-                    is_self = target_user.lower() == message.author.name.lower()
+                    is_mod = author.is_mod
+                    is_broadcaster = author.is_broadcaster
+                    is_owner = sender.lower() == bot_owner
+                    is_self = target_user.lower() == sender.lower()
 
                     if is_mod or is_broadcaster or is_owner or is_self:
                         try:
@@ -141,17 +170,7 @@ class CustomCommandHandler:
                             self.logger.error(f"Failed to execute moderation action: {e}")
                     else:
                         self.logger.warning(
-                            f"{message.author.name} attempted moderation custom command without permissions."
+                            f"{sender} attempted moderation custom command without permissions."
                         )
 
-                # Send response
-                channel_obj = self._bot.get_channel(channel_name)
-                if channel_obj and generated:
-                    await channel_obj.send(generated)
-                    self.my_logger.log_message(channel_name, self._bot.nick, generated, is_bot_message=True)
-
-                return True
-
-        except Exception as e:
-            self.logger.error(f"Error processing custom command {cmd_name} in {channel_name}: {e}")
-            return False
+            return generated

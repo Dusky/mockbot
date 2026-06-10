@@ -197,6 +197,16 @@ def main():
             # start_server returns an AppRunner but doesn't block
             runner = await start_server(port=5050)
             print("[DEBUG] Overlay server started. Creating bot and TUI tasks...")
+
+            # Start the FastAPI webui. Phase 1: bound to localhost until the
+            # Twitch-OAuth gate lands, since the endpoints are unauthenticated.
+            webui_server = None
+            try:
+                from bot.webui import start_webui
+                webui_port = _cfg.getint('web', 'port', fallback=5001) if _cfg.has_section('web') else 5001
+                webui_server = await start_webui(bot_instance, host="127.0.0.1", port=webui_port)
+            except Exception as e:
+                print(f"[WARN] WebUI failed to start: {e}")
             
             # Create task for the TUI first
             tui_task = asyncio.create_task(tui_app.run_async())
@@ -220,6 +230,8 @@ def main():
             # Clean up the web server port
             if runner:
                 await runner.cleanup()
+            if webui_server is not None:
+                webui_server.should_exit = True
         
         # Run the concurrent loop
         loop.run_until_complete(run_concurrently())

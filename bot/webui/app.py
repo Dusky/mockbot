@@ -154,31 +154,38 @@ def _require_user(request: Request) -> dict:
 
 
 def create_app(bot=None, hub: WebUIHub | None = None, *, auth_cfg=None,
-               db_file=None, owner="", secret_key=None) -> FastAPI:
+               db_file=None, owner="", secret_key=None, secure_cookies=None) -> FastAPI:
     hub = hub or WebUIHub()
 
     # Resolve config — everything is injectable for tests; otherwise read the
-    # bot config (settings.conf) for [oauth], owner, and the session secret.
-    if auth_cfg is None or not owner or not secret_key:
-        try:
-            from bot.config import config as _config
-            if auth_cfg is None:
-                auth_cfg = auth.auth_config_from_config(_config)
-            if not owner and _config.has_section("auth"):
-                owner = _config.get("auth", "owner", fallback="")
-            if not secret_key and _config.has_section("web"):
-                secret_key = _config.get("web", "secret_key", fallback="")
-        except Exception:
-            pass
+    # bot config (settings.conf) for [oauth], owner, the session secret, and
+    # whether to mark session cookies Secure (HTTPS-only) for VPS deployments.
+    try:
+        from bot.config import config as _config
+    except Exception:
+        _config = None
+    if _config is not None:
+        if auth_cfg is None:
+            auth_cfg = auth.auth_config_from_config(_config)
+        if not owner and _config.has_section("auth"):
+            owner = _config.get("auth", "owner", fallback="")
+        if not secret_key and _config.has_section("web"):
+            secret_key = _config.get("web", "secret_key", fallback="")
+        if secure_cookies is None and _config.has_section("web"):
+            secure_cookies = _config.getboolean("web", "secure_cookies", fallback=False)
     auth_cfg = auth_cfg or auth.AuthConfig()
     if db_file is None:
         db_file = getattr(bot, "db_file", None) or "messages.db"
+    if secure_cookies is None:
+        secure_cookies = False
     if not secret_key or secret_key == "your-secret-key-here":
         secret_key = secrets.token_urlsafe(32)
-        logger.warning("webui: no [web] secret_key set; using a random one (sessions reset on restart)")
+        logger.warning("webui: no [web] secret_key set; using a random one "
+                       "(sessions reset on restart — set [web] secret_key on a server)")
 
     app = FastAPI(title="Mockbot WebUI", version="0.2.0")
-    app.add_middleware(SessionMiddleware, secret_key=secret_key, same_site="lax", https_only=False)
+    app.add_middleware(SessionMiddleware, secret_key=secret_key, same_site="lax",
+                       https_only=secure_cookies)
     app.state.bot = bot
     app.state.hub = hub
     app.state.auth_cfg = auth_cfg
@@ -324,22 +331,35 @@ def create_app(bot=None, hub: WebUIHub | None = None, *, auth_cfg=None,
     return app
 
 
-async def start_webui(bot, host: str = "127.0.0.1", port: int = 5001):
+async def start_webui(bot, host: str | None = None, port: int | None = None):
     """Start the FastAPI app on the current (bot) loop without blocking.
 
+    Host/port and proxy/cookie settings come from the [web] config when not
+    overridden. For a public VPS, run behind an HTTPS reverse proxy: bind host
+    to 127.0.0.1, set forwarded_allow_ips to the proxy, and secure_cookies=true.
     Returns the uvicorn ``Server`` so the caller can stop it (``should_exit``).
-    Binds to localhost in this phase — flip to the configured host once you've
-    confirmed the Twitch-OAuth login round-trips. Signal handlers are disabled so
-    uvicorn doesn't hijack main.py's SIGINT/TERM.
+    Signal handlers are disabled so uvicorn doesn't hijack main.py's SIGINT/TERM.
     """
     import uvicorn
+
+    try:
+        from bot.config import config as _config
+        has_web = _config.has_section("web")
+    except Exception:
+        _config, has_web = None, False
+    if host is None:
+        host = _config.get("web", "host", fallback="127.0.0.1") if has_web else "127.0.0.1"
+    if port is None:
+        port = _config.getint("web", "port", fallback=5001) if has_web else 5001
+    forwarded = _config.get("web", "forwarded_allow_ips", fallback="127.0.0.1") if has_web else "127.0.0.1"
 
     hub = WebUIHub()
     hub.attach_to_bus(bot.event_bus)
     bot.webui_hub = hub  # live consumer for the formerly-dormant emitter seam
     app = create_app(bot, hub)
 
-    config = uvicorn.Config(app, host=host, port=port, log_level="warning", lifespan="off")
+    config = uvicorn.Config(app, host=host, port=int(port), log_level="warning",
+                            lifespan="off", proxy_headers=True, forwarded_allow_ips=forwarded)
     server = uvicorn.Server(config)
     server.install_signal_handlers = lambda: None
     asyncio.create_task(server.serve())

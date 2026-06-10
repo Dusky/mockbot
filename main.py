@@ -192,12 +192,12 @@ def main():
         async def run_concurrently():
             # Start the FastAPI webui (serves the dashboard, the bus event stream,
             # and the per-channel private TTS sources that replaced the :5050
-            # overlay). Bound to localhost until the OAuth round-trip is confirmed.
+            # overlay). Host/port/proxy/cookie settings come from [web] config —
+            # see docs/webui.md for the VPS reverse-proxy + HTTPS setup.
             webui_server = None
             try:
                 from bot.webui import start_webui
-                webui_port = _cfg.getint('web', 'port', fallback=5001) if _cfg.has_section('web') else 5001
-                webui_server = await start_webui(bot_instance, host="127.0.0.1", port=webui_port)
+                webui_server = await start_webui(bot_instance)
             except Exception as e:
                 print(f"[WARN] WebUI failed to start: {e}")
             

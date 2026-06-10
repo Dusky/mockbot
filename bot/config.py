@@ -1,6 +1,29 @@
 import configparser
 
 
+# A scope-aware token generator (the old twitchapps.com/tmi only grants chat
+# scopes and can't add the EventSub ones).
+TOKEN_GENERATOR_URL = "https://twitchtokengenerator.com"
+
+# Recommended OAuth scopes for the bot's token. Chat scopes are essential; the
+# EventSub scopes power Bits (channel.cheer) and Channel Point redemptions; the
+# last two back the !poll command and moderator timeouts.
+RECOMMENDED_SCOPES = [
+    "chat:read",
+    "chat:edit",
+    "bits:read",                       # EventSub: channel.cheer
+    "channel:read:redemptions",        # EventSub: channel point redemptions
+    "channel:manage:polls",            # !poll command
+    "moderator:manage:banned_users",   # timeouts
+]
+
+# EventSub feature flag (channel_configs column) -> the scope it requires.
+EVENTSUB_SCOPES = {
+    "pubsub_bits": "bits:read",
+    "pubsub_points": "channel:read:redemptions",
+}
+
+
 class Config:
     def __init__(self, path: str = "settings.conf"):
         self._cfg = configparser.ConfigParser()

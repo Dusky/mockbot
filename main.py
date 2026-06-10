@@ -13,6 +13,34 @@ import sys
 import time # For shutdown delay
 import asyncio # Added import for asyncio
 
+def _warn_missing_eventsub_scopes(db_file, token_scopes):
+    """Warn at startup if Bits/Channel-Point features are enabled for any
+    channel but the token is missing the EventSub scope they require."""
+    import sqlite3
+    from bot.config import EVENTSUB_SCOPES, TOKEN_GENERATOR_URL
+    try:
+        conn = sqlite3.connect(db_file)
+        bits_on, points_on = conn.execute(
+            "SELECT COALESCE(SUM(pubsub_bits),0), COALESCE(SUM(pubsub_points),0) FROM channel_configs"
+        ).fetchone()
+        conn.close()
+    except Exception:
+        return  # DB not ready / no table yet — nothing to warn about
+
+    have = set(token_scopes or [])
+    missing = []
+    if bits_on and EVENTSUB_SCOPES["pubsub_bits"] not in have:
+        missing.append(f"Bits is enabled but the token lacks '{EVENTSUB_SCOPES['pubsub_bits']}'")
+    if points_on and EVENTSUB_SCOPES["pubsub_points"] not in have:
+        missing.append(f"Channel Points is enabled but the token lacks '{EVENTSUB_SCOPES['pubsub_points']}'")
+    if missing:
+        print("⚠️  EventSub scope warning:")
+        for m in missing:
+            print(f"   - {m}")
+        print(f"   Regenerate your token with the missing scope(s) at {TOKEN_GENERATOR_URL}")
+        print("   (Those Bits/Channel-Point subscriptions will be skipped until then.)")
+
+
 # Global variable to hold the bot instance for graceful shutdown
 bot_instance = None
 # Global flag for TTS status, to be passed to webapp
@@ -110,15 +138,19 @@ def main():
 
         token = (_cfg.tmi_token or '').replace('oauth:', '')
         
+        token_scopes = []
         if token:
             print("Verifying token...", end='', flush=True)
             try:
                 resp = requests.get('https://id.twitch.tv/oauth2/validate', headers={'Authorization': f'OAuth {token}'}, timeout=5)
                 if resp.status_code == 200:
                     print(" OK")
+                    token_scopes = resp.json().get('scopes', []) or []
                 else:
+                    from bot.config import TOKEN_GENERATOR_URL, RECOMMENDED_SCOPES
                     print(f"\nFATAL: Token invalid! Twitch says: {resp.json().get('message')}")
-                    print("Please update 'settings.conf' with a fresh token from https://twitchapps.com/tmi/")
+                    print(f"Please update 'settings.conf' with a fresh token from {TOKEN_GENERATOR_URL}")
+                    print(f"  (Custom Scope Token; include: {', '.join(RECOMMENDED_SCOPES)})")
                     sys.exit(1)
             except Exception as e:
                 print(f" (SKIP - Check failed: {e})")
@@ -126,6 +158,7 @@ def main():
         # print("Setting up database...")
         db_file = "messages.db"
         ensure_db_setup(db_file)
+        _warn_missing_eventsub_scopes(db_file, token_scopes)
         # print("Database setup complete.")
             
         # print("Setting up bot...")

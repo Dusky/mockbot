@@ -5,6 +5,7 @@ from prompt_toolkit import prompt
 from prompt_toolkit.styles import Style
 
 from bot.db import ensure_db_setup
+from bot.config import TOKEN_GENERATOR_URL, RECOMMENDED_SCOPES
 
 def run_setup_wizard(db_file="messages.db"):
     style = Style.from_dict({
@@ -15,7 +16,9 @@ def run_setup_wizard(db_file="messages.db"):
     print("🤖 MockBot First-Time Setup Wizard 🤖")
     print("="*50 + "\n")
     print("Let's get your bot configured.")
-    print("You can get your Twitch TMI token from: https://twitchapps.com/tmi/")
+    print(f"Generate a Twitch token at: {TOKEN_GENERATOR_URL}")
+    print("  → choose 'Custom Scope Token' and select these scopes:")
+    print(f"  {', '.join(RECOMMENDED_SCOPES)}")
     print("You can create an application for a Client ID here: https://dev.twitch.tv/console\n")
     
     tmi_token = prompt("Twitch TMI Token (oauth:...): ", style=style)

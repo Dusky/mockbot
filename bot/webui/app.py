@@ -3,9 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import secrets
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import RedirectResponse
+from starlette.middleware.sessions import SessionMiddleware
 
+import bot.webui.auth as auth
 from bot.events import (
     BotStatus,
     ConnectionStateChanged,
@@ -81,14 +85,46 @@ class WebUIHub:
             bus.subscribe(event_type, self.broadcast)
 
 
-def create_app(bot=None, hub: WebUIHub | None = None) -> FastAPI:
+def _require_user(request: Request) -> dict:
+    """FastAPI dependency: 401 unless an authorized user is in the session."""
+    user = request.session.get("user")
+    if not user:
+        raise HTTPException(status_code=401, detail="login required")
+    return user
+
+
+def create_app(bot=None, hub: WebUIHub | None = None, *, auth_cfg=None,
+               db_file=None, owner="", secret_key=None) -> FastAPI:
     hub = hub or WebUIHub()
-    app = FastAPI(title="Mockbot WebUI", version="0.1.0")
+
+    # Resolve config — everything is injectable for tests; otherwise read the
+    # bot config (settings.conf) for [oauth], owner, and the session secret.
+    if auth_cfg is None or not owner or not secret_key:
+        try:
+            from bot.config import config as _config
+            if auth_cfg is None:
+                auth_cfg = auth.auth_config_from_config(_config)
+            if not owner and _config.has_section("auth"):
+                owner = _config.get("auth", "owner", fallback="")
+            if not secret_key and _config.has_section("web"):
+                secret_key = _config.get("web", "secret_key", fallback="")
+        except Exception:
+            pass
+    auth_cfg = auth_cfg or auth.AuthConfig()
+    if db_file is None:
+        db_file = getattr(bot, "db_file", None) or "messages.db"
+    if not secret_key or secret_key == "your-secret-key-here":
+        secret_key = secrets.token_urlsafe(32)
+        logger.warning("webui: no [web] secret_key set; using a random one (sessions reset on restart)")
+
+    app = FastAPI(title="Mockbot WebUI", version="0.2.0")
+    app.add_middleware(SessionMiddleware, secret_key=secret_key, same_site="lax", https_only=False)
     app.state.bot = bot
     app.state.hub = hub
+    app.state.auth_cfg = auth_cfg
 
     @app.get("/healthz")
-    async def healthz():
+    async def healthz():  # unauthenticated health check
         return {
             "status": "ok",
             "nick": getattr(bot, "nick", None) if bot else None,
@@ -96,8 +132,56 @@ def create_app(bot=None, hub: WebUIHub | None = None) -> FastAPI:
             "ws_clients": hub.client_count,
         }
 
+    # ── Twitch OAuth login ──────────────────────────────────────────────────
+    @app.get("/auth/twitch/login")
+    async def login(request: Request):
+        if not auth_cfg.configured:
+            raise HTTPException(503, "Twitch OAuth not configured — set [oauth] in settings.conf")
+        state = secrets.token_urlsafe(24)
+        request.session["oauth_state"] = state
+        return RedirectResponse(auth.build_authorize_url(auth_cfg, state))
+
+    @app.get("/auth/twitch/callback")
+    async def callback(request: Request, code: str = "", state: str = "", error: str = ""):
+        if error:
+            raise HTTPException(400, f"Twitch returned an error: {error}")
+        expected = request.session.pop("oauth_state", None)
+        if not state or state != expected:
+            raise HTTPException(400, "Invalid OAuth state")
+        if not code:
+            raise HTTPException(400, "Missing authorization code")
+        token = await auth.exchange_code(auth_cfg, code)
+        user = await auth.fetch_user(auth_cfg, token.get("access_token", ""))
+        login_name = (user.get("login") or "").lower()
+        if not auth.is_authorized(db_file, login_name, owner):
+            raise HTTPException(403, f"'{login_name or 'unknown'}' is not authorized to manage this bot")
+        request.session["user"] = {
+            "id": user.get("id"),
+            "login": login_name,
+            "display_name": user.get("display_name") or login_name,
+        }
+        return RedirectResponse("/", status_code=302)
+
+    @app.get("/auth/logout")
+    async def logout(request: Request):
+        request.session.clear()
+        return RedirectResponse("/auth/twitch/login", status_code=302)
+
+    @app.get("/me")
+    async def me(user=Depends(_require_user)):
+        return user
+
+    @app.get("/")
+    async def index(request: Request):
+        if not request.session.get("user"):
+            return RedirectResponse("/auth/twitch/login", status_code=302)
+        return {"dashboard": "coming soon", "user": request.session["user"]}  # Phase 4/5
+
     @app.websocket("/ws/events")
     async def ws_events(ws: WebSocket):
+        if not ws.session.get("user"):
+            await ws.close(code=1008)  # policy violation: login required
+            return
         await ws.accept()
         q = hub.register()
         try:
@@ -117,9 +201,9 @@ async def start_webui(bot, host: str = "127.0.0.1", port: int = 5001):
     """Start the FastAPI app on the current (bot) loop without blocking.
 
     Returns the uvicorn ``Server`` so the caller can stop it (``should_exit``).
-    Binds to localhost in this phase — flip to the configured host once the
-    Twitch-OAuth gate (Phase 2) is in place, since the endpoints are unauth'd.
-    Signal handlers are disabled so uvicorn doesn't hijack main.py's SIGINT/TERM.
+    Binds to localhost in this phase — flip to the configured host once you've
+    confirmed the Twitch-OAuth login round-trips. Signal handlers are disabled so
+    uvicorn doesn't hijack main.py's SIGINT/TERM.
     """
     import uvicorn
 

@@ -228,8 +228,21 @@ def create_app(bot=None, hub: WebUIHub | None = None, *, auth_cfg=None,
         if error:
             raise HTTPException(400, f"Twitch returned an error: {error}")
         expected = request.session.pop("oauth_state", None)
-        if not state or state != expected:
-            raise HTTPException(400, "Invalid OAuth state")
+        if not state:
+            raise HTTPException(400, "Twitch did not return a state value.")
+        if expected is None:
+            # The session cookie set during /login didn't come back, so we have
+            # nothing to compare against. This is a cookie problem, not a Twitch one.
+            logger.warning("webui login: no oauth_state in session on callback "
+                           "(cookie not returned). secure_cookies=%s", secure_cookies)
+            raise HTTPException(400,
+                "Login session was lost — your browser didn't return the session cookie. "
+                "Common causes: (1) secure_cookies=true in [web] while accessing over plain "
+                "http (set it false until you're behind HTTPS); (2) you opened the dashboard "
+                "on a different host than [oauth] twitch_redirect_uri (use the same host for "
+                "both); (3) no [web] secret_key set and the bot restarted mid-login.")
+        if state != expected:
+            raise HTTPException(400, "OAuth state mismatch — stale login tab. Start again from the home page.")
         if not code:
             raise HTTPException(400, "Missing authorization code")
         token = await auth.exchange_code(auth_cfg, code)

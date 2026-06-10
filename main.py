@@ -199,6 +199,15 @@ def main():
                 from bot.webui import start_webui
                 webui_server = await start_webui(bot_instance)
             except Exception as e:
+                # Log loudly (the TUI swallows stdout): surfaces in logs/mockbot.log
+                # and the dashboard log panel. Usually a missing dep — run
+                # `pip install -r requirements.txt`.
+                import logging
+                logging.getLogger("bot").error(
+                    f"WebUI failed to start ({type(e).__name__}: {e}). "
+                    f"If it's a missing module, run: pip install -r requirements.txt",
+                    exc_info=True,
+                )
                 print(f"[WARN] WebUI failed to start: {e}")
             
             # Create task for the TUI first

@@ -1,0 +1,10 @@
+[package]
+name = "mockbot"
+version = "0.1.0"
+edition = "2021"
+description = "Mockbot — Twitch Markov chat bot (Rust core, work in progress)"
+
+# Phase 1 is dependency-free on purpose: the Markov core + a tiny PRNG build and
+# test offline. Real crates (rand, ratatui, tokio, rusqlite, twitch-irc) come in
+# later phases.
+[dependencies]

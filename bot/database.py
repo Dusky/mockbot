@@ -7,20 +7,15 @@ from datetime import datetime
 import aiosqlite
 
 from bot.db import ensure_db_setup
+from bot.settings_registry import all_columns as _all_columns
 
 # Re-exported so callers can catch DB integrity violations without importing
 # sqlite3 directly (keeps all DB-engine knowledge behind this module).
 IntegrityError = sqlite3.IntegrityError
 
-_VALID_CHANNEL_CONFIG_COLS = frozenset({
-    "tts_enabled", "voice_enabled", "join_channel", "owner", "trusted_users",
-    "ignored_users", "use_general_model", "lines_between_messages",
-    "time_between_messages", "voice_preset", "bark_model", "currently_connected",
-    "tts_delay_enabled", "random_chance", "log_dice", "pubsub_bits", "pubsub_points",
-    "tts_reward", "tts_provider", "rvc_model", "chatterbox_temperature",
-    "chatterbox_exaggeration", "bark_text_temp", "bark_waveform_temp", "rvc_pitch",
-    "rvc_index_rate", "rvc_api_url", "enabled_lore", "lore_bias", "user_id",
-})
+# Channel-config column allowlist for safe dynamic UPDATE/SELECT. Derived from the
+# settings registry (the single source of truth) rather than hand-maintained here.
+_VALID_CHANNEL_CONFIG_COLS = _all_columns()
 
 _sync_lock = threading.Lock()
 

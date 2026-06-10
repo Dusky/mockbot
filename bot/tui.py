@@ -34,6 +34,7 @@ try:
 except Exception:
     MOCKBOT_THEME = None
 from bot.ui_managers import CommandsManagerScreen, GrammarManagerScreen, SettingsManagerScreen, TimersManagerScreen, TTSHistoryScreen
+from bot.settings_registry import REGISTRY, alias_to_key, coerce, validate, set_aliases_help
 
 MAX_BUFFER = 500  # Maximum messages to keep per channel buffer
 
@@ -1086,59 +1087,24 @@ class MockbotDashboard(App):
             
         elif cmd == 'set':
             if len(args) < 2:
-                self._cmd_log("Usage: [bold yellow]set <lines|time|model|voice|bits|points> <val>[/bold yellow]")
+                self._cmd_log(f"Usage: [bold yellow]set <key> <value>[/bold yellow]  keys: {set_aliases_help()}")
                 return
-            key = args[0].lower()
-            val_str = args[1].lower()
-
-            if key == 'lines':
-                try: val = int(val_str)
-                except ValueError: self._cmd_log("[bold red]Error: Value must be a number.[/bold red]"); return
-                await self._update_setting('lines_between_messages', val)
-            elif key == 'time':
-                try: val = int(val_str)
-                except ValueError: self._cmd_log("[bold red]Error: Value must be a number.[/bold red]"); return
-                await self._update_setting('time_between_messages', val)
-            elif key == 'model':
-                if val_str not in ['general', 'individual']:
-                    self._cmd_log("Usage: [bold yellow]set model <general|individual>[/bold yellow]")
-                    return
-                state = 1 if val_str == 'general' else 0
-                await self._update_setting('use_general_model', state)
-            elif key == 'chance':
-                try: 
-                    val = float(val_str)
-                    if val < 0.0 or val > 100.0:
-                        raise ValueError()
-                except ValueError: 
-                    self._cmd_log("[bold red]Error: Value must be a number between 0 and 100.[/bold red]"); return
-                await self._update_setting('random_chance', val)
-            elif key == 'log_dice':
-                if val_str not in ['on', 'off', 'true', 'false']:
-                    self._cmd_log("Usage: [bold yellow]set log_dice <on|off>[/bold yellow]")
-                    return
-                state = 1 if val_str in ['on', 'true'] else 0
-                await self._update_setting('log_dice', state)
-            elif key == 'voice':
-                if not args or len(args) < 2:
-                    self._cmd_log("Usage: [bold yellow]set voice <model_name>[/bold yellow]")
-                    return
-                actual_val = args[1]
-                await self._update_setting('voice_preset', actual_val)
-            elif key == 'delay':
-                if val_str not in ['on', 'off', 'true', 'false']:
-                    self._cmd_log("Usage: [bold yellow]set delay <on|off>[/bold yellow]")
-                    return
-                state = 1 if val_str in ['on', 'true'] else 0
-                await self._update_setting('tts_delay_enabled', state)
-            elif key in ['bits', 'points']:
-                if val_str not in ['on', 'off']:
-                    self._cmd_log(f"Usage: [bold yellow]set {key} <on|off>[/bold yellow]")
-                    return
-                state = 1 if val_str == 'on' else 0
-                await self._update_setting(f'pubsub_{key}', state)
-            else:
-                self._cmd_log(f"[bold red]Unknown setting: {key}[/bold red]. Available: lines, time, chance, model, log_dice, voice, delay, bits, points.")
+            key = alias_to_key(args[0])
+            if not key or not REGISTRY[key].user_editable:
+                self._cmd_log(f"[bold red]Unknown setting:[/bold red] {args[0]}. Keys: {set_aliases_help()}")
+                return
+            raw = " ".join(args[1:])  # allow multi-word string values (e.g. tts_reward)
+            try:
+                val = coerce(key, raw)
+            except ValueError as e:
+                self._cmd_log(f"[bold red]Error:[/bold red] {e}")
+                return
+            ok, err = validate(key, val)
+            if not ok:
+                self._cmd_log(f"[bold red]Error:[/bold red] {err}")
+                return
+            await self._update_setting(key, val)
+            self._cmd_log(f"[bold green]Set[/bold green] {key} = {val}")
 
         elif cmd in ['trust', 'untrust', 'ignore', 'unignore']:
             if not args:
@@ -1507,7 +1473,7 @@ class MockbotDashboard(App):
                     table.add_row(f"  [green]{c}[/]", d)
                 table.add_row("", "")
             self._cmd_log(table)
-            self._cmd_log("[dim]/set keys:[/] lines, time, chance, model, log_dice, voice, delay, bits, points")
+            self._cmd_log(f"[dim]/set keys:[/] {set_aliases_help()}")
             self._cmd_log("[dim]Commands also work without the leading '/'. Tab completes; Up/Down browse history.[/]")
 
         else:

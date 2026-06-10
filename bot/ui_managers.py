@@ -3,6 +3,8 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Button, Input, Label, Static, Select, TextArea
 from textual.containers import Horizontal, Vertical, VerticalScroll
 
+from bot.settings_registry import REGISTRY, by_category
+
 class LoreManagerScreen(ModalScreen):
     """Screen to manage multiple lore configurations."""
     BINDINGS = [("escape", "app.pop_screen", "Back")]
@@ -298,58 +300,34 @@ class SettingRow(Horizontal):
         with Vertical(classes="setting-info"):
             yield Label(self.setting_key, classes="setting-key")
             yield Label(self.description, classes="setting-desc")
-        
+
+        setting = REGISTRY.get(self.setting_key)
+        control = setting.control if setting else "input"
+        wid = f"input_{self.setting_key}"
+
         with Horizontal(classes="setting-controls"):
-            BOOLEAN_FIELDS = {
-                "tts_enabled", "voice_enabled", "join_channel", "use_general_model", 
-                "tts_delay_enabled", "log_dice", "pubsub_bits", "pubsub_points"
-            }
-            if self.setting_key in BOOLEAN_FIELDS:
-                options = [("Enabled", "1"), ("Disabled", "0")]
-                val_str = "1" if str(self.current_value) in ("1", "True", "true", "1.0") else "0"
-                yield Select(options, value=val_str, id=f"input_{self.setting_key}")
-            elif self.setting_key == "bark_model":
-                options = [("Small", "small"), ("Regular", "regular")]
-                val_str = str(self.current_value) if self.current_value in ("small", "regular") else "small"
-                yield Select(options, value=val_str, id=f"input_{self.setting_key}")
-            elif self.setting_key == "tts_provider":
-                options = [("Suno Bark", "bark"), ("Chatterbox TTS", "chatterbox"), ("RVC (Bark Base)", "rvc"), ("RVC (Chatterbox Base)", "rvc_chatterbox")]
-                val_str = str(self.current_value) if self.current_value in ("bark", "chatterbox", "rvc", "rvc_chatterbox") else "bark"
-                yield Select(options, value=val_str, id=f"input_{self.setting_key}")
-            elif self.setting_key == "rvc_model":
-                import os
-                options = [("None", "")]
-                if os.path.exists("./voices"):
-                    for file in os.listdir("./voices"):
-                        if file.endswith(".pth"):
-                            name = file.replace(".pth", "")
-                            options.append((name, name))
-                val_str = str(self.current_value) if self.current_value else ""
-                if val_str and val_str not in [o[1] for o in options]:
-                    options.append((val_str, val_str))
-                yield Select(options, value=val_str, id=f"input_{self.setting_key}")
-            elif self.setting_key == "voice_preset":
-                import os
-                options = [
-                    ("Bark: Gen 0", "v2/en_speaker_0"), ("Bark: Gen 1", "v2/en_speaker_1"), 
-                    ("Bark: Gen 2", "v2/en_speaker_2"), ("Bark: Gen 3", "v2/en_speaker_3"),
-                    ("Bark: Gen 4", "v2/en_speaker_4"), ("Bark: Gen 5", "v2/en_speaker_5"),
-                    ("Bark: Gen 6", "v2/en_speaker_6"), ("Bark: Gen 7", "v2/en_speaker_7"),
-                    ("Bark: Gen 8", "v2/en_speaker_8"), ("Bark: Gen 9", "v2/en_speaker_9")
-                ]
-                if os.path.exists("./voices"):
-                    for file in sorted(os.listdir("./voices")):
-                        if file.endswith((".npz", ".wav")):
-                            options.append((file, file))
-                val_str = str(self.current_value) if self.current_value else "v2/en_speaker_5"
-                if val_str and val_str not in [o[1] for o in options]:
-                    options.append((val_str, val_str))
-                yield Select(options, value=val_str, id=f"input_{self.setting_key}")
-            elif self.setting_key == "enabled_lore":
+            if control == "lore_button":
                 yield Button("Manage Lore Library", id="btn_enabled_lore_manage", variant="primary")
                 return
-            else:
-                yield Input(value=str(self.current_value), id=f"input_{self.setting_key}")
+            if control == "bool_select":
+                val = "1" if str(self.current_value) in ("1", "True", "true", "1.0") else "0"
+                yield Select([("Enabled", "1"), ("Disabled", "0")], value=val, id=wid)
+            elif control == "select":
+                if setting.dynamic_choices:
+                    # File-backed choices (voice_preset / rvc_model): keep any
+                    # stored-but-unlisted value selectable.
+                    options = list(setting.dynamic_choices())
+                    val = str(self.current_value) if self.current_value not in (None, "") else str(setting.default)
+                    if val and val not in [o[1] for o in options]:
+                        options.append((val, val))
+                else:  # fixed enum: fall back to the default if the stored value is invalid
+                    options = list(setting.choices)
+                    val = str(self.current_value)
+                    if val not in [o[1] for o in options]:
+                        val = str(setting.default)
+                yield Select(options, value=val, id=wid)
+            else:  # plain text/numeric input
+                yield Input(value=str(self.current_value), id=wid)
             # No per-row Update button: changes apply on Select change / Input submit.
 
 
@@ -357,33 +335,6 @@ class SettingsManagerScreen(ModalScreen):
     """Screen to manage generic channel settings like TTS, voice, delays, etc."""
     
     BINDINGS = [("escape", "app.pop_screen", "Back")]
-
-    SETTINGS_META = {
-        "tts_enabled": "1 to enable TTS, 0 to disable. Determines if the bot speaks out loud.",
-        "voice_enabled": "1 to enable custom voices, 0 to disable. Determines if AI voices are used over basic OS voices.",
-        "join_channel": "1 to automatically join this Twitch channel on startup, 0 to not.",
-        "use_general_model": "1 to use the generic AI brain model, 0 to use an individual channel-specific model.",
-        "lines_between_messages": "Number of chat messages that must pass before the bot interjects passively.",
-        "time_between_messages": "Seconds that must pass before the bot interjects passively.",
-        "voice_preset": "The voice profile for TTS (e.g. 'v2/en_speaker_5', 'v2/en_speaker_1').",
-        "bark_model": "Which bark model to use ('small', 'regular').",
-        "tts_delay_enabled": "1 to delay TTS generation slightly to improve pacing, 0 for immediate generation.",
-        "random_chance": "Number 0-100 indicating percentage chance for the bot to spontaneously reply to a user message.",
-        "log_dice": "1 to log random chance rolls to the console window, 0 to hide them.",
-        "pubsub_bits": "1 to respond to bits/cheers, 0 to ignore them.",
-        "pubsub_points": "1 to respond to channel point redemptions, 0 to ignore.",
-        "tts_reward": "The exact name of a Twitch Channel Point reward that triggers TTS.",
-        "tts_provider": "Which TTS Engine to use ('bark', 'chatterbox', 'rvc', 'rvc_chatterbox'). Only active for premium features.",
-        "rvc_model": "The underlying .pth model name in /voices for Voice Cloning.",
-        "chatterbox_temperature": "Generation randomness for Chatterbox (default 0.8).",
-        "chatterbox_exaggeration": "Expressiveness control for Chatterbox (default 0.5).",
-        "bark_text_temp": "Text temperature for Suno Bark (default 0.7).",
-        "bark_waveform_temp": "Waveform temperature for Suno Bark (default 0.7).",
-        "rvc_pitch": "Pitch shift for RVC (-12 for female-to-male, +12 for male-to-female).",
-        "rvc_index_rate": "Index rate for cloning accuracy ratio (default 0.75).",
-        "rvc_api_url": "The API path pointing to the Python 3.10 wrapper (e.g. http://127.0.0.1:5051).",
-        "enabled_lore": "Comma-separated list of .txt files from 'lore/' to inject into the brain (e.g. mgs.txt)."
-    }
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="manager-container"):
@@ -410,32 +361,14 @@ class SettingsManagerScreen(ModalScreen):
             settings_list.mount(Label("No channel configuration found. Is the bot joined to this channel?"))
             return
 
-        categories = {
-            "Behavior & Core Rules": ["join_channel", "use_general_model", "random_chance", "log_dice", "lines_between_messages", "time_between_messages"],
-            "External Lore Modeling": ["enabled_lore"],
-            "Twitch Event Triggers": ["pubsub_bits", "pubsub_points", "tts_reward"],
-            "TTS Fundamentals": ["tts_enabled", "voice_enabled", "tts_delay_enabled", "tts_provider", "voice_preset"],
-            "Synthesis Tuning (Bark/Chatterbox)": ["bark_model", "bark_text_temp", "bark_waveform_temp", "chatterbox_temperature", "chatterbox_exaggeration"],
-            "Voice Cloning (RVC)": ["rvc_model", "rvc_pitch", "rvc_index_rate", "rvc_api_url"]
-        }
-
-        seen_keys = set(["channel_name", "user_id", "owner", "trusted_users", "ignored_users", "currently_connected"])
-
-        for cat_name, keys in categories.items():
-            cat_keys = [k for k in keys if k in row.keys()]
-            if cat_keys:
-                settings_list.mount(Label(f"── {cat_name} ──", classes="setting-category"))
-                for key in cat_keys:
-                    desc = self.SETTINGS_META.get(key, "No description available.")
-                    settings_list.mount(SettingRow(key, row[key], desc))
-                    seen_keys.add(key)
-
-        stragglers = [k for k in row.keys() if k not in seen_keys]
-        if stragglers:
-            settings_list.mount(Label("── Advanced / Other ──", classes="setting-category"))
-            for key in stragglers:
-                desc = self.SETTINGS_META.get(key, "No description available.")
-                settings_list.mount(SettingRow(key, row[key], desc))
+        # Layout + descriptions come straight from the settings registry.
+        for cat_name, settings in by_category().items():
+            shown = [s for s in settings if s.key in row.keys()]
+            if not shown:
+                continue
+            settings_list.mount(Label(f"── {cat_name} ──", classes="setting-category"))
+            for s in shown:
+                settings_list.mount(SettingRow(s.key, row[s.key], s.description))
 
         # Rows are mounted; enable apply only after the initial render settles so
         # the Selects' mount-time Changed events don't trigger spurious writes.

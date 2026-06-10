@@ -105,7 +105,8 @@ def ensure_db_setup(db_file):
                         rvc_index_rate REAL DEFAULT 0.75,
                         rvc_api_url TEXT DEFAULT 'http://127.0.0.1:5000',
                         enabled_lore TEXT DEFAULT '',
-                        lore_bias REAL DEFAULT 15.0
+                        lore_bias REAL DEFAULT 15.0,
+                        tts_token TEXT DEFAULT ''
                     )''')
 
         # Add random_chance column to channel_configs if it doesn't exist (migration)
@@ -141,6 +142,11 @@ def ensure_db_setup(db_file):
         if 'tts_reward' not in channel_configs_columns:
             c.execute("ALTER TABLE channel_configs ADD COLUMN tts_reward TEXT DEFAULT ''")
             logging.info("Column 'tts_reward' added to 'channel_configs'.")
+
+        # Add tts_token column (private per-channel TTS source URL) if missing
+        if 'tts_token' not in channel_configs_columns:
+            c.execute("ALTER TABLE channel_configs ADD COLUMN tts_token TEXT DEFAULT ''")
+            logging.info("Column 'tts_token' added to 'channel_configs'.")
             
         # Add tts_provider column to channel_configs if it doesn't exist (migration)
         if 'tts_provider' not in channel_configs_columns:

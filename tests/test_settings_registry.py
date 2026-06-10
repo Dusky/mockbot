@@ -34,18 +34,25 @@ def _parse_sql_default(text):
 
 # ── registry <-> schema agreement ───────────────────────────────────────────
 
+# Columns that are infrastructure, not user-tunable settings, so they are
+# intentionally absent from the settings registry.
+_NON_SETTING_COLUMNS = {
+    "channel_name",  # primary key, never updated via the registry
+    "tts_token",     # generated secret for the private TTS source URL
+}
+
+
 def test_registry_columns_match_schema_exactly():
-    cols = set(_channel_config_columns())
-    cols.discard("channel_name")  # primary key, never updated via the registry
+    cols = set(_channel_config_columns()) - _NON_SETTING_COLUMNS
     assert set(sr.all_columns()) == cols
 
 
 def test_registry_defaults_match_schema_defaults():
     cols = _channel_config_columns()
     # rvc_api_url is the one deliberate divergence (canonicalised to :5051).
-    skip = {"rvc_api_url"}
+    skip = {"rvc_api_url"} | _NON_SETTING_COLUMNS
     for key, schema_default in cols.items():
-        if key == "channel_name" or key in skip or schema_default is None:
+        if key in skip or schema_default is None:
             continue
         reg = sr.REGISTRY[key].default
         if isinstance(reg, float) or isinstance(schema_default, float):

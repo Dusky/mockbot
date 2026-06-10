@@ -4,12 +4,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import secrets
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 import bot.webui.auth as auth
+import bot.webui.tts_source as tts_src
 from bot.events import (
     BotStatus,
     ConnectionStateChanged,
@@ -17,6 +20,8 @@ from bot.events import (
     TtsGenerated,
     to_legacy_dict,
 )
+
+_AUDIO_DIR = "static/outputs"  # where the TTS pipeline writes <channel>/<file>.wav
 
 logger = logging.getLogger("bot")
 
@@ -42,6 +47,37 @@ def _serialize(event) -> dict | None:
     return None
 
 
+def _tts_payload(event: TtsGenerated) -> dict:
+    """Build the overlay-compatible play_audio message for a TTS event,
+    mapping the on-disk path to the /audio mount (static/outputs/<x> -> /audio/<x>)."""
+    fp = event.file_path or ""
+    try:
+        rel = str(Path(fp).relative_to(_AUDIO_DIR))
+        url = f"/audio/{rel}"
+    except ValueError:
+        url = fp  # already a url or outside the audio dir — pass through
+    return {
+        "action": "play_audio",
+        "file": url,
+        "message": event.text,
+        "provider": event.provider,
+        "voice": event.voice,
+        "author": event.author,
+    }
+
+
+def _enqueue(q: asyncio.Queue, payload: dict) -> None:
+    """Enqueue, dropping the oldest item if the client is full (bounds latency)."""
+    try:
+        q.put_nowait(payload)
+    except asyncio.QueueFull:
+        try:
+            q.get_nowait()
+            q.put_nowait(payload)
+        except Exception:
+            pass
+
+
 class WebUIHub:
     """Fan-out from the EventBus to connected websocket clients.
 
@@ -51,7 +87,8 @@ class WebUIHub:
     """
 
     def __init__(self) -> None:
-        self._clients: set[asyncio.Queue] = set()
+        self._clients: set[asyncio.Queue] = set()                 # dashboard /ws/events
+        self._tts_clients: dict[str, set[asyncio.Queue]] = {}     # per-channel /ws/tts
 
     def register(self) -> asyncio.Queue:
         q: asyncio.Queue = asyncio.Queue(maxsize=1000)
@@ -61,24 +98,39 @@ class WebUIHub:
     def unregister(self, q: asyncio.Queue) -> None:
         self._clients.discard(q)
 
+    def register_tts(self, channel: str) -> asyncio.Queue:
+        q: asyncio.Queue = asyncio.Queue(maxsize=200)
+        self._tts_clients.setdefault(channel.lstrip("#").lower(), set()).add(q)
+        return q
+
+    def unregister_tts(self, channel: str, q: asyncio.Queue) -> None:
+        ch = channel.lstrip("#").lower()
+        clients = self._tts_clients.get(ch)
+        if clients:
+            clients.discard(q)
+            if not clients:
+                del self._tts_clients[ch]
+
     @property
     def client_count(self) -> int:
         return len(self._clients)
 
+    def tts_client_count(self, channel: str | None = None) -> int:
+        if channel is None:
+            return sum(len(s) for s in self._tts_clients.values())
+        return len(self._tts_clients.get(channel.lstrip("#").lower(), ()))
+
     def broadcast(self, event) -> None:
         """EventBus handler. Runs on the bot loop; never raises into the bus."""
         payload = _serialize(event)
-        if payload is None:
-            return
-        for q in list(self._clients):
-            try:
-                q.put_nowait(payload)
-            except asyncio.QueueFull:
-                try:  # slow client: drop oldest, then enqueue newest
-                    q.get_nowait()
-                    q.put_nowait(payload)
-                except Exception:
-                    pass
+        if payload is not None:
+            for q in list(self._clients):  # dashboard monitor stream
+                _enqueue(q, payload)
+        if isinstance(event, TtsGenerated):  # channel-scoped private playback
+            ch = (event.channel or "").lstrip("#").lower()
+            audio = _tts_payload(event)
+            for q in list(self._tts_clients.get(ch, ())):
+                _enqueue(q, audio)
 
     def attach_to_bus(self, bus) -> None:
         for event_type in _RELAYED_EVENTS:
@@ -193,6 +245,56 @@ def create_app(bot=None, hub: WebUIHub | None = None, *, auth_cfg=None,
             logger.exception("webui /ws/events client error")
         finally:
             hub.unregister(q)
+
+    # ── private per-channel TTS sources (token-gated, no login — OBS can't auth) ──
+    tts_src.ensure_token_column(db_file)
+    app.mount("/audio", StaticFiles(directory=_AUDIO_DIR, check_dir=False), name="audio")
+
+    @app.get("/tts/{token}", response_class=HTMLResponse)
+    async def tts_page(token: str):
+        channel = tts_src.channel_for_token(db_file, token)
+        if not channel:
+            raise HTTPException(404, "Unknown TTS source")
+        return HTMLResponse(tts_src.render_playback_page(token, channel))
+
+    @app.websocket("/ws/tts/{token}")
+    async def ws_tts(ws: WebSocket, token: str):
+        channel = tts_src.channel_for_token(db_file, token)
+        if not channel:
+            await ws.close(code=1008)  # unknown/revoked token
+            return
+        await ws.accept()
+        q = hub.register_tts(channel)
+        try:
+            while True:
+                await ws.send_json(await q.get())
+        except (WebSocketDisconnect, asyncio.CancelledError):
+            pass
+        except Exception:
+            logger.exception("webui /ws/tts client error")
+        finally:
+            hub.unregister_tts(channel, q)
+
+    # ── TTS source management (authenticated) ─────────────────────────────────
+    @app.get("/api/tts-sources")
+    async def list_tts_sources(user=Depends(_require_user)):
+        out = []
+        for ch in tts_src.authorized_channels(db_file, user["login"], owner):
+            token = tts_src.get_or_create_tts_token(db_file, ch)
+            if token:
+                out.append({"channel": ch, "url": f"/tts/{token}"})
+        return out
+
+    @app.post("/api/tts-sources/{channel}/rotate")
+    async def rotate_tts_source(channel: str, user=Depends(_require_user)):
+        ch = channel.lstrip("#").lower()
+        allowed = {c.lower() for c in tts_src.authorized_channels(db_file, user["login"], owner)}
+        if ch not in allowed:
+            raise HTTPException(403, "not authorized for this channel")
+        token = tts_src.rotate_tts_token(db_file, ch)
+        if not token:
+            raise HTTPException(404, "unknown channel")
+        return {"channel": ch, "url": f"/tts/{token}"}
 
     return app
 

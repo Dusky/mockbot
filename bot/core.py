@@ -12,7 +12,7 @@ from bot.config import config
 from bot.colors import YELLOW, RED, GREEN, RESET
 from bot.tts import start_tts_processing
 from bot.connection import ConnectionStateManager
-from bot.events import EventBus, ConnectionStateChanged, ErrorLogged, TtsGenerated, to_legacy_dict
+from bot.events import EventBus, ConnectionStateChanged, ErrorLogged, TtsGenerated, SendMessageCommand, to_legacy_dict
 from bot.handlers import startup, pubsub as pubsub_handler, tts as tts_handler, raw_data
 
 
@@ -104,6 +104,8 @@ class Bot(commands.Bot):
         self.events.subscribe(ErrorLogged, self._forward_to_socketio)
         self.events.subscribe(TtsGenerated, self._forward_to_socketio)
         _tts_mod.init_tts_events(self.events)
+        from bot.commands_intake import handle_send_message
+        self.events.subscribe(SendMessageCommand, lambda cmd: handle_send_message(self, cmd))
 
         self.message_request_check = None
         self.live_streamers = set()

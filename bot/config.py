@@ -76,6 +76,12 @@ class Config:
     def getboolean(self, section: str, key: str, fallback: bool = False) -> bool:
         return self._cfg.getboolean(section, key, fallback=fallback)
 
+    def getint(self, section: str, key: str, fallback: int = 0) -> int:
+        return self._cfg.getint(section, key, fallback=fallback)
+
+    def getfloat(self, section: str, key: str, fallback: float = 0.0) -> float:
+        return self._cfg.getfloat(section, key, fallback=fallback)
+
     def has_section(self, section: str) -> bool:
         return self._cfg.has_section(section)
 

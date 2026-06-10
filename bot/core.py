@@ -1,5 +1,5 @@
 from twitchio.ext import commands
-import twitchio.ext.pubsub as pubsub
+import twitchio.ext.eventsub as eventsub
 import logging
 import asyncio
 import time
@@ -14,7 +14,7 @@ from bot.tts import start_tts_processing
 from bot.connection import ConnectionStateManager
 from bot.events import EventBus, ConnectionStateChanged, ErrorLogged, TtsGenerated, SendMessageCommand, to_legacy_dict
 from bot.trigger_policy import evaluate_trigger
-from bot.handlers import startup, pubsub as pubsub_handler, tts as tts_handler, raw_data
+from bot.handlers import startup, eventsub as eventsub_handler, tts as tts_handler, raw_data
 
 
 logger = Logger()
@@ -95,7 +95,7 @@ class Bot(commands.Bot):
         self.start_time = time.time()
 
         self.connection_manager = ConnectionStateManager(self)
-        self.pubsub_pool = pubsub.PubSubPool(self)
+        self.eventsub_ws = eventsub.EventSubWSClient(self)
         self._channel_ids = {}
         self.socketio_emitter = None
 
@@ -357,11 +357,11 @@ class Bot(commands.Bot):
     async def event_ready(self):
         await startup.run(self)
 
-    async def event_pubsub_bits(self, event: pubsub.PubSubBitsMessage):
-        await pubsub_handler.handle_bits(self, event)
+    async def event_eventsub_notification_cheer(self, event: eventsub.NotificationEvent):
+        await eventsub_handler.handle_bits(self, event)
 
-    async def event_pubsub_channel_points(self, event: pubsub.PubSubChannelPointsMessage):
-        await pubsub_handler.handle_channel_points(self, event)
+    async def event_eventsub_notification_channel_reward_redeem(self, event: eventsub.NotificationEvent):
+        await eventsub_handler.handle_channel_points(self, event)
 
     async def event_error(self, error, data=None):
         """Handle TwitchIO errors and initiate reconnection if needed."""

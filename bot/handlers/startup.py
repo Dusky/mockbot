@@ -2,8 +2,6 @@
 import os
 import time
 
-import twitchio.ext.pubsub as pubsub
-
 from bot.config import config
 from bot.colors import YELLOW, RED, GREEN, RESET
 
@@ -149,10 +147,14 @@ async def run(bot):
     except Exception as e:
         bot.logger.info(f"{RED}❌ Error starting background loops: {e}{RESET}")
 
-    # Step 10: Setup PubSub
+    # Step 10: Setup EventSub (Bits & Channel Points) over websocket.
+    # Replaces the deprecated PubSub. Each subscription needs a user token with
+    # the right scope for that broadcaster: `bits:read` for cheers and
+    # `channel:read:redemptions` for channel-point redemptions. A failure for
+    # one channel (e.g. missing scope/authorization) won't abort the rest.
     try:
         if verbose:
-            bot.logger.info(f"{YELLOW}Step 10: Setting up PubSub for Bits & Channel Points...{RESET}")
+            bot.logger.info(f"{YELLOW}Step 10: Setting up EventSub for Bits & Channel Points...{RESET}")
 
         tmi_token = config.get("auth", "tmi_token")
         if tmi_token.startswith("oauth:"):
@@ -161,29 +163,36 @@ async def run(bot):
         clean_channels = [c.lstrip('#') for c in bot._joined_channels]
         users = await bot.fetch_users(names=clean_channels)
 
-        topics = []
-        try:
-            async with bot.db.connect_async() as conn:
-                c = await conn.cursor()
-                for user in users:
-                    bot._channel_ids[user.id] = f"#{user.name}"
+        subscribed = 0
+        async with bot.db.connect_async() as conn:
+            c = await conn.cursor()
+            for user in users:
+                bot._channel_ids[user.id] = f"#{user.name}"
+                try:
                     await c.execute("SELECT pubsub_bits, pubsub_points FROM channel_configs WHERE channel_name = ?", (user.name,))
                     row = await c.fetchone()
-                    bits_enabled, points_enabled = row if row else (0, 0)
+                except Exception as e:
+                    bot.logger.info(f"Failed to load eventsub config for {user.name}: {e}")
+                    continue
+                bits_enabled, points_enabled = row if row else (0, 0)
 
-                    if bits_enabled:
-                        topics.append(pubsub.bits(tmi_token)[user.id])
-                    if points_enabled:
-                        topics.append(pubsub.channel_points(tmi_token)[user.id])
-        except Exception as e:
-            bot.logger.info(f"Failed to load pubsub configs: {e}")
+                if bits_enabled:
+                    try:
+                        await bot.eventsub_ws.subscribe_channel_cheers(broadcaster=user.id, token=tmi_token)
+                        subscribed += 1
+                    except Exception as e:
+                        bot.logger.info(f"{RED}EventSub cheers subscribe failed for #{user.name} (needs bits:read on the broadcaster's token): {e}{RESET}")
+                if points_enabled:
+                    try:
+                        await bot.eventsub_ws.subscribe_channel_points_redeemed(broadcaster=user.id, token=tmi_token)
+                        subscribed += 1
+                    except Exception as e:
+                        bot.logger.info(f"{RED}EventSub redemptions subscribe failed for #{user.name} (needs channel:read:redemptions on the broadcaster's token): {e}{RESET}")
 
-        if topics:
-            await bot.pubsub_pool.subscribe_topics(topics)
-            if verbose:
-                bot.logger.info(f"{GREEN}✅ Subscribed to PubSub topics for {len(users)} channels{RESET}")
+        if subscribed and verbose:
+            bot.logger.info(f"{GREEN}✅ Subscribed to {subscribed} EventSub topic(s){RESET}")
     except Exception as e:
-        bot.logger.info(f"{RED}❌ Error setting up PubSub: {e}{RESET}")
+        bot.logger.info(f"{RED}❌ Error setting up EventSub: {e}{RESET}")
 
     # Final verification
     if verbose:

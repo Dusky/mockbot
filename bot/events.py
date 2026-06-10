@@ -48,10 +48,10 @@ class ErrorLogged:
 class TtsGenerated:
     channel: str
     message_id: str
-    file_url: str
-    voice: str = ""
+    file_path: str          # full output path, e.g. static/outputs/<ch>/<file>.wav
     text: str = ""
     provider: str = ""
+    voice: str = ""
     author: str = ""
 
 
@@ -92,8 +92,10 @@ def to_legacy_dict(event) -> dict | None:
         return {"event": "error_logged", "level": event.level,
                 "message": event.message, "timestamp": event.timestamp}
     if isinstance(event, TtsGenerated):
+        web = event.file_path if event.file_path.startswith("static/") \
+            else f"static/{event.file_path.lstrip('/')}"
         return {"event": "new_tts_entry", "channel": event.channel,
-                "message_id": event.message_id, "tts_url": event.file_url,
+                "message_id": event.message_id, "tts_url": web,
                 "voice": event.voice, "text": event.text}
     return None
 

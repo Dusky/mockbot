@@ -51,10 +51,12 @@ def test_to_legacy_dict_shapes():
         "attempts": 2, "next_delay": 8}
     assert to_legacy_dict(ErrorLogged("warn", "m", "ts")) == {
         "event": "error_logged", "level": "warn", "message": "m", "timestamp": "ts"}
-    tts = to_legacy_dict(TtsGenerated("chan", "mid", "/audio/x.wav", voice="v", text="hi"))
+    tts = to_legacy_dict(TtsGenerated("chan", "mid", "static/outputs/chan/x.wav", voice="v", text="hi"))
     assert tts["event"] == "new_tts_entry"
-    assert tts["tts_url"] == "/audio/x.wav"
+    assert tts["tts_url"] == "static/outputs/chan/x.wav"
     assert tts["channel"] == "chan"
+    # A non-static path is normalised to a web path.
+    assert to_legacy_dict(TtsGenerated("c", "m", "outputs/c/y.wav"))["tts_url"] == "static/outputs/c/y.wav"
     # Commands have no legacy emitter shape.
     assert to_legacy_dict(SendMessageCommand("c", "m")) is None
 

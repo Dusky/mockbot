@@ -103,6 +103,7 @@ class Bot(commands.Bot):
         self.events.subscribe(ConnectionStateChanged, self._forward_to_socketio)
         self.events.subscribe(ErrorLogged, self._forward_to_socketio)
         self.events.subscribe(TtsGenerated, self._forward_to_socketio)
+        _tts_mod.init_tts_events(self.events)
 
         self.message_request_check = None
         self.live_streamers = set()

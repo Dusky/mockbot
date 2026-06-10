@@ -5,7 +5,6 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 from bot.database import IntegrityError
-from bot.events import TtsGenerated
 
 
 def get_channel_voice_preset(bot, channel_name):
@@ -171,14 +170,8 @@ async def handle_speak_command(bot, ctx):
             web_path = audio_file
             if not web_path.startswith('static/'):  # Ensure it's a web path if not already
                 web_path = f"static/{web_path.lstrip('/')}"
-
-            bot.events.publish(TtsGenerated(
-                channel=channel,
-                message_id=getattr(getattr(ctx, 'message', None), 'id', 'unknown'),
-                file_url=web_path,
-                voice=voice_preset_for_speak,
-                text=message_to_speak,
-            ))
+            # Note: the TtsGenerated bus event is published by the synthesis path
+            # (tts.notify_new_audio_available); no separate emit needed here.
 
             bot.logger.info(f"[HANDLE_SPEAK_COMMAND_TRACE] Sending message to Twitch: Speaking: {message_to_speak[:50]}... (Audio: {web_path})")
             await ctx.send(f"Speaking: {message_to_speak[:50]}... (Audio: {web_path})")

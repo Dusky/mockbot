@@ -9,11 +9,17 @@ import sqlite3
 import threading
 
 _db = None  # set by init_tts_db() after Bot.__init__ creates Database
+_event_bus = None  # set by init_tts_events(); used to publish TtsGenerated
 
 
 def init_tts_db(database) -> None:
     global _db
     _db = database
+
+
+def init_tts_events(bus) -> None:
+    global _event_bus
+    _event_bus = bus
 
 import requests
 import sys
@@ -702,8 +708,16 @@ def start_tts_processing(input_text, channel_name, db_file='./messages.db', mess
     # logging.info(f"TTS processing thread dispatched for original message_id {message_id} in channel {channel_name}.")
 
 def notify_new_audio_available(channel_name, message_id, full_path, text="", provider="", voice="", author=""):
+    # Direct overlay broadcast (unchanged), plus the canonical bus event for the
+    # socketio compat layer and future webui clients.
     from bot.overlay import broadcast_audio
     broadcast_audio(channel_name, full_path, text, provider, voice, author)
+    if _event_bus is not None:
+        from bot.events import TtsGenerated
+        _event_bus.publish(TtsGenerated(
+            channel=channel_name, message_id=message_id or "", file_path=full_path or "",
+            text=text, provider=provider, voice=voice, author=author,
+        ))
 
 def clear_tts_queue():
     """Immediately attempt to kill TTS tasks and notify overlays."""

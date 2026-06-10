@@ -12,7 +12,7 @@ from bot.config import config
 from bot.colors import YELLOW, RED, GREEN, RESET
 from bot.tts import start_tts_processing
 from bot.connection import ConnectionStateManager
-from bot.events import EventBus, ConnectionStateChanged, ErrorLogged, TtsGenerated, SendMessageCommand, to_legacy_dict
+from bot.events import EventBus, ConnectionStateChanged, ErrorLogged, TtsGenerated, ChatMessage, SendMessageCommand, to_legacy_dict
 from bot.trigger_policy import evaluate_trigger
 from bot.handlers import startup, eventsub as eventsub_handler, tts as tts_handler, raw_data
 
@@ -492,6 +492,19 @@ class Bot(commands.Bot):
         )
         if not message_clean:
             return
+
+        # Surface the line to live clients (webui monitor feed).
+        try:
+            self.event_bus.publish(ChatMessage(
+                channel=channel_name,
+                author=message.author.name,
+                text=message.content,
+                color=(message.tags.get('color') if getattr(message, 'tags', None) else "") or "",
+                is_bot=False,
+                timestamp=datetime.now().isoformat(),
+            ))
+        except Exception:
+            pass
 
         # Fetch the channel settings for the current channel.
         lines_between, time_between, tts_enabled, voice_enabled, random_chance, log_dice = await self.fetch_channel_settings(channel_name)

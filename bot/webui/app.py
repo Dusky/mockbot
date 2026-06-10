@@ -3,11 +3,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import secrets
+import sqlite3
+import time
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -15,6 +18,7 @@ import bot.webui.auth as auth
 import bot.webui.tts_source as tts_src
 from bot.events import (
     BotStatus,
+    ChatMessage,
     ConnectionStateChanged,
     ErrorLogged,
     TtsGenerated,
@@ -23,15 +27,24 @@ from bot.events import (
 )
 
 _AUDIO_DIR = "static/outputs"  # where the TTS pipeline writes <channel>/<file>.wav
-
-logger = logging.getLogger("bot")
+_STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")  # webui assets
 
 # Bot→client event types the webui relays to browsers.
-_RELAYED_EVENTS = (ConnectionStateChanged, ErrorLogged, TtsGenerated, BotStatus)
+_RELAYED_EVENTS = (ConnectionStateChanged, ErrorLogged, TtsGenerated, ChatMessage, BotStatus)
+
+logger = logging.getLogger("bot")
 
 
 def _serialize(event) -> dict | None:
     """Turn a bus event into a JSON-safe dict for ws clients, or None to skip."""
+    if isinstance(event, ChatMessage):
+        return {"event": "chat_message", "channel": event.channel, "author": event.author,
+                "text": event.text, "color": event.color, "is_bot": event.is_bot,
+                "timestamp": event.timestamp}
+    if isinstance(event, TtsGenerated):  # enrich the dashboard feed with author/provider
+        d = to_legacy_dict(event) or {}
+        d.update({"author": event.author, "provider": event.provider})
+        return d
     d = to_legacy_dict(event)  # reuses the established dashboard payload shape
     if d is not None:
         return d
@@ -238,17 +251,57 @@ def create_app(bot=None, hub: WebUIHub | None = None, *, auth_cfg=None,
     async def me(user=Depends(_require_user)):
         return user
 
+    app.mount("/static", StaticFiles(directory=_STATIC_DIR, check_dir=False), name="static")
+
     @app.get("/")
     async def index(request: Request):
         if not request.session.get("user"):
             return RedirectResponse("/auth/twitch/login", status_code=302)
-        return RedirectResponse("/sources", status_code=302)  # the one UI page so far
+        return RedirectResponse("/monitor", status_code=302)
+
+    @app.get("/monitor")
+    async def monitor_page(request: Request):
+        if not request.session.get("user"):
+            return RedirectResponse("/auth/twitch/login", status_code=302)
+        return FileResponse(os.path.join(_STATIC_DIR, "dashboard.html"))
 
     @app.get("/sources", response_class=HTMLResponse)
     async def sources_page(request: Request):
         if not request.session.get("user"):
             return RedirectResponse("/auth/twitch/login", status_code=302)
         return HTMLResponse(tts_src.SOURCES_HTML)
+
+    @app.get("/api/status")
+    async def api_status(user=Depends(_require_user)):
+        joined = {c.lstrip("#").lower() for c in (getattr(bot, "_joined_channels", []) or [])}
+        channels = []
+        for ch in tts_src.authorized_channels(db_file, user["login"], owner):
+            try:
+                conn = sqlite3.connect(db_file)
+                row = conn.execute(
+                    "SELECT use_general_model, tts_enabled, voice_enabled, random_chance, "
+                    "time_between_messages FROM channel_configs WHERE lower(channel_name)=?",
+                    (ch.lower(),),
+                ).fetchone()
+                conn.close()
+            except Exception:
+                row = None
+            channels.append({
+                "channel": ch, "joined": ch.lower() in joined,
+                "general": bool(row[0]) if row else True,
+                "tts": bool(row[1]) if row else False,
+                "voice": bool(row[2]) if row else False,
+                "chance": (row[3] if row and row[3] is not None else 0),
+                "delay": (row[4] if row and row[4] is not None else 0),
+            })
+        return {
+            "nick": getattr(bot, "nick", None) if bot else None,
+            "uptime": time.time() - getattr(bot, "start_time", time.time()) if bot else 0,
+            "tts_enabled": bool(getattr(bot, "enable_tts", False)) if bot else False,
+            "pid": os.getpid(),
+            "joined_count": len(joined),
+            "channels": channels,
+        }
 
     @app.websocket("/ws/events")
     async def ws_events(ws: WebSocket):

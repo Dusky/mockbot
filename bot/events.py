@@ -14,6 +14,7 @@ Event catalog (this is the forward contract for clients):
     ErrorLogged(level, message, timestamp)
     TtsGenerated(channel, message_id, file_url, voice, text, provider, author)
     TtsKill(channel)                 # stop playback (empty channel = all)
+    ChatMessage(channel, author, text, color, is_bot, timestamp)
     BotStatus(nick, channels, uptime, tts_enabled, pid, timestamp)
 
   clients -> Bot (commands):
@@ -54,6 +55,17 @@ class TtsGenerated:
     provider: str = ""
     voice: str = ""
     author: str = ""
+
+
+@dataclass(frozen=True)
+class ChatMessage:
+    """A chat line for the monitor feed."""
+    channel: str
+    author: str
+    text: str
+    color: str = ""
+    is_bot: bool = False
+    timestamp: str = ""
 
 
 @dataclass(frozen=True)

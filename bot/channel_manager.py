@@ -325,6 +325,14 @@ class ChannelManager:
         if channel:
             await channel.send(message)
             self.logger.info(f"Message sent to {channel_name}: {message}")
+            try:  # echo the bot's own line into the webui live-chat feed
+                from datetime import datetime as _dt
+                from bot.events import ChatMessage
+                self._bot.event_bus.publish(ChatMessage(
+                    channel=channel_name.lstrip('#'), author=self._bot.nick, text=message,
+                    is_bot=True, timestamp=_dt.now().isoformat()))
+            except Exception:
+                pass
             if log_to_tui:
                 try:
                     self.my_logger.log_message(channel.name, self._bot.nick, message, is_bot_message=True)

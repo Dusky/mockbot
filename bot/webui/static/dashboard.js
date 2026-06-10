@@ -70,5 +70,6 @@ document.addEventListener('alpine:init', () => {
     },
     fmtTime(iso) { try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); } catch (_) { return ''; } },
     fmtClock(iso) { try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); } catch (_) { return ''; } },
+    fmtPct(n) { const v = Number(n) || 0; return (Math.round(v * 10) / 10) + '%'; },  // random_chance is 0-100
   }));
 });

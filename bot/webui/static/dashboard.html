@@ -122,7 +122,7 @@
                 <span class="badges">
                   <span class="badge" :class="c.general?'b-gen':'b-ind'" x-text="c.general?'Gen':'Indiv'"></span>
                   <span class="badge" :class="c.tts?'b-on':'b-off'">TTS</span>
-                  <span class="badge b-meta" x-text="c.tts ? (c.chance + '%·' + c.delay + 's') : 'off'"></span>
+                  <span class="badge b-meta" x-text="c.tts ? (fmtPct(c.chance) + '·' + c.delay + 's') : 'off'"></span>
                 </span>
               </div>
             </template>

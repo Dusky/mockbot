@@ -100,13 +100,13 @@ class Bot(commands.Bot):
         self.socketio_emitter = None
 
         # Internal event bus — the single integration seam (loop bound at ready).
-        self.events = EventBus()
-        self.events.subscribe(ConnectionStateChanged, self._forward_to_socketio)
-        self.events.subscribe(ErrorLogged, self._forward_to_socketio)
-        self.events.subscribe(TtsGenerated, self._forward_to_socketio)
-        _tts_mod.init_tts_events(self.events)
+        self.event_bus = EventBus()
+        self.event_bus.subscribe(ConnectionStateChanged, self._forward_to_socketio)
+        self.event_bus.subscribe(ErrorLogged, self._forward_to_socketio)
+        self.event_bus.subscribe(TtsGenerated, self._forward_to_socketio)
+        _tts_mod.init_tts_events(self.event_bus)
         from bot.commands_intake import handle_send_message
-        self.events.subscribe(SendMessageCommand, lambda cmd: handle_send_message(self, cmd))
+        self.event_bus.subscribe(SendMessageCommand, lambda cmd: handle_send_message(self, cmd))
 
         self.message_request_check = None
         self.live_streamers = set()
@@ -393,7 +393,7 @@ class Bot(commands.Bot):
         })
 
         # Publish to clients via the event bus (compat layer re-emits to socketio).
-        self.events.publish(ConnectionStateChanged("disconnected"))
+        self.event_bus.publish(ConnectionStateChanged("disconnected"))
 
         # Update database to mark channels as disconnected
         try:
@@ -432,7 +432,7 @@ class Bot(commands.Bot):
                      json.dumps(extra_data) if extra_data else None),
                 )
                 conn.commit()
-            self.events.publish(ErrorLogged(level, message, datetime.now().isoformat()))
+            self.event_bus.publish(ErrorLogged(level, message, datetime.now().isoformat()))
         except Exception as e:
             self.logger.error(f"Failed to log error to database: {e}")
 

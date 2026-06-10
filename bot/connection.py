@@ -39,7 +39,7 @@ class ConnectionStateManager:
             "delay": self.current_delay,
         })
 
-        self.bot.events.publish(ConnectionStateChanged(
+        self.bot.event_bus.publish(ConnectionStateChanged(
             "reconnecting", attempts=self.reconnect_attempts, next_delay=self.current_delay))
 
         try:
@@ -59,7 +59,7 @@ class ConnectionStateManager:
             self.logger.info(f"{GREEN}Successfully reconnected after {total_attempts} attempt(s)!{RESET}")
             self._log_connection_event("reconnect_success", {"total_attempts": total_attempts})
 
-            self.bot.events.publish(ConnectionStateChanged("connected", attempts=0))
+            self.bot.event_bus.publish(ConnectionStateChanged("connected", attempts=0))
 
         except Exception as e:
             self.logger.error(f"{RED}Reconnection attempt #{self.reconnect_attempts} failed: {e}{RESET}")

@@ -63,7 +63,7 @@ async def check_message_requests(bot):
             # performs the actual send (+ join/retry + TTS). The file poller is
             # just one transport feeding the bus.
             if data['action'] == 'send_message':
-                bot.events.publish(SendMessageCommand(
+                bot.event_bus.publish(SendMessageCommand(
                     channel=data['channel'],
                     message=data['message'],
                     force=force,

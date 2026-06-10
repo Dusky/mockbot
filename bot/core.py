@@ -13,6 +13,7 @@ from bot.colors import YELLOW, RED, GREEN, RESET
 from bot.tts import start_tts_processing
 from bot.connection import ConnectionStateManager
 from bot.events import EventBus, ConnectionStateChanged, ErrorLogged, TtsGenerated, SendMessageCommand, to_legacy_dict
+from bot.trigger_policy import evaluate_trigger
 from bot.handlers import startup, pubsub as pubsub_handler, tts as tts_handler, raw_data
 
 
@@ -528,28 +529,21 @@ class Bot(commands.Bot):
         # Calculate the elapsed time since the last message in the current channel.
         elapsed_time = time.time() - self.channel_last_message_time.get(channel_name, 0)
 
-        # Determine if a message should be sent based on the chat_mode, lines_between and time_between
-        should_send_message = False
-        
-        # Check independent random chance first
-        if random_chance > 0.0:
-            import random
-            roll = random.uniform(0.0, 100.0)
-            if log_dice:
-                result_str = '[bright_yellow]Triggered![/]' if roll <= random_chance else '[dim]Miss[/]'
-                self.my_logger.print_message(
-                    f"[cyan]\\[{channel_name}][/] Dice roll: {roll:.3f}% [dim]vs {random_chance}%[/] → {result_str}",
-                    channel=channel_name
-                )
-            if roll <= random_chance:
-                should_send_message = True
-                
-        # Fallback to lines/time checks if random didn't trigger
-        if not should_send_message:
-            if lines_between > 0 and self.channel_chat_line_count[channel_name] >= lines_between:
-                should_send_message = True
-            elif time_between > 0 and elapsed_time >= time_between * 60:
-                should_send_message = True
+        # Determine if a message should be sent (random chance, then lines, then time).
+        decision = evaluate_trigger(
+            random_chance,
+            self.channel_chat_line_count[channel_name],
+            lines_between,
+            elapsed_time,
+            time_between,
+        )
+        if log_dice and decision.roll is not None:
+            result_str = '[bright_yellow]Triggered![/]' if decision.reason == 'random' else '[dim]Miss[/]'
+            self.my_logger.print_message(
+                f"[cyan]\\[{channel_name}][/] Dice roll: {decision.roll:.3f}% [dim]vs {random_chance}%[/] → {result_str}",
+                channel=channel_name
+            )
+        should_send_message = decision.should_respond
 
         # If a message should be sent and voice is enabled for the current channel.
         if should_send_message and voice_enabled:

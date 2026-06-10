@@ -1,0 +1,2 @@
+# Development / test dependencies (not needed to run the bot).
+pytest>=7.0

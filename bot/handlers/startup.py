@@ -10,6 +10,9 @@ from bot.colors import YELLOW, RED, GREEN, RESET
 
 async def run(bot):
     """Handle the bot ready event."""
+    # Bind the event bus to the now-running loop (publishers may fire from threads).
+    bot.events.set_loop(bot.loop)
+
     # Use verbose flag for detailed output
     verbose = os.environ.get('VERBOSE', '').lower() in ('true', '1', 'yes')
 

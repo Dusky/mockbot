@@ -12,6 +12,7 @@ from bot.config import config
 from bot.colors import YELLOW, RED, GREEN, RESET
 from bot.tts import start_tts_processing
 from bot.connection import ConnectionStateManager
+from bot.events import EventBus, ConnectionStateChanged, ErrorLogged, TtsGenerated, to_legacy_dict
 from bot.handlers import startup, pubsub as pubsub_handler, tts as tts_handler, raw_data
 
 
@@ -96,6 +97,12 @@ class Bot(commands.Bot):
         self.pubsub_pool = pubsub.PubSubPool(self)
         self._channel_ids = {}
         self.socketio_emitter = None
+
+        # Internal event bus — the single integration seam (loop bound at ready).
+        self.events = EventBus()
+        self.events.subscribe(ConnectionStateChanged, self._forward_to_socketio)
+        self.events.subscribe(ErrorLogged, self._forward_to_socketio)
+        self.events.subscribe(TtsGenerated, self._forward_to_socketio)
 
         self.message_request_check = None
         self.live_streamers = set()
@@ -381,15 +388,8 @@ class Bot(commands.Bot):
             "channels": list(self._joined_channels)
         })
 
-        # Emit to admin dashboard
-        if self.socketio_emitter:
-            try:
-                self.socketio_emitter({
-                    'event': 'connection_state_changed',
-                    'state': 'disconnected'
-                })
-            except Exception as e:
-                self.logger.error(f"Failed to emit disconnection state: {e}")
+        # Publish to clients via the event bus (compat layer re-emits to socketio).
+        self.events.publish(ConnectionStateChanged("disconnected"))
 
         # Update database to mark channels as disconnected
         try:
@@ -406,6 +406,18 @@ class Bot(commands.Bot):
                 self.connection_manager.attempt_reconnect()
             )
 
+    def _forward_to_socketio(self, event):
+        """Compat bridge: re-emit bus events to a socketio emitter if one is set."""
+        emitter = self.socketio_emitter
+        if not emitter:
+            return
+        payload = to_legacy_dict(event)
+        if payload:
+            try:
+                emitter(payload)
+            except Exception as e:
+                self.logger.error(f"Failed to forward event to socketio: {e}")
+
     def _log_error(self, level, message, extra_data=None):
         """Log errors to error_log table and emit to admin dashboard."""
         try:
@@ -416,16 +428,7 @@ class Bot(commands.Bot):
                      json.dumps(extra_data) if extra_data else None),
                 )
                 conn.commit()
-            if self.socketio_emitter:
-                try:
-                    self.socketio_emitter({
-                        'event': 'error_logged',
-                        'level': level,
-                        'message': message,
-                        'timestamp': datetime.now().isoformat()
-                    })
-                except Exception as e:
-                    self.logger.error(f"Failed to emit error to dashboard: {e}")
+            self.events.publish(ErrorLogged(level, message, datetime.now().isoformat()))
         except Exception as e:
             self.logger.error(f"Failed to log error to database: {e}")
 

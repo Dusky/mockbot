@@ -4,6 +4,7 @@ import logging
 import time
 
 from bot.colors import YELLOW, RED, GREEN, RESET
+from bot.events import ConnectionStateChanged
 
 
 class ConnectionStateManager:
@@ -38,16 +39,8 @@ class ConnectionStateManager:
             "delay": self.current_delay,
         })
 
-        if hasattr(self.bot, 'socketio_emitter') and self.bot.socketio_emitter:
-            try:
-                self.bot.socketio_emitter({
-                    'event': 'connection_state_changed',
-                    'state': 'reconnecting',
-                    'attempts': self.reconnect_attempts,
-                    'next_delay': self.current_delay,
-                })
-            except Exception as e:
-                self.logger.error(f"Failed to emit reconnection state: {e}")
+        self.bot.events.publish(ConnectionStateChanged(
+            "reconnecting", attempts=self.reconnect_attempts, next_delay=self.current_delay))
 
         try:
             await asyncio.sleep(self.current_delay)
@@ -66,15 +59,7 @@ class ConnectionStateManager:
             self.logger.info(f"{GREEN}Successfully reconnected after {total_attempts} attempt(s)!{RESET}")
             self._log_connection_event("reconnect_success", {"total_attempts": total_attempts})
 
-            if hasattr(self.bot, 'socketio_emitter') and self.bot.socketio_emitter:
-                try:
-                    self.bot.socketio_emitter({
-                        'event': 'connection_state_changed',
-                        'state': 'connected',
-                        'attempts': 0,
-                    })
-                except Exception as e:
-                    self.logger.error(f"Failed to emit connected state: {e}")
+            self.bot.events.publish(ConnectionStateChanged("connected", attempts=0))
 
         except Exception as e:
             self.logger.error(f"{RED}Reconnection attempt #{self.reconnect_attempts} failed: {e}{RESET}")

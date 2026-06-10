@@ -235,7 +235,13 @@ def create_app(bot=None, hub: WebUIHub | None = None, *, auth_cfg=None,
     async def index(request: Request):
         if not request.session.get("user"):
             return RedirectResponse("/auth/twitch/login", status_code=302)
-        return {"dashboard": "coming soon", "user": request.session["user"]}  # Phase 4/5
+        return RedirectResponse("/sources", status_code=302)  # the one UI page so far
+
+    @app.get("/sources", response_class=HTMLResponse)
+    async def sources_page(request: Request):
+        if not request.session.get("user"):
+            return RedirectResponse("/auth/twitch/login", status_code=302)
+        return HTMLResponse(tts_src.SOURCES_HTML)
 
     @app.websocket("/ws/events")
     async def ws_events(ws: WebSocket):

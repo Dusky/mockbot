@@ -209,3 +209,67 @@ _PLAYBACK_HTML = """<!DOCTYPE html>
 
 def render_playback_page(token: str, channel: str) -> str:
     return _PLAYBACK_HTML.replace("__TOKEN__", token).replace("__CHANNEL__", channel.lstrip("#"))
+
+
+# A small authenticated page where a broadcaster copies their private OBS
+# Browser Source URL (and rotates it). Fetches /api/tts-sources for the logged-in
+# user; full URL = window origin + the returned path.
+SOURCES_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mockbot — Your TTS Sources</title>
+    <style>
+        body { margin: 0; padding: 32px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f1f5f9; }
+        h1 { font-size: 1.4rem; margin: 0 0 4px; }
+        p.sub { color: #94a3b8; margin: 0 0 24px; }
+        .row { display: flex; align-items: center; gap: 10px; background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; max-width: 820px; }
+        .ch { font-weight: 700; min-width: 140px; color: #a5b4fc; }
+        input.url { flex: 1; background: #0b1220; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; padding: 8px 10px; font-family: ui-monospace, monospace; font-size: 0.85rem; }
+        button { background: #4f46e5; color: #fff; border: 0; border-radius: 6px; padding: 8px 12px; font-weight: 600; cursor: pointer; }
+        button.ghost { background: #334155; }
+        button:hover { filter: brightness(1.1); }
+        .empty { color: #94a3b8; }
+        a.logout { color: #64748b; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+    <h1>Your private TTS sources</h1>
+    <p class="sub">Add one of these as an OBS <strong>Browser Source</strong>. Keep the URL secret — rotate it if it ever leaks. &nbsp; <a class="logout" href="/auth/logout">log out</a></p>
+    <div id="list" class="empty">Loading…</div>
+    <script>
+        async function load() {
+            const list = document.getElementById('list');
+            const r = await fetch('/api/tts-sources', { credentials: 'same-origin' });
+            if (!r.ok) { list.textContent = 'Please log in.'; return; }
+            const items = await r.json();
+            const origin = window.location.origin;
+            list.innerHTML = '';
+            list.className = '';
+            if (!items.length) { list.className = 'empty'; list.textContent = 'No channels you can manage.'; return; }
+            for (const it of items) {
+                const full = origin + it.url;
+                const row = document.createElement('div');
+                row.className = 'row';
+                row.innerHTML = `<div class="ch">#${it.channel}</div>`
+                    + `<input class="url" readonly value="${full}">`
+                    + `<button data-copy="${full}">Copy</button>`
+                    + `<button class="ghost" data-rotate="${it.channel}">Rotate</button>`;
+                list.appendChild(row);
+            }
+            list.querySelectorAll('[data-copy]').forEach(b => b.onclick = () => {
+                navigator.clipboard.writeText(b.dataset.copy);
+                const t = b.textContent; b.textContent = 'Copied!'; setTimeout(() => b.textContent = t, 1500);
+            });
+            list.querySelectorAll('[data-rotate]').forEach(b => b.onclick = async () => {
+                if (!confirm('Rotate this URL? The current OBS source will stop working until you paste the new one.')) return;
+                await fetch('/api/tts-sources/' + encodeURIComponent(b.dataset.rotate) + '/rotate', { method: 'POST', credentials: 'same-origin' });
+                load();
+            });
+        }
+        load();
+    </script>
+</body>
+</html>"""
+

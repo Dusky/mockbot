@@ -174,3 +174,15 @@ def test_rotate_forbidden_for_unowned_channel(tmp_path, monkeypatch):
     client, _ = _client_and_db(tmp_path)
     _login(client, monkeypatch, "firestarman")
     assert client.post("/api/tts-sources/someoneelse/rotate").status_code == 403
+
+
+def test_sources_page_redirects_anon_and_renders_for_user(tmp_path, monkeypatch):
+    client, _ = _client_and_db(tmp_path)
+    r = client.get("/sources", follow_redirects=False)
+    assert r.status_code == 302 and "/auth/twitch/login" in r.headers["location"]
+    _login(client, monkeypatch, "firestarman")
+    page = client.get("/sources")
+    assert page.status_code == 200 and "Your private TTS sources" in page.text
+    # the dashboard root sends a logged-in user to /sources
+    root = client.get("/", follow_redirects=False)
+    assert root.status_code == 302 and root.headers["location"] == "/sources"

@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 import bot.webui.auth as auth
+import bot.webui.cmds_api as cmds_api
 import bot.webui.settings_api as settings_api
 import bot.webui.tts_source as tts_src
 from bot.events import (
@@ -313,6 +314,33 @@ def create_app(bot=None, hub: WebUIHub | None = None, *, auth_cfg=None,
             raise HTTPException(503, "bot unavailable")
         await getattr(bot, f"{action}_channel")(ch)
         return {"channel": ch, "action": action, "joined": action == "join"}
+
+    # ── custom commands ───────────────────────────────────────────────────────
+    @app.get("/commands")
+    async def commands_page(request: Request):
+        if not request.session.get("user"):
+            return RedirectResponse("/auth/twitch/login", status_code=302)
+        return FileResponse(os.path.join(_STATIC_DIR, "commands.html"))
+
+    @app.get("/api/commands/{channel}")
+    async def list_commands(channel: str, user=Depends(_require_user)):
+        ch = _authz_channel(channel, user)
+        return {"channel": ch, "commands": cmds_api.list_commands(db_file, ch)}
+
+    @app.post("/api/commands/{channel}")
+    async def save_command(channel: str, request: Request, user=Depends(_require_user)):
+        ch = _authz_channel(channel, user)
+        body = await request.json()
+        ok, err = cmds_api.upsert_command(db_file, ch, body.get("command_name", ""),
+                                          body.get("response_template", ""))
+        if not ok:
+            raise HTTPException(400, err)
+        return {"channel": ch, "command_name": (body.get("command_name") or "").strip().lower()}
+
+    @app.delete("/api/commands/{channel}/{name}")
+    async def remove_command(channel: str, name: str, user=Depends(_require_user)):
+        ch = _authz_channel(channel, user)
+        return {"channel": ch, "deleted": cmds_api.delete_command(db_file, ch, name)}
 
     @app.get("/api/status")
     async def api_status(user=Depends(_require_user)):

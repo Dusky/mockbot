@@ -72,8 +72,6 @@ class Bot(commands.Bot):
         self.db = Database(db_file)
         from bot import tts as _tts_mod
         _tts_mod.init_tts_db(self.db)
-        from bot import overlay as _overlay_mod
-        _overlay_mod.init_overlay_db(self.db)
         from bot.channel_manager import ChannelManager
         self.channel_manager = ChannelManager(self, self.db, self.logger, self.my_logger, initial_channels)
         self.channel_manager.load_channel_settings()  # Populate channel settings

@@ -95,6 +95,23 @@ def test_hub_non_tts_event_skips_tts_clients():
     asyncio.run(go())
 
 
+def test_tts_kill_targets_one_channel_or_all():
+    from bot.events import TtsKill
+
+    async def go():
+        hub = WebUIHub()
+        fire = hub.register_tts("firestarman")
+        other = hub.register_tts("otherguy")
+        # targeted kill -> only that channel
+        hub.broadcast(TtsKill(channel="firestarman"))
+        assert fire.get_nowait() == {"action": "kill_audio"} and other.empty()
+        # global kill (empty channel) -> everyone
+        hub.broadcast(TtsKill())
+        assert fire.get_nowait() == {"action": "kill_audio"}
+        assert other.get_nowait() == {"action": "kill_audio"}
+    asyncio.run(go())
+
+
 # ── routes ──────────────────────────────────────────────────────────────────────
 
 def _client_and_db(tmp_path):

@@ -708,10 +708,8 @@ def start_tts_processing(input_text, channel_name, db_file='./messages.db', mess
     # logging.info(f"TTS processing thread dispatched for original message_id {message_id} in channel {channel_name}.")
 
 def notify_new_audio_available(channel_name, message_id, full_path, text="", provider="", voice="", author=""):
-    # Direct overlay broadcast (unchanged), plus the canonical bus event for the
-    # socketio compat layer and future webui clients.
-    from bot.overlay import broadcast_audio
-    broadcast_audio(channel_name, full_path, text, provider, voice, author)
+    # Publish the canonical bus event; the webui's per-channel TTS source (and
+    # any other client) plays it from there. (Replaces the old :5050 overlay.)
     if _event_bus is not None:
         from bot.events import TtsGenerated
         _event_bus.publish(TtsGenerated(
@@ -720,11 +718,12 @@ def notify_new_audio_available(channel_name, message_id, full_path, text="", pro
         ))
 
 def clear_tts_queue():
-    """Immediately attempt to kill TTS tasks and notify overlays."""
+    """Immediately attempt to kill TTS tasks and stop playback on TTS sources."""
     global tts_thread_pool
     try:
-        from bot.overlay import broadcast_kill_audio
-        broadcast_kill_audio()
+        if _event_bus is not None:
+            from bot.events import TtsKill
+            _event_bus.publish(TtsKill())  # empty channel = stop all sources
     except Exception as e:
         logging.error(f"Failed to broadcast audio kill signal: {e}")
     

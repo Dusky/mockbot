@@ -18,6 +18,7 @@ from bot.events import (
     ConnectionStateChanged,
     ErrorLogged,
     TtsGenerated,
+    TtsKill,
     to_legacy_dict,
 )
 
@@ -131,10 +132,17 @@ class WebUIHub:
             audio = _tts_payload(event)
             for q in list(self._tts_clients.get(ch, ())):
                 _enqueue(q, audio)
+        elif isinstance(event, TtsKill):  # stop playback; empty channel = all
+            ch = (event.channel or "").lstrip("#").lower()
+            channels = [ch] if ch else list(self._tts_clients.keys())
+            for c in channels:
+                for q in list(self._tts_clients.get(c, ())):
+                    _enqueue(q, {"action": "kill_audio"})
 
     def attach_to_bus(self, bus) -> None:
         for event_type in _RELAYED_EVENTS:
             bus.subscribe(event_type, self.broadcast)
+        bus.subscribe(TtsKill, self.broadcast)
 
 
 def _require_user(request: Request) -> dict:
@@ -249,6 +257,17 @@ def create_app(bot=None, hub: WebUIHub | None = None, *, auth_cfg=None,
     # ── private per-channel TTS sources (token-gated, no login — OBS can't auth) ──
     tts_src.ensure_token_column(db_file)
     app.mount("/audio", StaticFiles(directory=_AUDIO_DIR, check_dir=False), name="audio")
+
+    @app.get("/api/variables/{channel}")
+    async def api_variables(channel: str):
+        db = getattr(bot, "db", None) if bot else None
+        if db is None:
+            raise HTTPException(503, "database unavailable")
+        try:
+            return await db.get_all_variables(channel.lstrip("#").lower())
+        except Exception:
+            logger.exception("webui /api/variables error")
+            raise HTTPException(500, "error fetching variables")
 
     @app.get("/tts/{token}", response_class=HTMLResponse)
     async def tts_page(token: str):

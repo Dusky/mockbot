@@ -815,7 +815,9 @@ class MockbotDashboard(App):
                 m_str = "[green]General[/]" if model else "[magenta]Indiv[/]"
                 c_str = f"[cyan]{chance}%[/]"
                 is_joined = "🟢" if f"#{clean_name}" in self.bot._joined_channels else "🔴"
-                status_text = f"{is_joined} [bold]#{clean_name}[/bold] | Model: {m_str} | TTS: {t_str} | Voice: {v_str} | Chance: {c_str} | Delay: {time_b}s | [dim]http://localhost:5050/overlay/{clean_name}[/dim]"
+                tts_token = cfg.get("tts_token", "")
+                src_url = f"http://localhost:5001/tts/{tts_token}" if tts_token else "http://localhost:5001 (log in for TTS URL)"
+                status_text = f"{is_joined} [bold]#{clean_name}[/bold] | Model: {m_str} | TTS: {t_str} | Voice: {v_str} | Chance: {c_str} | Delay: {time_b}s | [dim]{src_url}[/dim]"
                 self.query_one("#status_bar").update(status_text)
             else:
                 self.query_one("#status_bar").update(f"🔴 [bold]#{clean_name}[/bold] | (Not in Database)")

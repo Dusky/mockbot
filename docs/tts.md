@@ -15,8 +15,8 @@ Because routing TTS audio directly through a headless Python terminal is impract
 
 To hear the bot and display real-time channel variables, you just need to add the OBS overlay to your streaming software.
 
-1. Open **OBS Studio**.
-2. Add a new **Browser Source**.
-3. Set the **URL** to: `http://localhost:5050/overlay/<your_channel_name>` (Replace `<your_channel_name>` with your actual Twitch name, e.g., `http://localhost:5050/overlay/firestarman`).
+1. Log into the web dashboard at `http://localhost:5001` and copy your channel's **private TTS source URL** (it looks like `http://localhost:5001/tts/<token>`). You can rotate the token there if it ever leaks.
+2. Open **OBS Studio**.
+3. Add a new **Browser Source** and set the **URL** to your private TTS source URL from step 1.
 4. Set the **Width/Height** to `800x600`.
 5. Check **"Control Audio via OBS"** if you want to be able to adjust the bot's volume from your audio mixer.

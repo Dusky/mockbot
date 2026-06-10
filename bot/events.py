@@ -13,6 +13,7 @@ Event catalog (this is the forward contract for clients):
     ConnectionStateChanged(state, attempts, next_delay)
     ErrorLogged(level, message, timestamp)
     TtsGenerated(channel, message_id, file_url, voice, text, provider, author)
+    TtsKill(channel)                 # stop playback (empty channel = all)
     BotStatus(nick, channels, uptime, tts_enabled, pid, timestamp)
 
   clients -> Bot (commands):
@@ -53,6 +54,12 @@ class TtsGenerated:
     provider: str = ""
     voice: str = ""
     author: str = ""
+
+
+@dataclass(frozen=True)
+class TtsKill:
+    """Stop playback on TTS sources. Empty channel means all channels."""
+    channel: str = ""
 
 
 @dataclass(frozen=True)

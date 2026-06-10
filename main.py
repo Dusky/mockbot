@@ -183,8 +183,6 @@ def main():
         # Initialize Textual Dashboard
         print("[DEBUG] Importing MockbotDashboard from bot.tui...")
         from bot.tui import MockbotDashboard
-        print("[DEBUG] Importing start_server from bot.overlay...")
-        from bot.overlay import start_server
         import bot.logger
         
         print("[DEBUG] Instantiating MockbotDashboard...")
@@ -192,14 +190,9 @@ def main():
         bot.logger.TUI_LOG_CALLBACK = tui_app.write_log
         
         async def run_concurrently():
-            print("[DEBUG] Entering run_concurrently. Starting overlay server...")
-            # Start the OBS overlay web server
-            # start_server returns an AppRunner but doesn't block
-            runner = await start_server(port=5050)
-            print("[DEBUG] Overlay server started. Creating bot and TUI tasks...")
-
-            # Start the FastAPI webui. Phase 1: bound to localhost until the
-            # Twitch-OAuth gate lands, since the endpoints are unauthenticated.
+            # Start the FastAPI webui (serves the dashboard, the bus event stream,
+            # and the per-channel private TTS sources that replaced the :5050
+            # overlay). Bound to localhost until the OAuth round-trip is confirmed.
             webui_server = None
             try:
                 from bot.webui import start_webui
@@ -227,9 +220,7 @@ def main():
             for task in pending:
                 task.cancel()
                 
-            # Clean up the web server port
-            if runner:
-                await runner.cleanup()
+            # Clean up the web server
             if webui_server is not None:
                 webui_server.should_exit = True
         

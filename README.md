@@ -73,8 +73,8 @@ You can live-manage features natively from the server terminal:
 
 ## Custom Web Notification Overlay
 
-Mockbot spins up a lightweight `aiohttp` web server attached to port `5050`. 
-Add a "Browser Source" to your OBS layout with the URL `http://localhost:5050/overlay/<your_channel>`.
+Mockbot's web dashboard (FastAPI, port `5001`) issues each channel a **private TTS source URL**.
+Log in at `http://localhost:5001`, copy your per-channel URL (`http://localhost:5001/tts/<token>`), and add it to your OBS layout as a "Browser Source". The token keeps the source private and can be rotated from the dashboard.
 Whenever the bot speaks, it will slide on screen with a stylish Cyber-Noir text widget, type the message out, play the generated Bark Audio, and slide away.
 
 ## File Structure

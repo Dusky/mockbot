@@ -26,4 +26,4 @@ You can manually set the variable to a specific number using the `var_set` tag.
 
 ## Showing It On Stream
 
-The standard TTS Web Overlay (`http://localhost:5050/overlay/<channel>`) will automatically detect your channel's variables and display them as badges beneath the audio visualizer block.
+Your channel's private TTS source (`http://localhost:5001/tts/<token>`, copied from the web dashboard) will automatically detect your channel's variables and display them as badges beneath the audio visualizer block.

@@ -189,14 +189,14 @@
     #auth-screen {
       font-family: var(--f-sans);
       color: var(--ink);
-      max-width: 1120px;
+      max-width: 1140px;
       margin: 0 auto;
-      padding: 48px 28px 80px;
+      padding: 52px 32px 88px;
     }
     .pub-nav {
       display: flex;
       align-items: center;
-      gap: 20px;
+      gap: 22px;
       font-family: var(--f-sans);
       font-size: 13px;
     }
@@ -204,27 +204,44 @@
       color: var(--ink-2);
       text-decoration: none;
       font-weight: 500;
+      transition: color 0.15s;
     }
     .pub-nav a:hover {
-      color: var(--ink);
+      color: var(--accent);
     }
     .hero-split {
       display: grid;
-      grid-template-columns: 1.35fr 0.85fr;
+      grid-template-columns: 1.3fr 0.9fr;
       gap: 48px;
-      align-items: start;
+      align-items: stretch;
       padding-bottom: 56px;
       border-bottom: 1px solid var(--line);
     }
-    @media (max-width: 880px) {
+    @media (max-width: 900px) {
       .hero-split { grid-template-columns: 1fr; gap: 32px; }
       .pub-nav { display: none; }
     }
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .hero-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--f-mono);
+      font-size: 11.5px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 14px;
+    }
     .hero-copy h1 {
       font-family: var(--f-serif);
-      font-size: 52px;
+      font-size: 54px;
       font-weight: 400;
-      line-height: 1.06;
+      line-height: 1.05;
       letter-spacing: -0.015em;
       margin: 0 0 18px;
       color: var(--ink);
@@ -233,13 +250,37 @@
       font-size: 15.5px;
       line-height: 1.68;
       color: var(--ink-2);
-      margin: 0 0 16px;
+      margin: 0 0 14px;
     }
     .hero-actions {
       display: flex;
       flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+      margin-bottom: 28px;
+    }
+    .hero-stats-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
       gap: 12px;
-      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--line);
+      margin-top: auto;
+    }
+    .hero-stat-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .hero-stat-val {
+      font-family: var(--f-mono);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .hero-stat-lbl {
+      font-size: 11.5px;
+      color: var(--muted);
     }
     .btn-link {
       display: inline-flex;
@@ -270,14 +311,18 @@
     }
     .auth-panel {
       background: var(--surface);
-      border: 1px solid var(--line);
+      border: 1px solid var(--line-strong);
+      border-top: 3px solid var(--accent);
       border-radius: 4px;
-      padding: 24px;
+      padding: 26px;
       font-family: var(--f-sans);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
     .auth-panel h2 {
       font-family: var(--f-sans);
-      font-size: 16px;
+      font-size: 17px;
       font-weight: 600;
       color: var(--ink);
       margin: 0 0 6px;
@@ -291,7 +336,7 @@
       line-height: 1.45;
     }
     .pub-section {
-      padding: 52px 0;
+      padding: 56px 0;
       border-bottom: 1px solid var(--line);
     }
     .pub-section-head {
@@ -299,17 +344,17 @@
     }
     .pub-section-head h2 {
       font-family: var(--f-serif);
-      font-size: 34px;
+      font-size: 36px;
       font-weight: 400;
       color: var(--ink);
-      margin: 0 0 8px;
+      margin: 0 0 6px;
       text-transform: none;
       letter-spacing: 0;
     }
     .pub-section-head p {
       font-size: 15px;
       color: var(--muted);
-      max-width: 700px;
+      max-width: 720px;
       line-height: 1.6;
     }
     .pub-grid-2 {
@@ -324,19 +369,30 @@
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 4px;
-      padding: 22px 24px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .pub-card-tag {
+      font-family: var(--f-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
     }
     .pub-feature-card h3 {
       font-family: var(--f-sans);
-      font-size: 16px;
+      font-size: 16.5px;
       font-weight: 600;
       color: var(--ink);
-      margin: 0 0 8px;
+      margin: 0;
     }
     .pub-feature-card p {
       font-size: 14px;
       color: var(--ink-2);
-      line-height: 1.62;
+      line-height: 1.64;
       margin: 0;
     }
 
@@ -455,17 +511,20 @@
       color: var(--ink);
     }
 
-    /* Stream & Channel Directory Cards */
+    /* Stream & Channel Directory Cards — Balanced 2-Column Grid */
     .streams-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
-      gap: 18px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+    }
+    @media (max-width: 780px) {
+      .streams-grid { grid-template-columns: 1fr; }
     }
     .stream-card {
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: 4px;
-      padding: 18px 20px;
+      padding: 20px 22px;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -479,8 +538,8 @@
       gap: 14px;
     }
     .stream-avatar {
-      width: 48px;
-      height: 48px;
+      width: 50px;
+      height: 50px;
       border-radius: 50%;
       border: 1px solid var(--line-strong);
       object-fit: cover;
@@ -491,7 +550,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
+      gap: 12px;
     }
     .stream-name {
       font-family: var(--f-sans);
@@ -499,6 +558,9 @@
       font-weight: 600;
       color: var(--ink);
       text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .stream-name:hover {
       color: var(--accent);
@@ -516,15 +578,19 @@
       border: 1px solid var(--ok);
       border-radius: 3px;
       background: rgba(127, 166, 124, 0.1);
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .stream-badge-off {
       font-family: var(--f-mono);
-      font-size: 11px;
+      font-size: 11.5px;
       color: var(--muted);
+      white-space: nowrap;
+      flex-shrink: 0;
     }
     .stream-bio {
       font-family: var(--f-sans);
-      font-size: 13px;
+      font-size: 13.5px;
       color: var(--ink-2);
       line-height: 1.5;
     }
@@ -533,20 +599,21 @@
       flex-wrap: wrap;
       gap: 8px;
       font-family: var(--f-mono);
-      font-size: 11px;
+      font-size: 11.5px;
       color: var(--muted);
-      padding-top: 8px;
+      padding-top: 10px;
       border-top: 1px solid var(--line);
+      margin-top: auto;
     }
     .stream-quote-box {
       background: var(--field);
       border: 1px solid var(--line);
       border-left: 3px solid var(--accent);
-      padding: 10px 12px;
+      padding: 10px 14px;
       font-family: var(--f-mono);
       font-size: 12px;
       color: var(--ink);
-      line-height: 1.45;
+      line-height: 1.5;
     }
     .pub-footer {
       padding-top: 32px;
@@ -900,18 +967,40 @@
     <!-- HERO -->
     <div class="hero-split">
       <div class="hero-copy">
-        <h1>A Twitch chat bot that learns from your community and talks back.</h1>
-        <p>
-          <strong>Mockbot</strong> is a multi-brain Markov chain and Suno Bark TTS bot for Twitch. It listens to your live chat room and builds a statistical word-transition graph from the messages your viewers type. Every sentence it generates is stitched together word-by-word from your own community's vocabulary, emotes, and inside jokes.
-        </p>
-        <p>
-          Every streamer gets an isolated brain (<code>channel:yourname</code>) with full control over how often the bot speaks, which brains it blends together, blocked words, automatic ban/timeout purges, and optional GPU-accelerated Bark text-to-speech for OBS.
-        </p>
+        <div>
+          <div class="hero-kicker">&#9632; Rust Markov Engine &middot; Suno Bark TTS &middot; Twitch IRCv3</div>
+          <h1>A Twitch chat bot that learns from your community and talks back.</h1>
+          <p>
+            <strong>Mockbot</strong> is a multi-brain Markov chain and Suno Bark TTS bot for Twitch. It listens to your live chat room and builds a statistical word-transition graph from the messages your viewers type. Every sentence it generates is stitched together word-by-word from your own community's vocabulary, emotes, and inside jokes.
+          </p>
+          <p>
+            Every streamer gets an isolated brain (<code>channel:yourname</code>) with full control over how often the bot speaks, which brains it blends together, blocked words, automatic ban/timeout purges, and optional GPU-accelerated Bark text-to-speech for OBS.
+          </p>
 
-        <div class="hero-actions">
-          <button class="btn-link primary-cta" onclick="startTwitchOAuth()">Sign in with Twitch</button>
-          <a class="btn-link" href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">View source on GitHub &nearr;</a>
-          <a class="btn-link" href="#sec-flowchart">See signal flowchart</a>
+          <div class="hero-actions">
+            <a class="btn-link" href="#sec-streams">Explore active channels &darr;</a>
+            <a class="btn-link" href="#sec-flowchart">Signal flowchart &darr;</a>
+            <a class="btn-link" href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">Source on GitHub &nearr;</a>
+          </div>
+        </div>
+
+        <div class="hero-stats-strip">
+          <div class="hero-stat-item">
+            <span class="hero-stat-val" id="hero-stat-chans">4</span>
+            <span class="hero-stat-lbl">Active channels</span>
+          </div>
+          <div class="hero-stat-item">
+            <span class="hero-stat-val">106k+</span>
+            <span class="hero-stat-lbl">Corpus lines</span>
+          </div>
+          <div class="hero-stat-item">
+            <span class="hero-stat-val">44k+</span>
+            <span class="hero-stat-lbl">Unique vocabulary</span>
+          </div>
+          <div class="hero-stat-item">
+            <span class="hero-stat-val" style="color:var(--ok);">Orders 1&ndash;3</span>
+            <span class="hero-stat-lbl">N-gram graph</span>
+          </div>
         </div>
       </div>
 
@@ -1000,85 +1089,88 @@
       </div>
 
       <div class="flow-wrap">
-        <svg class="flow-svg" viewBox="0 0 980 310" xmlns="http://www.w3.org/2000/svg">
+        <svg class="flow-svg" viewBox="0 0 1040 270" xmlns="http://www.w3.org/2000/svg">
           <!-- Wires -->
           <!-- 1. IRC -> Filter -->
-          <path class="flow-wire" d="M 185 95 L 240 95" />
-          <path class="flow-pulse" d="M 185 95 L 240 95" />
-          <!-- IRC -> Auto-Purge (bottom branch) -->
-          <path class="flow-wire" d="M 97 145 L 97 235 L 240 235" />
-          <path class="flow-pulse" d="M 97 145 L 97 235 L 240 235" />
-          <!-- Auto-Purge -> SQLite / Brain Graph -->
-          <path class="flow-wire" d="M 425 235 L 555 235 L 555 155" />
+          <path class="flow-wire" d="M 200 78 L 245 78" />
+          <path class="flow-pulse" d="M 200 78 L 245 78" />
+
+          <!-- IRC -> Moderation Shield (bottom row) -->
+          <path class="flow-wire" d="M 106 130 L 106 205 L 245 205" />
+          <path class="flow-pulse" d="M 106 130 L 106 205 L 245 205" />
+
+          <!-- Moderation Shield -> Multi-Brain Graph -->
+          <path class="flow-wire" d="M 445 205 L 575 205 L 575 138" />
+          <path class="flow-pulse" d="M 445 205 L 575 205 L 575 138" />
 
           <!-- 2. Filter -> Multi-Brain Graph -->
-          <path class="flow-wire" d="M 425 95 L 475 95" />
-          <path class="flow-pulse-ok" d="M 425 95 L 475 95" />
+          <path class="flow-wire" d="M 445 78 L 485 78" />
+          <path class="flow-pulse-ok" d="M 445 78 L 485 78" />
 
           <!-- 3. Multi-Brain Graph -> Step Blender -->
-          <path class="flow-wire" d="M 650 95 L 700 95" />
-          <path class="flow-pulse" d="M 650 95 L 700 95" />
+          <path class="flow-wire" d="M 675 78 L 715 78" />
+          <path class="flow-pulse" d="M 675 78 L 715 78" />
 
           <!-- 4. Step Blender -> Twitch Chat (top right) & Bark TTS (bottom right) -->
-          <path class="flow-wire" d="M 810 50 L 810 35 L 845 35" />
-          <path class="flow-pulse-ok" d="M 780 50 L 780 35 L 845 35" />
-          <path class="flow-wire" d="M 780 140 L 780 225 L 835 225" />
-          <path class="flow-pulse" d="M 780 140 L 780 225 L 835 225" />
+          <path class="flow-wire" d="M 865 55 L 895 55" />
+          <path class="flow-pulse-ok" d="M 865 55 L 895 55" />
+          <path class="flow-wire" d="M 790 130 L 790 205 L 895 205" />
+          <path class="flow-pulse" d="M 790 130 L 790 205 L 895 205" />
 
           <!-- NODE 1: TWITCH IRCv3 -->
-          <rect class="flow-node" x="12" y="45" width="173" height="100" />
-          <text class="flow-badge" x="24" y="65">01 · INGEST</text>
-          <text class="flow-title" x="24" y="84">Twitch IRCv3 TLS</text>
-          <text class="flow-sub" x="24" y="102">PRIVMSG / USERNOTICE</text>
-          <text class="flow-sub" x="24" y="118">Raids, Subs, Bits, Points</text>
-          <text class="flow-sub" x="24" y="134">Live status poll (60s)</text>
+          <rect class="flow-node" x="12" y="24" width="188" height="106" />
+          <text class="flow-badge" x="26" y="45">01 &middot; INGEST</text>
+          <text class="flow-title" x="26" y="65">Twitch IRCv3 TLS</text>
+          <text class="flow-sub" x="26" y="84">PRIVMSG &amp; USERNOTICE</text>
+          <text class="flow-sub" x="26" y="100">Raids, Subs, Bits, Points</text>
+          <text class="flow-sub" x="26" y="116">Live stream poll (60s)</text>
 
           <!-- NODE 2: SANITIZER & VOCAB -->
-          <rect class="flow-node-ok" x="240" y="45" width="185" height="100" />
-          <text class="flow-badge" x="252" y="65" style="fill:var(--ok)">02 · FILTER</text>
-          <text class="flow-title" x="252" y="84">Sanitizer &amp; Tokenizer</text>
-          <text class="flow-sub" x="252" y="102">Strip URLs &amp; !commands</text>
-          <text class="flow-sub" x="252" y="118">Check blocked words</text>
-          <text class="flow-sub" x="252" y="134">Intern TokenId (u32)</text>
+          <rect class="flow-node-ok" x="245" y="24" width="200" height="106" />
+          <text class="flow-badge" x="259" y="45" style="fill:var(--ok)">02 &middot; SANITIZE</text>
+          <text class="flow-title" x="259" y="65">Filter &amp; Tokenizer</text>
+          <text class="flow-sub" x="259" y="84">Strip URLs &amp; !commands</text>
+          <text class="flow-sub" x="259" y="100">Check blocked words</text>
+          <text class="flow-sub" x="259" y="116">Intern TokenId (u32)</text>
 
           <!-- NODE 2B: MODERATION SHIELD -->
-          <rect class="flow-node-accent" x="240" y="190" width="185" height="90" />
-          <text class="flow-badge" x="252" y="210">MODERATION SHIELD</text>
-          <text class="flow-title" x="252" y="228">CLEARCHAT / CLEARMSG</text>
-          <text class="flow-sub" x="252" y="246">Ban, timeout, or delete</text>
-          <text class="flow-sub" x="252" y="262">&rarr; Purge SQLite &amp; rebuild</text>
+          <rect class="flow-node-accent" x="245" y="158" width="200" height="90" />
+          <text class="flow-badge" x="259" y="179">MODERATION SHIELD</text>
+          <text class="flow-title" x="259" y="198">CLEARCHAT / CLEARMSG</text>
+          <text class="flow-sub" x="259" y="216">Ban, timeout, or delete</text>
+          <text class="flow-sub" x="259" y="232">&rarr; Purge SQLite &amp; rebuild</text>
 
           <!-- NODE 3: MULTI-BRAIN GRAPH -->
-          <rect class="flow-node" x="475" y="35" width="175" height="120" />
-          <text class="flow-badge" x="487" y="55">03 · CORPUS GRAPH</text>
-          <text class="flow-title" x="487" y="74">Multi-Brain N-Grams</text>
-          <text class="flow-sub" x="487" y="93">• channel:&lt;streamer&gt;</text>
-          <text class="flow-sub" x="487" y="109">• user:&lt;chatter&gt; (!mock)</text>
-          <text class="flow-sub" x="487" y="125">• custom:&lt;persona&gt;</text>
-          <text class="flow-sub" x="487" y="141">• Orders 1&rarr;2&rarr;3 + RevSeed</text>
+          <rect class="flow-node" x="485" y="18" width="190" height="120" />
+          <text class="flow-badge" x="499" y="39">03 &middot; CORPUS GRAPH</text>
+          <text class="flow-title" x="499" y="59">Multi-Brain N-Grams</text>
+          <text class="flow-sub" x="499" y="78">&bull; channel:&lt;streamer&gt;</text>
+          <text class="flow-sub" x="499" y="94">&bull; user:&lt;chatter&gt; (!mock)</text>
+          <text class="flow-sub" x="499" y="110">&bull; custom:&lt;persona&gt;</text>
+          <text class="flow-sub" x="499" y="126">&bull; Orders 1&ndash;3 + RevSeed</text>
 
           <!-- NODE 4: STEP BLENDER -->
-          <rect class="flow-node-accent" x="690" y="45" width="145" height="100" />
-          <text class="flow-badge" x="702" y="65">04 · SYNTHESIS</text>
-          <text class="flow-title" x="702" y="84">Step Blender</text>
-          <text class="flow-sub" x="702" y="102">70/30 weighted mix</text>
-          <text class="flow-sub" x="702" y="118">Temp + topic seed</text>
-          <text class="flow-sub" x="702" y="134">&lt;70% overlap check</text>
+          <rect class="flow-node-accent" x="715" y="24" width="150" height="106" />
+          <text class="flow-badge" x="729" y="45">04 &middot; SYNTHESIS</text>
+          <text class="flow-title" x="729" y="65">Step Blender</text>
+          <text class="flow-sub" x="729" y="84">70/30 brain weights</text>
+          <text class="flow-sub" x="729" y="100">Temp + topic seed</text>
+          <text class="flow-sub" x="729" y="116">&lt;70% overlap guard</text>
 
           <!-- NODE 5A: TWITCH CHAT OUT -->
-          <rect class="flow-node-ok" x="845" y="12" width="125" height="82" />
-          <text class="flow-badge" x="855" y="31" style="fill:var(--ok)">05A · CHAT</text>
-          <text class="flow-title" x="855" y="49">Twitch Chat</text>
-          <text class="flow-sub" x="855" y="66">@mockbot reply</text>
-          <text class="flow-sub" x="855" y="81">Min lines &amp; timer</text>
+          <rect class="flow-node-ok" x="895" y="18" width="135" height="92" />
+          <text class="flow-badge" x="907" y="38" style="fill:var(--ok)">05A &middot; CHAT</text>
+          <text class="flow-title" x="907" y="56">Twitch Chat</text>
+          <text class="flow-sub" x="907" y="74">@mockbot reply</text>
+          <text class="flow-sub" x="907" y="90">AND cadence gate</text>
 
           <!-- NODE 5B: GPU BARK TTS & OBS -->
-          <rect class="flow-node-accent" x="835" y="175" width="135" height="105" />
-          <text class="flow-badge" x="847" y="195">05B · AUDIO + OBS</text>
-          <text class="flow-title" x="847" y="213">CUDA Bark TTS</text>
-          <text class="flow-sub" x="847" y="231">.npz voice + FX</text>
-          <text class="flow-sub" x="847" y="247">WebSocket push &rarr;</text>
-          <text class="flow-sub" x="847" y="263">/obs/&lt;channel&gt;</text>
+          <rect class="flow-node-accent" x="895" y="150" width="135" height="102" />
+          <text class="flow-badge" x="907" y="170">05B &middot; AUDIO</text>
+          <text class="flow-title" x="907" y="188">CUDA Bark TTS</text>
+          <text class="flow-sub" x="907" y="206">.npz voice + FX</text>
+          <text class="flow-sub" x="907" y="222">WebSocket push &rarr;</text>
+          <text class="flow-sub" x="907" y="238">/obs/&lt;channel&gt;</text>
         </svg>
       </div>
 
@@ -1123,13 +1215,15 @@
 
       <div class="pub-grid-2">
         <div class="pub-feature-card">
-          <h3>Isolated Per-Channel Brains &amp; Blending</h3>
+          <div class="pub-card-tag">01 &middot; Isolated Corpora</div>
+          <h3>Per-Channel Brains &amp; Real-Time Blending</h3>
           <p>
             Every channel has its own Markov brain (<code>channel:yourname</code>) that learns from incoming chat messages. You can run 100% on your own community's chat, blend multiple brains together with percentage sliders (such as 70% your channel + 30% global), or import historical logs (<code>TwitchDownloaderCLI</code> JSON, plain text, or IRC chat logs) so the bot knows your channel's lore immediately.
           </p>
         </div>
 
         <div class="pub-feature-card">
+          <div class="pub-card-tag">02 &middot; Interactive Commands</div>
           <h3><code>!speak</code>, <code>!mock @user</code> &amp; Custom Commands</h3>
           <p>
             Viewers can run <code>!speak [topic]</code> to generate a sentence seeded around a specific word, or run <code>!mock @username</code> to generate a message built strictly from that single chatter's message history in your channel. Streamers can also define custom <code>!commands</code> mapped to specific brains and seed words.
@@ -1137,13 +1231,15 @@
         </div>
 
         <div class="pub-feature-card">
-          <h3>Smart Cadence &amp; Live Stream Detection</h3>
+          <div class="pub-card-tag">03 &middot; Anti-Spam Cadence</div>
+          <h3>AND-Gated Cadence &amp; Live Stream Detection</h3>
           <p>
             Mockbot won't spam a quiet or offline channel. Automatic messages use an <strong>AND</strong> gate — requiring <em>both</em> a minimum number of chat lines (default 100 lines) and a minimum cooldown timer (default 15 minutes) to pass before speaking — and pause automatically whenever your Twitch stream is offline.
           </p>
         </div>
 
         <div class="pub-feature-card">
+          <div class="pub-card-tag">04 &middot; Stream Events</div>
           <h3>Channel Points, Bits, Raids &amp; Subs</h3>
           <p>
             Hook your Twitch community events directly into the bot: trigger Markov responses or Bark TTS audio clips automatically when someone raids your channel, subscribes, cheers a minimum number of bits, or redeems a specific Twitch Channel Point reward.
@@ -1161,13 +1257,15 @@
 
       <div class="pub-grid-2">
         <div class="pub-feature-card">
+          <div class="pub-card-tag" style="color:var(--ok);">GPU Synthesis &middot; .npz Cloning</div>
           <h3>Expressive Bark Audio &amp; Voice Cloning</h3>
           <p>
-            Unlike flat robotic TTS, Suno Bark synthesizes natural vocal inflections including laughter (<code>[laughs]</code>), sighs (<code>[sighs]</code>), gasps, and singing (<code>&sung;</code>). Upload any <code>.wav</code> or <code>.mp3</code> clip in the dashboard to clone a custom <code>.npz</code> voice preset, enable <strong>Voice Drift</strong> so the voice mutates over the course of a stream, or save funny Bark hallucinations as permanent voices.
+            Suno Bark synthesizes natural vocal inflections including laughter (<code>[laughs]</code>), sighs (<code>[sighs]</code>), gasps, and singing (<code>&sung;</code>). Upload any <code>.wav</code> or <code>.mp3</code> clip in the dashboard to clone a custom <code>.npz</code> voice preset, enable <strong>Voice Drift</strong> so the voice mutates over the course of a stream, or save funny Bark hallucinations as permanent voices.
           </p>
         </div>
 
         <div class="pub-feature-card">
+          <div class="pub-card-tag" style="color:var(--ok);">60fps WebAudio RMS &middot; /obs/channel</div>
           <h3>Volume-Reactive OBS Browser Source</h3>
           <p>
             Drop your channel's <code>/obs/yourname</code> URL into OBS as a Browser Source. It plays incoming TTS clips automatically, animates your custom idle/talking PNG or GIF avatar at 60fps using WebAudio RMS volume analysis, and supports instant panic-skipping from the web dashboard or by typing <code>!skip</code> in chat.
@@ -1185,13 +1283,15 @@
 
       <div class="pub-grid-2">
         <div class="pub-feature-card">
-          <h3>Automatic Ban &amp; Timeout Purge (<code>CLEARCHAT</code> / <code>CLEARMSG</code>)</h3>
+          <div class="pub-card-tag">IRC CLEARCHAT &amp; CLEARMSG</div>
+          <h3>Automatic Ban &amp; Timeout Purge</h3>
           <p>
             Mockbot listens to Twitch IRC moderation events in real time. The moment a moderator bans or times out a user — or deletes a single message — Mockbot automatically purges every line learned from that user out of SQLite and rebuilds your channel's Markov brain in memory so deleted content can never be repeated.
           </p>
         </div>
 
         <div class="pub-feature-card">
+          <div class="pub-card-tag">Overlap &lt; 70% &middot; Word Blocklists</div>
           <h3>Blocked Words, Bot Ignore Lists &amp; Anti-Parroting</h3>
           <p>
             Incoming chat messages and generated outputs are filtered against both a global blocklist and your channel's custom blocked-words list. URLs and bot commands are stripped before training, known bots (Nightbot, StreamElements, Sery_Bot, etc.) are ignored automatically, and contiguous N-gram overlap checks prevent the bot from parroting a single message verbatim.
@@ -1199,6 +1299,7 @@
         </div>
 
         <div class="pub-feature-card">
+          <div class="pub-card-tag">Twitch OAuth &middot; Corpus Isolation</div>
           <h3>Verified Ownership &amp; Private Brains</h3>
           <p>
             Channel settings are locked to verified broadcasters via Twitch OAuth (or in-chat broadcaster verification with <code>!mockbot claim</code>). You can enable <strong>Private brain</strong> in your settings so other streamers cannot blend or <code>!mock</code> your channel's corpus, and lock your OBS overlay URL behind a secret key (<code>?key=...</code>).
@@ -1206,6 +1307,7 @@
         </div>
 
         <div class="pub-feature-card">
+          <div class="pub-card-tag">Rust Single-Binary &middot; Local SQLite</div>
           <h3>Open Source &amp; Self-Hosted</h3>
           <p>
             Mockbot is a single-binary Rust application (<code>tokio</code>, <code>axum</code>, <code>rusqlite</code>, <code>ratatui</code>) with an embedded SQLite database and local CUDA Python worker for Bark TTS. Inspect the full source code on <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="color:var(--accent);">GitHub (Dusky/mockbot)</a>.

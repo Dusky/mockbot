@@ -339,6 +339,121 @@
       line-height: 1.62;
       margin: 0;
     }
+
+    /* Animated Flowchart & Markov Crossover Diagram */
+    .flow-wrap {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 24px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+    .flow-svg {
+      width: 100%;
+      min-width: 820px;
+      height: auto;
+      display: block;
+      font-family: var(--f-mono);
+    }
+    .flow-wire {
+      fill: none;
+      stroke: var(--line-strong);
+      stroke-width: 1.5;
+    }
+    .flow-pulse {
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 2;
+      stroke-dasharray: 6 18;
+      animation: wireFlow 1.8s linear infinite;
+    }
+    .flow-pulse-ok {
+      fill: none;
+      stroke: var(--ok);
+      stroke-width: 2;
+      stroke-dasharray: 6 18;
+      animation: wireFlow 2.1s linear infinite;
+    }
+    @keyframes wireFlow {
+      from { stroke-dashoffset: 24; }
+      to   { stroke-dashoffset: 0; }
+    }
+    .flow-node {
+      fill: var(--bg-2);
+      stroke: var(--line-strong);
+      stroke-width: 1.2;
+      rx: 4;
+    }
+    .flow-node-accent {
+      fill: var(--bg-2);
+      stroke: var(--accent);
+      stroke-width: 1.5;
+      rx: 4;
+    }
+    .flow-node-ok {
+      fill: var(--bg-2);
+      stroke: var(--ok);
+      stroke-width: 1.5;
+      rx: 4;
+    }
+    .flow-title {
+      fill: var(--ink);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .flow-sub {
+      fill: var(--muted);
+      font-size: 10.5px;
+    }
+    .flow-badge {
+      fill: var(--accent);
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .crossover-box {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 20px 24px;
+    }
+    .crossover-grid {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 14px;
+      align-items: center;
+      font-family: var(--f-mono);
+      font-size: 12.5px;
+      margin-top: 14px;
+    }
+    @media (max-width: 780px) {
+      .crossover-grid { grid-template-columns: 1fr; }
+    }
+    .x-msg {
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+      padding: 10px 12px;
+      border-radius: 3px;
+      color: var(--ink-2);
+    }
+    .x-pivot {
+      background: var(--field);
+      border: 1px solid var(--accent);
+      color: var(--ink);
+      padding: 8px 14px;
+      border-radius: 3px;
+      font-weight: 600;
+      text-align: center;
+    }
+    .x-out {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: var(--field);
+      border-left: 3px solid var(--accent);
+      font-family: var(--f-mono);
+      font-size: 13px;
+      color: var(--ink);
+    }
     .pub-footer {
       padding-top: 32px;
       display: flex;
@@ -665,6 +780,7 @@
         <small id="rail-bot-nick">@mockbot</small>
       </div>
       <nav class="pub-nav" id="pub-nav-links">
+        <a href="#sec-flowchart">How It Works</a>
         <a href="#sec-overview">Features</a>
         <a href="#sec-tts">Bark TTS &amp; OBS</a>
         <a href="#sec-security">Security &amp; Moderation</a>
@@ -691,7 +807,7 @@
       <div class="hero-copy">
         <h1>A Twitch chat bot that learns from your community and talks back.</h1>
         <p>
-          <strong>Mockbot</strong> is a multi-brain Markov chain and Suno Bark TTS bot for Twitch. Unlike ChatGPT or LLM bots that sound like a generic AI assistant, Mockbot builds a word-transition graph directly from the messages typed in your chat room. Every sentence it says is stitched together word-by-word from your own community's vocabulary, emotes, and inside jokes.
+          <strong>Mockbot</strong> is a multi-brain Markov chain and Suno Bark TTS bot for Twitch. It listens to your live chat room and builds a statistical word-transition graph from the messages your viewers type. Every sentence it generates is stitched together word-by-word from your own community's vocabulary, emotes, and inside jokes.
         </p>
         <p>
           Every streamer gets an isolated brain (<code>channel:yourname</code>) with full control over how often the bot speaks, which brains it blends together, blocked words, automatic ban/timeout purges, and optional GPU-accelerated Bark text-to-speech for OBS.
@@ -700,7 +816,7 @@
         <div class="hero-actions">
           <button class="btn-link primary-cta" onclick="startTwitchOAuth()">Sign in with Twitch</button>
           <a class="btn-link" href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">View source on GitHub &nearr;</a>
-          <a class="btn-link" href="#sec-security">How moderation &amp; security work</a>
+          <a class="btn-link" href="#sec-flowchart">See signal flowchart</a>
         </div>
       </div>
 
@@ -768,11 +884,133 @@
       </div>
     </div>
 
+    <!-- SECTION 0: SIGNAL FLOWCHART & MARKOV DIAGRAM -->
+    <section class="pub-section" id="sec-flowchart">
+      <div class="pub-section-head">
+        <h2>Signal path &amp; how sentences are stitched</h2>
+        <p>From incoming Twitch IRC messages through N-gram graph transitions to chat responses and OBS audio playback.</p>
+      </div>
+
+      <div class="flow-wrap">
+        <svg class="flow-svg" viewBox="0 0 980 310" xmlns="http://www.w3.org/2000/svg">
+          <!-- Wires -->
+          <!-- 1. IRC -> Filter -->
+          <path class="flow-wire" d="M 185 95 L 240 95" />
+          <path class="flow-pulse" d="M 185 95 L 240 95" />
+          <!-- IRC -> Auto-Purge (bottom branch) -->
+          <path class="flow-wire" d="M 97 145 L 97 235 L 240 235" />
+          <path class="flow-pulse" d="M 97 145 L 97 235 L 240 235" />
+          <!-- Auto-Purge -> SQLite / Brain Graph -->
+          <path class="flow-wire" d="M 425 235 L 555 235 L 555 155" />
+
+          <!-- 2. Filter -> Multi-Brain Graph -->
+          <path class="flow-wire" d="M 425 95 L 475 95" />
+          <path class="flow-pulse-ok" d="M 425 95 L 475 95" />
+
+          <!-- 3. Multi-Brain Graph -> Step Blender -->
+          <path class="flow-wire" d="M 650 95 L 700 95" />
+          <path class="flow-pulse" d="M 650 95 L 700 95" />
+
+          <!-- 4. Step Blender -> Twitch Chat (top right) & Bark TTS (bottom right) -->
+          <path class="flow-wire" d="M 810 50 L 810 35 L 845 35" />
+          <path class="flow-pulse-ok" d="M 780 50 L 780 35 L 845 35" />
+          <path class="flow-wire" d="M 780 140 L 780 225 L 835 225" />
+          <path class="flow-pulse" d="M 780 140 L 780 225 L 835 225" />
+
+          <!-- NODE 1: TWITCH IRCv3 -->
+          <rect class="flow-node" x="12" y="45" width="173" height="100" />
+          <text class="flow-badge" x="24" y="65">01 · INGEST</text>
+          <text class="flow-title" x="24" y="84">Twitch IRCv3 TLS</text>
+          <text class="flow-sub" x="24" y="102">PRIVMSG / USERNOTICE</text>
+          <text class="flow-sub" x="24" y="118">Raids, Subs, Bits, Points</text>
+          <text class="flow-sub" x="24" y="134">Live status poll (60s)</text>
+
+          <!-- NODE 2: SANITIZER & VOCAB -->
+          <rect class="flow-node-ok" x="240" y="45" width="185" height="100" />
+          <text class="flow-badge" x="252" y="65" style="fill:var(--ok)">02 · FILTER</text>
+          <text class="flow-title" x="252" y="84">Sanitizer &amp; Tokenizer</text>
+          <text class="flow-sub" x="252" y="102">Strip URLs &amp; !commands</text>
+          <text class="flow-sub" x="252" y="118">Check blocked words</text>
+          <text class="flow-sub" x="252" y="134">Intern TokenId (u32)</text>
+
+          <!-- NODE 2B: MODERATION SHIELD -->
+          <rect class="flow-node-accent" x="240" y="190" width="185" height="90" />
+          <text class="flow-badge" x="252" y="210">MODERATION SHIELD</text>
+          <text class="flow-title" x="252" y="228">CLEARCHAT / CLEARMSG</text>
+          <text class="flow-sub" x="252" y="246">Ban, timeout, or delete</text>
+          <text class="flow-sub" x="252" y="262">&rarr; Purge SQLite &amp; rebuild</text>
+
+          <!-- NODE 3: MULTI-BRAIN GRAPH -->
+          <rect class="flow-node" x="475" y="35" width="175" height="120" />
+          <text class="flow-badge" x="487" y="55">03 · CORPUS GRAPH</text>
+          <text class="flow-title" x="487" y="74">Multi-Brain N-Grams</text>
+          <text class="flow-sub" x="487" y="93">• channel:&lt;streamer&gt;</text>
+          <text class="flow-sub" x="487" y="109">• user:&lt;chatter&gt; (!mock)</text>
+          <text class="flow-sub" x="487" y="125">• custom:&lt;persona&gt;</text>
+          <text class="flow-sub" x="487" y="141">• Orders 1&rarr;2&rarr;3 + RevSeed</text>
+
+          <!-- NODE 4: STEP BLENDER -->
+          <rect class="flow-node-accent" x="690" y="45" width="145" height="100" />
+          <text class="flow-badge" x="702" y="65">04 · SYNTHESIS</text>
+          <text class="flow-title" x="702" y="84">Step Blender</text>
+          <text class="flow-sub" x="702" y="102">70/30 weighted mix</text>
+          <text class="flow-sub" x="702" y="118">Temp + topic seed</text>
+          <text class="flow-sub" x="702" y="134">&lt;70% overlap check</text>
+
+          <!-- NODE 5A: TWITCH CHAT OUT -->
+          <rect class="flow-node-ok" x="845" y="12" width="125" height="82" />
+          <text class="flow-badge" x="855" y="31" style="fill:var(--ok)">05A · CHAT</text>
+          <text class="flow-title" x="855" y="49">Twitch Chat</text>
+          <text class="flow-sub" x="855" y="66">@mockbot reply</text>
+          <text class="flow-sub" x="855" y="81">Min lines &amp; timer</text>
+
+          <!-- NODE 5B: GPU BARK TTS & OBS -->
+          <rect class="flow-node-accent" x="835" y="175" width="135" height="105" />
+          <text class="flow-badge" x="847" y="195">05B · AUDIO + OBS</text>
+          <text class="flow-title" x="847" y="213">CUDA Bark TTS</text>
+          <text class="flow-sub" x="847" y="231">.npz voice + FX</text>
+          <text class="flow-sub" x="847" y="247">WebSocket push &rarr;</text>
+          <text class="flow-sub" x="847" y="263">/obs/&lt;channel&gt;</text>
+        </svg>
+      </div>
+
+      <!-- INTERACTIVE MARKOV STATE CROSSOVER EXAMPLE -->
+      <div class="crossover-box">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+          <div>
+            <strong style="font-size:14px;color:var(--ink);">How Markov word-stitching works (Order-2 state crossover)</strong>
+            <div style="font-size:13px;color:var(--muted);">Two separate chat messages that share a 2-word pair allow the chain to jump tracks mid-sentence:</div>
+          </div>
+          <button class="sm" type="button" onclick="cycleCrossoverDemo()">Next example &rarr;</button>
+        </div>
+
+        <div class="crossover-grid">
+          <div class="x-msg" id="x-msg-a">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">CHAT MESSAGE #1 (20 minutes ago)</div>
+            <span style="color:var(--ink);">"i swear the best part is</span> <strong style="color:var(--accent);">eating at</strong> <span style="color:var(--muted);">taco bell at 3am"</span>
+          </div>
+          <div class="x-pivot" id="x-pivot">
+            <div style="font-size:9.5px;color:var(--muted);font-weight:400;">SHARED 2-GRAM STATE</div>
+            [ eating, at ]
+          </div>
+          <div class="x-msg" id="x-msg-b">
+            <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">CHAT MESSAGE #2 (5 minutes ago)</div>
+            <span style="color:var(--muted);">"why was everyone</span> <strong style="color:var(--accent);">eating at</strong> <span style="color:var(--ink);">the boss room during phase two"</span>
+          </div>
+        </div>
+
+        <div class="x-out" id="x-out">
+          <span style="color:var(--muted);font-size:11px;">GENERATED OUTPUT &rarr;</span>
+          <strong>@mockbot:</strong> i swear the best part is eating at the boss room during phase two
+        </div>
+      </div>
+    </section>
+
     <!-- SECTION 1: WHAT IT DOES -->
     <section class="pub-section" id="sec-overview">
       <div class="pub-section-head">
         <h2>What Mockbot does</h2>
-        <p>Built from the ground up in Rust to handle multi-channel Markov generation, live corpus editing, and custom persona mixing without touching external AI APIs.</p>
+        <p>Built in Rust to handle multi-channel Markov generation, live corpus editing, and custom persona mixing.</p>
       </div>
 
       <div class="pub-grid-2">
@@ -862,7 +1100,7 @@
         <div class="pub-feature-card">
           <h3>Open Source &amp; Self-Hosted</h3>
           <p>
-            Mockbot is a single-binary Rust application (<code>tokio</code>, <code>axum</code>, <code>rusqlite</code>, <code>ratatui</code>) with an embedded SQLite database and local CUDA Python worker for Bark TTS. No chat data is ever sent to third-party LLM providers. Inspect the full source code on <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="color:var(--accent);">GitHub (Dusky/mockbot)</a>.
+            Mockbot is a single-binary Rust application (<code>tokio</code>, <code>axum</code>, <code>rusqlite</code>, <code>ratatui</code>) with an embedded SQLite database and local CUDA Python worker for Bark TTS. Inspect the full source code on <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="color:var(--accent);">GitHub (Dusky/mockbot)</a>.
           </p>
         </div>
       </div>
@@ -1566,6 +1804,49 @@
 
   const savedTheme = localStorage.getItem('ansv2_theme') || 'chassis';
   document.documentElement.setAttribute('data-theme', savedTheme);
+
+  const crossoverExamples = [
+    {
+      a_pre: 'i swear the best part is',
+      pivot: 'eating at',
+      a_post: 'taco bell at 3am',
+      b_pre: 'why was everyone',
+      b_post: 'the boss room during phase two',
+      out: 'i swear the best part is eating at the boss room during phase two'
+    },
+    {
+      a_pre: 'you have to parry right before',
+      pivot: 'he starts',
+      a_post: 'the second combo string',
+      b_pre: 'mute the mic whenever',
+      b_post: 'reading the patch notes out loud',
+      out: 'you have to parry right before he starts reading the patch notes out loud'
+    },
+    {
+      a_pre: 'chat told me to put all my points into',
+      pivot: 'the giant',
+      a_post: 'greatsword build',
+      b_pre: 'i got stuck behind',
+      b_post: 'skeleton in the parking lot',
+      out: 'chat told me to put all my points into the giant skeleton in the parking lot'
+    }
+  ];
+  let crossoverIdx = 0;
+
+  function cycleCrossoverDemo() {
+    crossoverIdx = (crossoverIdx + 1) % crossoverExamples.length;
+    const ex = crossoverExamples[crossoverIdx];
+    document.getElementById('x-msg-a').innerHTML =
+      `<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">CHAT MESSAGE #1</div>` +
+      `<span style="color:var(--ink);">"${ex.a_pre}</span> <strong style="color:var(--accent);">${ex.pivot}</strong> <span style="color:var(--muted);">${ex.a_post}"</span>`;
+    document.getElementById('x-pivot').innerHTML =
+      `<div style="font-size:9.5px;color:var(--muted);font-weight:400;">SHARED 2-GRAM STATE</div>[ ${ex.pivot.replace(' ', ', ')} ]`;
+    document.getElementById('x-msg-b').innerHTML =
+      `<div style="font-size:10px;color:var(--muted);margin-bottom:4px;">CHAT MESSAGE #2</div>` +
+      `<span style="color:var(--muted);">"${ex.b_pre}</span> <strong style="color:var(--accent);">${ex.pivot}</strong> <span style="color:var(--ink);">${ex.b_post}"</span>`;
+    document.getElementById('x-out').innerHTML =
+      `<span style="color:var(--muted);font-size:11px;">GENERATED OUTPUT &rarr;</span> <strong>@mockbot:</strong> ${ex.out}`;
+  }
 
   function toggleTheme() {
     const cur = document.documentElement.getAttribute('data-theme');

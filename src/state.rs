@@ -67,6 +67,20 @@ pub struct ChannelRuntime {
     pub currently_joined: bool,
     #[serde(default)]
     pub is_stream_live: bool,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub avatar_url: String,
+    #[serde(default)]
+    pub bio: String,
+    #[serde(default)]
+    pub followers: u32,
+    #[serde(default)]
+    pub stream_title: String,
+    #[serde(default)]
+    pub stream_game: String,
+    #[serde(default)]
+    pub stream_viewers: u32,
     pub lines_since_last_spoke: u32,
     pub last_spoke_epoch: i64,
     pub last_activity_epoch: i64,
@@ -136,6 +150,13 @@ impl AppState {
                     record: rec,
                     currently_joined: false,
                     is_stream_live: false,
+                    display_name: String::new(),
+                    avatar_url: String::new(),
+                    bio: String::new(),
+                    followers: 0,
+                    stream_title: String::new(),
+                    stream_game: String::new(),
+                    stream_viewers: 0,
                     lines_since_last_spoke: 0,
                     last_spoke_epoch: now,
                     last_activity_epoch: 0,
@@ -160,6 +181,13 @@ impl AppState {
                         record: rec,
                         currently_joined: false,
                         is_stream_live: false,
+                        display_name: String::new(),
+                        avatar_url: String::new(),
+                        bio: String::new(),
+                        followers: 0,
+                        stream_title: String::new(),
+                        stream_game: String::new(),
+                        stream_viewers: 0,
                         lines_since_last_spoke: 0,
                         last_spoke_epoch: now,
                         last_activity_epoch: 0,
@@ -623,6 +651,13 @@ impl AppState {
                         record: new_rec.clone(),
                         currently_joined: false,
                         is_stream_live: false,
+                        display_name: String::new(),
+                        avatar_url: String::new(),
+                        bio: String::new(),
+                        followers: 0,
+                        stream_title: String::new(),
+                        stream_game: String::new(),
+                        stream_viewers: 0,
                         lines_since_last_spoke: 0,
                         last_spoke_epoch: now,
                         last_activity_epoch: 0,

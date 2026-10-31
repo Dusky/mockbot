@@ -822,6 +822,18 @@ fn check_time_based_triggers(state: &Arc<AppState>) {
     }
 }
 
+#[derive(Default)]
+struct TwitchChannelInfo {
+    display_name: String,
+    avatar_url: String,
+    bio: String,
+    followers: u32,
+    is_live: bool,
+    stream_title: String,
+    stream_game: String,
+    stream_viewers: u32,
+}
+
 async fn poll_live_streams_loop(state: Arc<AppState>) {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let mut root_store = rustls::RootCertStore::empty();
@@ -839,10 +851,21 @@ async fn poll_live_streams_loop(state: Arc<AppState>) {
         };
 
         for ch in channels {
-            if let Ok(is_live) = check_twitch_channel_live(&ch, &tls_config).await {
+            if let Ok(info) = fetch_twitch_channel_info(&ch, &tls_config).await {
                 let mut chans = state.channels.write().unwrap();
                 if let Some(rt) = chans.get_mut(&ch) {
-                    rt.is_stream_live = is_live;
+                    rt.is_stream_live = info.is_live;
+                    if !info.display_name.is_empty() {
+                        rt.display_name = info.display_name;
+                    }
+                    if !info.avatar_url.is_empty() {
+                        rt.avatar_url = info.avatar_url;
+                    }
+                    rt.bio = info.bio;
+                    rt.followers = info.followers;
+                    rt.stream_title = info.stream_title;
+                    rt.stream_game = info.stream_game;
+                    rt.stream_viewers = info.stream_viewers;
                 }
             }
             tokio::time::sleep(Duration::from_millis(250)).await;
@@ -852,10 +875,10 @@ async fn poll_live_streams_loop(state: Arc<AppState>) {
     }
 }
 
-async fn check_twitch_channel_live(
+async fn fetch_twitch_channel_info(
     channel: &str,
     tls_config: &Arc<rustls::ClientConfig>,
-) -> Result<bool> {
+) -> Result<TwitchChannelInfo> {
     use tokio::io::AsyncReadExt;
     let connector = TlsConnector::from(tls_config.clone());
     let tcp = TcpStream::connect(("gql.twitch.tv", 443)).await?;
@@ -863,7 +886,7 @@ async fn check_twitch_channel_live(
     let mut tls = connector.connect(domain, tcp).await?;
 
     let body = format!(
-        r#"{{"query":"query {{ user(login: \"{}\") {{ stream {{ id }} }} }}"}}"#,
+        r#"{{"query":"query {{ user(login: \"{}\") {{ displayName profileImageURL(width: 150) description followers {{ totalCount }} stream {{ id title viewersCount game {{ name }} }} }} }}"}}"#,
         channel
     );
     let req = format!(
@@ -874,8 +897,25 @@ async fn check_twitch_channel_live(
     tls.write_all(req.as_bytes()).await?;
     let mut resp = String::new();
     tls.read_to_string(&mut resp).await?;
-    // If stream is live, response contains `"stream":{"id":"..."}` rather than `"stream":null`
-    Ok(resp.contains(r#""stream":{"id":"#))
+    let json_str = resp.split_once("\r\n\r\n").map(|(_, b)| b).unwrap_or(&resp);
+    let val: serde_json::Value = serde_json::from_str(json_str).unwrap_or_default();
+    let user = &val["data"]["user"];
+    if user.is_null() {
+        return Ok(TwitchChannelInfo::default());
+    }
+    let stream = &user["stream"];
+    let is_live = !stream.is_null() && stream["id"].is_string();
+
+    Ok(TwitchChannelInfo {
+        display_name: user["displayName"].as_str().unwrap_or(channel).to_string(),
+        avatar_url: user["profileImageURL"].as_str().unwrap_or("").to_string(),
+        bio: user["description"].as_str().unwrap_or("").to_string(),
+        followers: user["followers"]["totalCount"].as_u64().unwrap_or(0) as u32,
+        is_live,
+        stream_title: stream["title"].as_str().unwrap_or("").to_string(),
+        stream_game: stream["game"]["name"].as_str().unwrap_or("").to_string(),
+        stream_viewers: stream["viewersCount"].as_u64().unwrap_or(0) as u32,
+    })
 }
 
 static APP_TOKEN_CACHE: std::sync::OnceLock<std::sync::Mutex<(String, i64)>> =

@@ -454,6 +454,100 @@
       font-size: 13px;
       color: var(--ink);
     }
+
+    /* Stream & Channel Directory Cards */
+    .streams-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+      gap: 18px;
+    }
+    .stream-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 18px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .stream-card.is-live {
+      border-color: var(--ok);
+    }
+    .stream-card-top {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .stream-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 1px solid var(--line-strong);
+      object-fit: cover;
+      background: var(--field);
+      flex-shrink: 0;
+    }
+    .stream-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .stream-name {
+      font-family: var(--f-sans);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .stream-name:hover {
+      color: var(--accent);
+      text-decoration: underline;
+    }
+    .stream-badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      font-family: var(--f-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ok);
+      border: 1px solid var(--ok);
+      border-radius: 3px;
+      background: rgba(127, 166, 124, 0.1);
+    }
+    .stream-badge-off {
+      font-family: var(--f-mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .stream-bio {
+      font-family: var(--f-sans);
+      font-size: 13px;
+      color: var(--ink-2);
+      line-height: 1.5;
+    }
+    .stream-stats-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-family: var(--f-mono);
+      font-size: 11px;
+      color: var(--muted);
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+    }
+    .stream-quote-box {
+      background: var(--field);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent);
+      padding: 10px 12px;
+      font-family: var(--f-mono);
+      font-size: 12px;
+      color: var(--ink);
+      line-height: 1.45;
+    }
     .pub-footer {
       padding-top: 32px;
       display: flex;
@@ -780,6 +874,7 @@
         <small id="rail-bot-nick">@mockbot</small>
       </div>
       <nav class="pub-nav" id="pub-nav-links">
+        <a href="#sec-streams">Channels</a>
         <a href="#sec-flowchart">How It Works</a>
         <a href="#sec-overview">Features</a>
         <a href="#sec-tts">Bark TTS &amp; OBS</a>
@@ -883,6 +978,19 @@
         </div>
       </div>
     </div>
+
+    <!-- SECTION: CHANNELS & LIVE STREAMS DIRECTORY -->
+    <section class="pub-section" id="sec-streams">
+      <div class="pub-section-head" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h2>Streams &amp; channels using Mockbot</h2>
+          <p>Live Twitch stream status, channel bios, corpus statistics, and sample Markov quotes from active channels.</p>
+        </div>
+        <button class="sm" type="button" onclick="loadPublicChannels()">Refresh directory</button>
+      </div>
+
+      <div id="pub-streams-grid" class="streams-grid"></div>
+    </section>
 
     <!-- SECTION 0: SIGNAL FLOWCHART & MARKOV DIAGRAM -->
     <section class="pub-section" id="sec-flowchart">
@@ -1869,11 +1977,92 @@
       twitchRedirectUri = s.twitch_redirect_uri || '';
     } catch (_) {}
 
+    loadPublicChannels();
+
     if (authToken) {
       const ok = await checkSession();
       if (ok) return;
     }
     showAuthScreen();
+  }
+
+  async function loadPublicChannels() {
+    const grid = document.getElementById('pub-streams-grid');
+    if (!grid) return;
+    try {
+      const res = await fetch('/api/public/channels');
+      const chans = await res.json();
+      if (!Array.isArray(chans) || chans.length === 0) {
+        grid.innerHTML = '<div style="color:var(--muted);font-size:13px;">No channels active yet.</div>';
+        return;
+      }
+      grid.innerHTML = chans.map(c => {
+        const avatar = c.avatar_url || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="%23211f1b"/></svg>';
+        const statusBadge = c.is_live
+          ? `<span class="stream-badge-live"><span class="dot on"></span>LIVE &middot; ${c.stream_viewers} viewers</span>`
+          : `<span class="stream-badge-off">${c.followers ? c.followers.toLocaleString() + ' followers' : 'Offline'}</span>`;
+        const detailLine = c.is_live
+          ? `<div class="stream-bio"><strong>${escapeHtml(c.stream_game || 'Live')}</strong>: ${escapeHtml(c.stream_title || '')}</div>`
+          : (c.bio ? `<div class="stream-bio">${escapeHtml(c.bio)}</div>` : '');
+        const quoteHtml = (!c.private_brain && c.sample_quote)
+          ? `<div class="stream-quote-box">
+               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                 <span style="font-size:10px;color:var(--muted);">SAMPLE MARKOV LINE</span>
+                 <button class="sm" style="padding:1px 6px;font-size:10px;" onclick="rollCardQuote('${escapeHtml(c.channel_name)}', this)">Roll quote</button>
+               </div>
+               <div id="card-quote-${escapeHtml(c.channel_name)}">"${escapeHtml(c.sample_quote)}"</div>
+             </div>`
+          : '';
+        return `
+          <div class="stream-card ${c.is_live ? 'is-live' : ''}">
+            <div class="stream-card-top">
+              <img class="stream-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(c.display_name)}" />
+              <div style="flex:1;min-width:0;">
+                <div class="stream-title-row">
+                  <a class="stream-name" href="https://twitch.tv/${encodeURIComponent(c.channel_name)}" target="_blank" rel="noopener">${escapeHtml(c.display_name)} &nearr;</a>
+                  ${statusBadge}
+                </div>
+                <div style="font-family:var(--f-mono);font-size:11px;color:var(--muted);">#${escapeHtml(c.channel_name)}</div>
+              </div>
+            </div>
+            ${detailLine}
+            ${quoteHtml}
+            <div class="stream-stats-bar">
+              <span>${c.corpus_lines.toLocaleString()} lines</span>
+              <span>&middot;</span>
+              <span>${c.vocab_size.toLocaleString()} vocab words</span>
+              ${c.tts_enabled ? '<span>&middot;</span><span style="color:var(--accent);">Bark TTS</span>' : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (_) {}
+  }
+
+  async function rollCardQuote(channelName, btnEl) {
+    const box = document.getElementById(`card-quote-${channelName}`);
+    if (!box) return;
+    if (btnEl) btnEl.disabled = true;
+    try {
+      const res = await fetch('/api/public/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brains: [
+            { brain: `channel:${channelName}`, weight: 0.75 },
+            { brain: 'global', weight: 0.25 }
+          ],
+          order: 2,
+          temperature: 1.0,
+          count: 1
+        })
+      });
+      const data = await res.json();
+      if (data.ok && data.result) {
+        box.textContent = `"${data.result.text}"`;
+      }
+    } catch (_) {}
+    if (btnEl) btnEl.disabled = false;
   }
 
   function startTwitchOAuth() {

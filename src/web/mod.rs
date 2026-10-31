@@ -39,6 +39,7 @@ pub async fn run_web_server(state: Arc<AppState>) -> anyhow::Result<()> {
         .route("/api/status", get(status_handler))
         .route("/api/events", get(events_handler))
         .route("/api/ws", get(ws_handler))
+        .route("/api/public/channels", get(public_channels_handler))
         .route("/api/public/generate", post(sandbox_generate_handler))
         .route("/api/tts/voices", get(tts_voices_handler))
         .route("/api/tts/logs", get(tts_logs_handler))
@@ -328,6 +329,103 @@ async fn public_summary_handler(State(state): State<Arc<AppState>>) -> impl Into
         twitch_client_id: state.config.twitch.client_id.clone(),
         twitch_redirect_uri: state.config.twitch.oauth_redirect_uri.clone(),
     })
+}
+
+#[derive(Serialize)]
+struct PublicChannelCard {
+    channel_name: String,
+    display_name: String,
+    avatar_url: String,
+    bio: String,
+    followers: u32,
+    is_live: bool,
+    stream_title: String,
+    stream_game: String,
+    stream_viewers: u32,
+    currently_joined: bool,
+    tts_enabled: bool,
+    private_brain: bool,
+    corpus_lines: usize,
+    vocab_size: usize,
+    sample_quote: String,
+}
+
+async fn public_channels_handler(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let chans: Vec<crate::state::ChannelRuntime> = {
+        let map = state.channels.read().unwrap();
+        map.values()
+            .filter(|c| c.record.join_enabled)
+            .cloned()
+            .collect()
+    };
+
+    let mut out = Vec::new();
+    {
+        let eng = state.engine.read().unwrap();
+        let b_stats = eng.list_brain_stats();
+        for rt in chans {
+            let chan_brain = format!("channel:{}", rt.record.channel_name);
+            let (corpus_lines, vocab_size) = b_stats
+                .iter()
+                .find(|b| b.name == chan_brain)
+                .map(|b| (b.sentence_count, b.unique_tokens))
+                .unwrap_or((0, 0));
+
+            let sample_quote = if !rt.record.private_brain {
+                let params = crate::markov::GenerationParams {
+                    brains: rt.record.brain_mix.clone(),
+                    order: rt.record.markov_order,
+                    temperature: rt.record.temperature,
+                    seed: None,
+                    min_words: 4,
+                    max_words: 28,
+                    max_chars: 220,
+                    max_overlap_ratio: 0.70,
+                    max_overlap_total: 15,
+                    max_attempts: 25,
+                    recent_outputs: Vec::new(),
+                    blocked_words: rt.record.blocked_words.clone(),
+                };
+                eng.generate(&params).map(|r| r.text).unwrap_or_default()
+            } else {
+                String::new()
+            };
+
+            let display_name = if rt.display_name.is_empty() {
+                rt.record.channel_name.clone()
+            } else {
+                rt.display_name.clone()
+            };
+
+            out.push(PublicChannelCard {
+                channel_name: rt.record.channel_name,
+                display_name,
+                avatar_url: rt.avatar_url,
+                bio: rt.bio,
+                followers: rt.followers,
+                is_live: rt.is_stream_live,
+                stream_title: rt.stream_title,
+                stream_game: rt.stream_game,
+                stream_viewers: rt.stream_viewers,
+                currently_joined: rt.currently_joined,
+                tts_enabled: rt.record.tts_enabled,
+                private_brain: rt.record.private_brain,
+                corpus_lines,
+                vocab_size,
+                sample_quote,
+            });
+        }
+    }
+
+    // Sort live channels first, then by corpus_lines desc, then followers desc
+    out.sort_by(|a, b| {
+        b.is_live
+            .cmp(&a.is_live)
+            .then_with(|| b.corpus_lines.cmp(&a.corpus_lines))
+            .then_with(|| b.followers.cmp(&a.followers))
+    });
+
+    Json(out)
 }
 
 async fn twitch_oauth_callback_page() -> Html<&'static str> {

@@ -261,11 +261,10 @@ pub async fn run_bark_worker_loop(
                     drift_enabled,
                     delayed_chat_trigger,
                 } => {
-                    let _ = state.tts_queue_len.fetch_update(
-                        Ordering::Relaxed,
-                        Ordering::Relaxed,
-                        |v| Some(v.saturating_sub(1)),
-                    );
+                    let cur_q = state.tts_queue_len.load(Ordering::Relaxed);
+                    state
+                        .tts_queue_len
+                        .store(cur_q.saturating_sub(1), Ordering::Relaxed);
                     if seq < state.tts_clear_seq.load(Ordering::Relaxed) {
                         state.tts_busy.store(false, Ordering::Relaxed);
                         continue;

@@ -36,12 +36,18 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Run interactive Terminal UI (with embedded Twitch Bot + WebUI daemon)
+    /// Run interactive Terminal UI (attaches to local or remote daemon via --url)
     Tui {
+        /// Remote or local server URL (e.g. https://mockbot.xyz or http://100.88.45.87:5002)
+        #[arg(short, long)]
+        url: Option<String>,
+        /// Admin or streamer auth token (defaults to MOCKBOT_TOKEN env var or config.toml admin_token)
+        #[arg(short, long)]
+        token: Option<String>,
         /// Run in offline/sandbox mode without connecting to Twitch IRC
         #[arg(long)]
         offline: bool,
-        /// Print a static snapshot of tab (1, 2, or 3) to stdout and exit
+        /// Print a static snapshot of tab (1, 2, 3, or 4) to stdout and exit
         #[arg(long)]
         dump: Option<usize>,
     },
@@ -96,6 +102,40 @@ async fn main() -> Result<()> {
             .init();
     }
 
+    // Fast-path for TUI when connecting to a remote URL or attaching to a running local daemon
+    if let None | Some(Commands::Tui { .. }) = &cli.command {
+        let (opt_url, opt_token, offline, dump) = match &cli.command {
+            Some(Commands::Tui {
+                url,
+                token,
+                offline,
+                dump,
+            }) => (url.clone(), token.clone(), *offline, *dump),
+            _ => (None, None, false, None),
+        };
+
+        let cfg_opt = AppConfig::load_or_create(&cli.config).ok();
+        let resolved_token = opt_token
+            .or_else(|| std::env::var("MOCKBOT_TOKEN").ok())
+            .or_else(|| cfg_opt.as_ref().map(|c| c.web.admin_token.clone()))
+            .unwrap_or_else(|| "ansv2-admin".to_string());
+
+        if let Some(remote_url) = opt_url.or_else(|| std::env::var("MOCKBOT_URL").ok()) {
+            return tui::run_remote_tui(remote_url, resolved_token, dump).await;
+        }
+
+        let port = cfg_opt
+            .as_ref()
+            .and_then(|c| c.web.bind_addr.rsplit(':').next())
+            .and_then(|p| p.parse::<u16>().ok())
+            .unwrap_or(5002);
+        let local_addr = format!("127.0.0.1:{}", port);
+        if !offline && tokio::net::TcpStream::connect(&local_addr).await.is_ok() {
+            let local_url = format!("http://{}", local_addr);
+            return tui::run_remote_tui(local_url, resolved_token, dump).await;
+        }
+    }
+
     let cfg = AppConfig::load_or_create(&cli.config)?;
     let db = Arc::new(Database::open(&cfg.storage.db_path)?);
     let _ = db.ensure_default_users(&cfg.twitch.owner, &cfg.web.admin_token);
@@ -126,6 +166,8 @@ async fn main() -> Result<()> {
     }
 
     match cli.command.unwrap_or(Commands::Tui {
+        url: None,
+        token: None,
         offline: false,
         dump: None,
     }) {
@@ -173,81 +215,41 @@ async fn main() -> Result<()> {
 
             web::run_web_server(state).await?;
         }
-        Commands::Tui { offline, dump } => {
+        Commands::Tui {
+            url,
+            token,
+            offline,
+            dump,
+        } => {
             let (irc_tx, irc_rx) = mpsc::unbounded_channel();
             let (tts_tx, tts_rx) = mpsc::unbounded_channel();
-            let port = cfg
-                .web
-                .bind_addr
-                .rsplit(':')
-                .next()
-                .and_then(|p| p.parse::<u16>().ok())
-                .unwrap_or(5002);
-            let local_daemon_addr = format!("127.0.0.1:{}", port);
-            let daemon_already_running =
-                tokio::net::TcpStream::connect(&local_daemon_addr).await.is_ok();
-
             let state = AppState::new(cfg, db, engine, irc_tx, tts_tx)?;
 
+            let tts_state = state.clone();
+            tokio::spawn(async move {
+                tts::run_bark_worker_loop(tts_state, tts_rx).await;
+            });
+
+            let web_state = state.clone();
+            tokio::spawn(async move {
+                let _ = web::run_web_server(web_state).await;
+            });
+
+            if !offline {
+                let twitch_state = state.clone();
+                tokio::spawn(async move {
+                    twitch::run_twitch_loop(twitch_state, irc_rx).await;
+                });
+            } else {
+                state.log_system("INFO", "Started in offline/sandbox mode (--offline)");
+            }
+
             if let Some(tab_num) = dump {
-                if daemon_already_running {
-                    use std::sync::atomic::Ordering;
-                    if let Some(body) =
-                        http_get_local(&local_daemon_addr, "/api/status", &state.config.web.admin_token).await
-                    {
-                        if let Ok(snap) = serde_json::from_str::<state::StatusSnapshot>(&body) {
-                            state.irc_connected.store(snap.irc_connected, Ordering::Relaxed);
-                            let mut chans = state.channels.write().unwrap();
-                            for rt in snap.channels {
-                                chans.insert(rt.record.channel_name.clone(), rt);
-                            }
-                        }
-                    }
-                    if let Some(body) =
-                        http_get_local(&local_daemon_addr, "/api/events", &state.config.web.admin_token).await
-                    {
-                        if let Ok(events) = serde_json::from_str::<Vec<state::LiveEvent>>(&body) {
-                            let mut recent = state.recent_events.write().unwrap();
-                            for ev in events {
-                                recent.push_back(ev);
-                            }
-                        }
-                    }
-                }
                 print!("{}", tui::render_snapshot_text(state, tab_num));
                 return Ok(());
             }
 
-            if daemon_already_running {
-                state.log_system(
-                    "INFO",
-                    format!("Attached TUI to running daemon on {}", local_daemon_addr),
-                );
-                let bridge_state = state.clone();
-                tokio::spawn(async move {
-                    run_daemon_attach_bridge(bridge_state, local_daemon_addr, irc_rx).await;
-                });
-            } else {
-                let tts_state = state.clone();
-                tokio::spawn(async move {
-                    tts::run_bark_worker_loop(tts_state, tts_rx).await;
-                });
-
-                let web_state = state.clone();
-                tokio::spawn(async move {
-                    let _ = web::run_web_server(web_state).await;
-                });
-
-                if !offline {
-                    let twitch_state = state.clone();
-                    tokio::spawn(async move {
-                        twitch::run_twitch_loop(twitch_state, irc_rx).await;
-                    });
-                } else {
-                    state.log_system("INFO", "Started in offline/sandbox mode (--offline)");
-                }
-            }
-
+            let _ = (url, token);
             tui::run_tui(state).await?;
         }
     }
@@ -391,70 +393,3 @@ fn run_cli_generate(
     }
 }
 
-async fn run_daemon_attach_bridge(
-    state: Arc<AppState>,
-    addr: String,
-    mut irc_rx: mpsc::UnboundedReceiver<state::IrcControlCmd>,
-) {
-    use std::sync::atomic::Ordering;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-    let mut poll_interval = tokio::time::interval(std::time::Duration::from_millis(1000));
-
-    loop {
-        tokio::select! {
-            _ = poll_interval.tick() => {
-                if let Some(body) = http_get_local(&addr, "/api/status", &state.config.web.admin_token).await {
-                    if let Ok(snap) = serde_json::from_str::<state::StatusSnapshot>(&body) {
-                        state.irc_connected.store(snap.irc_connected, Ordering::Relaxed);
-                        state.tts_ready.store(snap.tts_ready, Ordering::Relaxed);
-                        state.tts_busy.store(snap.tts_busy, Ordering::Relaxed);
-                        let mut chans = state.channels.write().unwrap();
-                        for rt in snap.channels {
-                            chans.insert(rt.record.channel_name.clone(), rt);
-                        }
-                    }
-                }
-                if let Some(body) = http_get_local(&addr, "/api/events", &state.config.web.admin_token).await {
-                    if let Ok(events) = serde_json::from_str::<Vec<state::LiveEvent>>(&body) {
-                        let mut recent = state.recent_events.write().unwrap();
-                        recent.clear();
-                        for ev in events {
-                            recent.push_back(ev);
-                        }
-                    }
-                }
-            }
-            Some(cmd) = irc_rx.recv() => {
-                if let Ok(json_body) = serde_json::to_string(&cmd) {
-                    if let Ok(mut stream) = tokio::net::TcpStream::connect(&addr).await {
-                        let req = format!(
-                            "POST /api/admin/irc_cmd HTTP/1.1\r\nHost: {}\r\nContent-Type: application/json\r\nX-Admin-Token: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                            addr,
-                            state.config.web.admin_token,
-                            json_body.len(),
-                            json_body
-                        );
-                        let _ = stream.write_all(req.as_bytes()).await;
-                        let mut buf = Vec::new();
-                        let _ = stream.read_to_end(&mut buf).await;
-                    }
-                }
-            }
-        }
-    }
-}
-
-async fn http_get_local(addr: &str, path: &str, admin_token: &str) -> Option<String> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let mut stream = tokio::net::TcpStream::connect(addr).await.ok()?;
-    let req = format!(
-        "GET {} HTTP/1.1\r\nHost: {}\r\nX-Admin-Token: {}\r\nConnection: close\r\n\r\n",
-        path, addr, admin_token
-    );
-    stream.write_all(req.as_bytes()).await.ok()?;
-    let mut raw = String::new();
-    stream.read_to_string(&mut raw).await.ok()?;
-    let (_, body) = raw.split_once("\r\n\r\n")?;
-    Some(body.to_string())
-}

@@ -6,7 +6,7 @@
   <title>mockbot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root, [data-theme="chassis"] {
       --bg:          #141311;
@@ -44,6 +44,7 @@
 
     :root {
       --f-serif: 'Instrument Serif', Georgia, serif;
+      --f-sans:  'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       --f-mono:  'IBM Plex Mono', ui-monospace, monospace;
     }
 
@@ -184,60 +185,177 @@
       margin-top: -6px;
     }
 
-    /* ─── LOGIN / FRONT PAGE ─── */
+    /* ─── PUBLIC WEB APP LANDING PAGE ─── */
     #auth-screen {
-      max-width: 960px;
+      font-family: var(--f-sans);
+      color: var(--ink);
+      max-width: 1120px;
       margin: 0 auto;
-      padding: 40px 24px 64px;
+      padding: 48px 28px 80px;
     }
-    .front-grid {
-      display: grid;
-      grid-template-columns: 1.45fr 1fr;
-      gap: 40px;
-      align-items: start;
-    }
-    @media (max-width: 820px) {
-      .front-grid { grid-template-columns: 1fr; }
-    }
-    .front-prose h1 {
-      font-family: var(--serif);
-      font-size: 44px;
-      font-weight: 400;
-      line-height: 1.05;
-      margin: 0 0 14px;
-    }
-    .front-prose p {
+    .pub-nav {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-family: var(--f-sans);
       font-size: 13px;
+    }
+    .pub-nav a {
       color: var(--ink-2);
-      line-height: 1.65;
-      margin: 0 0 14px;
+      text-decoration: none;
+      font-weight: 500;
     }
-    .front-prose h3 {
-      font-size: 13px;
-      font-weight: 600;
+    .pub-nav a:hover {
       color: var(--ink);
-      margin: 22px 0 8px;
+    }
+    .hero-split {
+      display: grid;
+      grid-template-columns: 1.35fr 0.85fr;
+      gap: 48px;
+      align-items: start;
+      padding-bottom: 56px;
       border-bottom: 1px solid var(--line);
-      padding-bottom: 4px;
     }
-    .front-prose dl {
-      margin: 0;
-      font-size: 12px;
-      line-height: 1.55;
+    @media (max-width: 880px) {
+      .hero-split { grid-template-columns: 1fr; gap: 32px; }
+      .pub-nav { display: none; }
     }
-    .front-prose dt {
+    .hero-copy h1 {
+      font-family: var(--f-serif);
+      font-size: 52px;
+      font-weight: 400;
+      line-height: 1.06;
+      letter-spacing: -0.015em;
+      margin: 0 0 18px;
       color: var(--ink);
-      font-weight: 600;
-      margin-top: 8px;
     }
-    .front-prose dd {
-      margin: 2px 0 0 0;
-      color: var(--muted);
+    .hero-copy p {
+      font-size: 15.5px;
+      line-height: 1.68;
+      color: var(--ink-2);
+      margin: 0 0 16px;
+    }
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .btn-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      font-family: var(--f-sans);
+      font-size: 13.5px;
+      font-weight: 500;
+      text-decoration: none;
+      border-radius: 3px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--ink);
+      cursor: pointer;
+    }
+    .btn-link:hover {
+      border-color: var(--ink);
+    }
+    .btn-link.primary-cta {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .btn-link.primary-cta:hover {
+      filter: brightness(1.08);
     }
     .auth-panel {
       background: var(--surface);
       border: 1px solid var(--line);
-      padding: 20px;
+      border-radius: 4px;
+      padding: 24px;
+      font-family: var(--f-sans);
+    }
+    .auth-panel h2 {
+      font-family: var(--f-sans);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0 0 6px;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .auth-panel .sub-note {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 16px;
+      line-height: 1.45;
+    }
+    .pub-section {
+      padding: 52px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .pub-section-head {
+      margin-bottom: 28px;
+    }
+    .pub-section-head h2 {
+      font-family: var(--f-serif);
+      font-size: 34px;
+      font-weight: 400;
+      color: var(--ink);
+      margin: 0 0 8px;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .pub-section-head p {
+      font-size: 15px;
+      color: var(--muted);
+      max-width: 700px;
+      line-height: 1.6;
+    }
+    .pub-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 780px) {
+      .pub-grid-2 { grid-template-columns: 1fr; }
+    }
+    .pub-feature-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 22px 24px;
+    }
+    .pub-feature-card h3 {
+      font-family: var(--f-sans);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 0 0 8px;
+    }
+    .pub-feature-card p {
+      font-size: 14px;
+      color: var(--ink-2);
+      line-height: 1.62;
+      margin: 0;
+    }
+    .pub-footer {
+      padding-top: 32px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .pub-footer a {
+      color: var(--ink-2);
+      text-decoration: none;
+    }
+    .pub-footer a:hover {
+      color: var(--ink);
+      text-decoration: underline;
     }
     details.adv-drawer {
       border: 1px solid var(--line);
@@ -541,9 +659,18 @@
 <body>
 
   <header class="topbar">
-    <div class="brand">
-      <span>mockbot</span>
-      <small id="rail-bot-nick">@mockbot</small>
+    <div style="display:flex;align-items:center;gap:28px;">
+      <div class="brand" style="cursor:pointer;" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+        <span>mockbot</span>
+        <small id="rail-bot-nick">@mockbot</small>
+      </div>
+      <nav class="pub-nav" id="pub-nav-links">
+        <a href="#sec-overview">Features</a>
+        <a href="#sec-tts">Bark TTS &amp; OBS</a>
+        <a href="#sec-security">Security &amp; Moderation</a>
+        <a href="#sec-commands">Commands</a>
+        <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">GitHub &nearr;</a>
+      </nav>
     </div>
 
     <div class="topbar-right">
@@ -557,80 +684,32 @@
     </div>
   </header>
 
-  <!-- LOGIN / SIGN UP -->
+  <!-- PUBLIC LANDING PAGE & LOGIN -->
   <div id="auth-screen">
-    <div class="front-grid">
-      <div class="front-prose">
-        <h1>mockbot</h1>
+    <!-- HERO -->
+    <div class="hero-split">
+      <div class="hero-copy">
+        <h1>A Twitch chat bot that learns from your community and talks back.</h1>
         <p>
-          <code>@mockbot</code> is a multi-brain Markov chain and Suno Bark TTS bot for Twitch chat.
-          It does not use an LLM or ChatGPT: every sentence it generates is assembled word-by-word from real messages typed in your chat room (or from chat logs and text files you import).
+          <strong>Mockbot</strong> is a multi-brain Markov chain and Suno Bark TTS bot for Twitch. Unlike ChatGPT or LLM bots that sound like a generic AI assistant, Mockbot builds a word-transition graph directly from the messages typed in your chat room. Every sentence it says is stitched together word-by-word from your own community's vocabulary, emotes, and inside jokes.
         </p>
         <p>
-          Each channel gets its own isolated Markov brain (<code>channel:yourname</code>). You can run the bot strictly on your own chat's vocabulary, blend in weights from other brains, or let viewers run <code>!mock @username</code> to generate a message specifically from one chatter's history.
+          Every streamer gets an isolated brain (<code>channel:yourname</code>) with full control over how often the bot speaks, which brains it blends together, blocked words, automatic ban/timeout purges, and optional GPU-accelerated Bark text-to-speech for OBS.
         </p>
 
-        <h3>How it works</h3>
-        <dl>
-          <dt>Cadence &amp; live detection</dt>
-          <dd>Spoken messages require both a minimum line count and a minimum minute cooldown to pass (default: 100 chat lines and 15 minutes), and only fire while your stream is live on Twitch.</dd>
-
-          <dt>Moderation &amp; auto-purge</dt>
-          <dd>When a user is timed out or banned in your chat, or a single message is deleted by a moderator, Mockbot automatically deletes their lines from the database and rebuilds your channel's brain in memory. URLs and slurs are stripped before learning.</dd>
-
-          <dt>Bark TTS &amp; OBS browser source</dt>
-          <dd>Optional GPU-accelerated Suno Bark text-to-speech with custom <code>.npz</code> voice cloning, voice drift, and an OBS browser overlay (<code>/obs/yourname</code>) with a volume-reactive avatar.</dd>
-        </dl>
-
-        <h3>Chat commands</h3>
-        <div class="table-wrap" style="margin-top:8px;">
-          <table>
-            <thead>
-              <tr>
-                <th>Command</th>
-                <th>Who</th>
-                <th>Description</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><code>!speak [topic]</code></td>
-                <td>Everyone</td>
-                <td>Generate a Markov response (optionally seeded with a word or phrase).</td>
-              </tr>
-              <tr>
-                <td><code>!mock @user [topic]</code></td>
-                <td>Everyone</td>
-                <td>Imitate a specific chatter from their message history in your channel (or another brain).</td>
-              </tr>
-              <tr>
-                <td><code>!tts &lt;text&gt;</code></td>
-                <td>Mods / Streamer</td>
-                <td>Read text aloud on your OBS overlay using your channel's Bark TTS voice.</td>
-              </tr>
-              <tr>
-                <td><code>!skip</code></td>
-                <td>Mods / Streamer</td>
-                <td>Clear the TTS queue and stop any audio currently playing in OBS.</td>
-              </tr>
-              <tr>
-                <td><code>!mockbot lines &lt;n&gt;</code></td>
-                <td>Mods / Streamer</td>
-                <td>Set minimum chat lines required between automatic messages.</td>
-              </tr>
-              <tr>
-                <td><code>!mockbot start / stop</code></td>
-                <td>Mods / Streamer</td>
-                <td>Unmute or mute automatic responses in chat.</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="hero-actions">
+          <button class="btn-link primary-cta" onclick="startTwitchOAuth()">Sign in with Twitch</button>
+          <a class="btn-link" href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">View source on GitHub &nearr;</a>
+          <a class="btn-link" href="#sec-security">How moderation &amp; security work</a>
         </div>
       </div>
 
+      <!-- SIGN IN CARD -->
       <div class="auth-panel">
-        <h2 style="margin-bottom:12px;">Sign in or add to channel</h2>
-        <button class="primary" style="width:100%;padding:10px;margin-bottom:16px;" onclick="startTwitchOAuth()">Log in with Twitch</button>
+        <h2>Streamer dashboard</h2>
+        <p class="sub-note">Sign in with your Twitch account to add <code>@mockbot</code> to your channel or manage your settings.</p>
+
+        <button class="btn-link primary-cta" style="width:100%;justify-content:center;margin-bottom:18px;" onclick="startTwitchOAuth()">Continue with Twitch</button>
 
         <div style="border-top:1px solid var(--line);padding-top:14px;">
           <div style="display:flex;gap:6px;margin-bottom:12px;">
@@ -683,11 +762,188 @@
 
         <div id="auth-msg" class="notice hidden"></div>
 
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.5;">
-          After adding the bot to your channel, run <code>/vip mockbot</code> or <code>/mod mockbot</code> in your Twitch chat so Follower-Only and Slow Mode do not block its messages.
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);line-height:1.5;">
+          <strong>Tip for streamers:</strong> Run <code>/vip mockbot</code> or <code>/mod mockbot</code> in your Twitch chat so Slow Mode and Follower-Only Mode don't block its messages.
         </div>
       </div>
     </div>
+
+    <!-- SECTION 1: WHAT IT DOES -->
+    <section class="pub-section" id="sec-overview">
+      <div class="pub-section-head">
+        <h2>What Mockbot does</h2>
+        <p>Built from the ground up in Rust to handle multi-channel Markov generation, live corpus editing, and custom persona mixing without touching external AI APIs.</p>
+      </div>
+
+      <div class="pub-grid-2">
+        <div class="pub-feature-card">
+          <h3>Isolated Per-Channel Brains &amp; Blending</h3>
+          <p>
+            Every channel has its own Markov brain (<code>channel:yourname</code>) that learns from incoming chat messages. You can run 100% on your own community's chat, blend multiple brains together with percentage sliders (such as 70% your channel + 30% global), or import historical logs (<code>TwitchDownloaderCLI</code> JSON, plain text, or IRC chat logs) so the bot knows your channel's lore immediately.
+          </p>
+        </div>
+
+        <div class="pub-feature-card">
+          <h3><code>!speak</code>, <code>!mock @user</code> &amp; Custom Commands</h3>
+          <p>
+            Viewers can run <code>!speak [topic]</code> to generate a sentence seeded around a specific word, or run <code>!mock @username</code> to generate a message built strictly from that single chatter's message history in your channel. Streamers can also define custom <code>!commands</code> mapped to specific brains and seed words.
+          </p>
+        </div>
+
+        <div class="pub-feature-card">
+          <h3>Smart Cadence &amp; Live Stream Detection</h3>
+          <p>
+            Mockbot won't spam a quiet or offline channel. Automatic messages use an <strong>AND</strong> gate — requiring <em>both</em> a minimum number of chat lines (default 100 lines) and a minimum cooldown timer (default 15 minutes) to pass before speaking — and pause automatically whenever your Twitch stream is offline.
+          </p>
+        </div>
+
+        <div class="pub-feature-card">
+          <h3>Channel Points, Bits, Raids &amp; Subs</h3>
+          <p>
+            Hook your Twitch community events directly into the bot: trigger Markov responses or Bark TTS audio clips automatically when someone raids your channel, subscribes, cheers a minimum number of bits, or redeems a specific Twitch Channel Point reward.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: BARK TTS & OBS -->
+    <section class="pub-section" id="sec-tts">
+      <div class="pub-section-head">
+        <h2>Suno Bark TTS &amp; OBS Overlay</h2>
+        <p>Optional GPU-accelerated text-to-speech with custom voice cloning and a browser-source overlay for OBS Studio.</p>
+      </div>
+
+      <div class="pub-grid-2">
+        <div class="pub-feature-card">
+          <h3>Expressive Bark Audio &amp; Voice Cloning</h3>
+          <p>
+            Unlike flat robotic TTS, Suno Bark synthesizes natural vocal inflections including laughter (<code>[laughs]</code>), sighs (<code>[sighs]</code>), gasps, and singing (<code>&sung;</code>). Upload any <code>.wav</code> or <code>.mp3</code> clip in the dashboard to clone a custom <code>.npz</code> voice preset, enable <strong>Voice Drift</strong> so the voice mutates over the course of a stream, or save funny Bark hallucinations as permanent voices.
+          </p>
+        </div>
+
+        <div class="pub-feature-card">
+          <h3>Volume-Reactive OBS Browser Source</h3>
+          <p>
+            Drop your channel's <code>/obs/yourname</code> URL into OBS as a Browser Source. It plays incoming TTS clips automatically, animates your custom idle/talking PNG or GIF avatar at 60fps using WebAudio RMS volume analysis, and supports instant panic-skipping from the web dashboard or by typing <code>!skip</code> in chat.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: SECURITY & MODERATION -->
+    <section class="pub-section" id="sec-security">
+      <div class="pub-section-head">
+        <h2>Security, Privacy &amp; Moderation</h2>
+        <p>Designed for live Twitch streams where moderation safety, ban enforcement, and channel isolation actually matter.</p>
+      </div>
+
+      <div class="pub-grid-2">
+        <div class="pub-feature-card">
+          <h3>Automatic Ban &amp; Timeout Purge (<code>CLEARCHAT</code> / <code>CLEARMSG</code>)</h3>
+          <p>
+            Mockbot listens to Twitch IRC moderation events in real time. The moment a moderator bans or times out a user — or deletes a single message — Mockbot automatically purges every line learned from that user out of SQLite and rebuilds your channel's Markov brain in memory so deleted content can never be repeated.
+          </p>
+        </div>
+
+        <div class="pub-feature-card">
+          <h3>Blocked Words, Bot Ignore Lists &amp; Anti-Parroting</h3>
+          <p>
+            Incoming chat messages and generated outputs are filtered against both a global blocklist and your channel's custom blocked-words list. URLs and bot commands are stripped before training, known bots (Nightbot, StreamElements, Sery_Bot, etc.) are ignored automatically, and contiguous N-gram overlap checks prevent the bot from parroting a single message verbatim.
+          </p>
+        </div>
+
+        <div class="pub-feature-card">
+          <h3>Verified Ownership &amp; Private Brains</h3>
+          <p>
+            Channel settings are locked to verified broadcasters via Twitch OAuth (or in-chat broadcaster verification with <code>!mockbot claim</code>). You can enable <strong>Private brain</strong> in your settings so other streamers cannot blend or <code>!mock</code> your channel's corpus, and lock your OBS overlay URL behind a secret key (<code>?key=...</code>).
+          </p>
+        </div>
+
+        <div class="pub-feature-card">
+          <h3>Open Source &amp; Self-Hosted</h3>
+          <p>
+            Mockbot is a single-binary Rust application (<code>tokio</code>, <code>axum</code>, <code>rusqlite</code>, <code>ratatui</code>) with an embedded SQLite database and local CUDA Python worker for Bark TTS. No chat data is ever sent to third-party LLM providers. Inspect the full source code on <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="color:var(--accent);">GitHub (Dusky/mockbot)</a>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: CHAT COMMANDS -->
+    <section class="pub-section" id="sec-commands" style="border-bottom:none;padding-bottom:24px;">
+      <div class="pub-section-head">
+        <h2>Chat commands reference</h2>
+        <p>Commands available in your Twitch chat once <code>@mockbot</code> joins your channel.</p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Permission</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>!speak [topic]</code></td>
+              <td>Everyone (cooldown)</td>
+              <td>Generate a Markov chat response, optionally seeded with a topic word or phrase.</td>
+            </tr>
+            <tr>
+              <td><code>!mock @username [topic]</code></td>
+              <td>Everyone (cooldown)</td>
+              <td>Generate a sentence built strictly from a specific chatter's message history in your channel (or another public brain).</td>
+            </tr>
+            <tr>
+              <td><code>!tts &lt;text&gt;</code></td>
+              <td>Streamer / Mods / Trusted</td>
+              <td>Synthesize text with your channel's Bark TTS voice and play it on your OBS overlay.</td>
+            </tr>
+            <tr>
+              <td><code>!skip</code></td>
+              <td>Streamer / Mods / Trusted</td>
+              <td>Clear pending TTS clips in the queue and immediately stop any audio playing in OBS.</td>
+            </tr>
+            <tr>
+              <td><code>!mockbot lines &lt;n&gt;</code></td>
+              <td>Streamer / Mods / Trusted</td>
+              <td>Set the minimum number of chat lines required between automatic messages.</td>
+            </tr>
+            <tr>
+              <td><code>!mockbot time &lt;minutes&gt;</code></td>
+              <td>Streamer / Mods / Trusted</td>
+              <td>Set the minimum cooldown in minutes between automatic messages.</td>
+            </tr>
+            <tr>
+              <td><code>!mockbot voice &lt;preset&gt;</code></td>
+              <td>Streamer / Mods / Trusted</td>
+              <td>Change your channel's active Bark TTS voice preset from chat.</td>
+            </tr>
+            <tr>
+              <td><code>!mockbot start / stop</code></td>
+              <td>Streamer / Mods / Trusted</td>
+              <td>Unmute or mute automatic Markov responses in your channel.</td>
+            </tr>
+            <tr>
+              <td><code>!mockbot part</code></td>
+              <td>Streamer / Mods</td>
+              <td>Have the bot leave your Twitch chat channel immediately.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="pub-footer">
+      <div>
+        <strong>mockbot</strong> &mdash; Multi-brain Markov chain &amp; Bark TTS platform for Twitch.
+      </div>
+      <div style="display:flex;gap:20px;">
+        <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">GitHub Repository (Dusky/mockbot) &nearr;</a>
+        <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">Back to top &uarr;</a>
+      </div>
+    </footer>
   </div>
 
   <!-- APP -->
@@ -1471,6 +1727,7 @@
   function showAuthScreen() {
     document.getElementById('auth-screen').classList.remove('hidden');
     document.getElementById('app').classList.add('hidden');
+    document.getElementById('pub-nav-links').classList.remove('hidden');
     document.getElementById('rail-logout-btn').classList.add('hidden');
     document.getElementById('rail-backup-btn').classList.add('hidden');
   }
@@ -1478,6 +1735,7 @@
   async function enterStudio() {
     document.getElementById('auth-screen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
+    document.getElementById('pub-nav-links').classList.add('hidden');
     document.getElementById('rail-logout-btn').classList.remove('hidden');
 
     const isAdmin = currentUser.role === 'admin';

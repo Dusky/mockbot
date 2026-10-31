@@ -1,0 +1,47 @@
+[twitch]
+nickname = "anormalskipviewer"
+oauth_token = "oauth:your_token_here"
+command_prefix = "!ansv"
+
+mockbot_nickname = "mockbot"
+mockbot_oauth_token = ""
+mockbot_command_prefix = "!mockbot"
+
+client_id = ""
+client_secret = ""
+oauth_redirect_uri = "https://mockbot.xyz/auth/twitch/callback"
+owner = "firestarman"
+initial_channels = ["firestarman"]
+default_ignored_bots = [
+    "nightbot",
+    "streamelements",
+    "moobot",
+    "fossabot",
+    "wizebot",
+    "sery_bot",
+    "soundalerts",
+    "streamlabs",
+    "pokemoncommunitygame",
+    "kofistreambot",
+    "commanderroot",
+]
+
+[web]
+bind_addr = "0.0.0.0:5002"
+admin_token = "change-me"
+public_join_enabled = true
+public_join_contribute_global = false
+max_public_channels = 250
+
+[markov]
+default_order = 2
+max_overlap_ratio = 0.7
+max_overlap_total = 15
+max_attempts = 30
+min_words = 3
+max_words = 35
+strip_urls = true
+badwords_file = "badwords.txt"
+
+[storage]
+db_path = "ansv2.db"

@@ -1,0 +1,12 @@
+/target
+config.toml
+*.db
+*.db-shm
+*.db-wal
+badwords.txt
+outputs/
+tts_audio/
+voices/
+*.log
+*.pid
+traefik-mockbot.yml

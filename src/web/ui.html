@@ -1,0 +1,2657 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="chassis">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>mockbot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root, [data-theme="chassis"] {
+      --bg:          #141311;
+      --bg-2:        #1b1916;
+      --surface:     #211f1b;
+      --field:       #0e0d0b;
+      --ink:         #f4f0e6;
+      --ink-2:       #c7c1b4;
+      --muted:       #857f72;
+      --line:        #3d3932;
+      --line-strong: #5c564b;
+      --accent:      #d94b2a;
+      --ok:          #7fa67c;
+      --warn:        #d49b35;
+      --danger:      #d94b2a;
+      --shadow:      #080706;
+    }
+
+    [data-theme="linen"] {
+      --bg:          #efe8d8;
+      --bg-2:        #e6dec9;
+      --surface:     #f7f1e3;
+      --field:       #ebe3d0;
+      --ink:         #1a2640;
+      --ink-2:       #3a4666;
+      --muted:       #6a6957;
+      --line:        #bfb59b;
+      --line-strong: #8c826a;
+      --accent:      #c14a3b;
+      --ok:          #2e6f40;
+      --warn:        #b06d18;
+      --danger:      #c14a3b;
+      --shadow:      #cfc5ad;
+    }
+
+    :root {
+      --f-serif: 'Instrument Serif', Georgia, serif;
+      --f-mono:  'IBM Plex Mono', ui-monospace, monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    .hidden { display: none !important; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--ink);
+      font-family: var(--f-mono);
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── TOP BAR ─── */
+    .topbar {
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--line);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-family: var(--f-serif);
+      font-size: 26px;
+      line-height: 1;
+      color: var(--ink);
+    }
+    .brand small {
+      font-family: var(--f-mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 11.5px;
+      color: var(--ink-2);
+    }
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--line-strong);
+      display: inline-block;
+      margin-right: 4px;
+    }
+    .dot.on { background: var(--ok); }
+    .dot.busy { background: var(--accent); }
+
+    /* ─── CONTROLS ─── */
+    button {
+      font-family: var(--f-mono);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 12px;
+      background: var(--surface);
+      color: var(--ink);
+      border: 1px solid var(--line-strong);
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: var(--bg-2);
+    }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    button.primary:hover {
+      filter: brightness(1.08);
+    }
+    button.sm {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+    button.danger {
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    select,
+    textarea {
+      font-family: var(--f-mono);
+      font-size: 12.5px;
+      background: var(--field);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 7px 10px;
+      width: 100%;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      width: 100%;
+      height: 16px;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 4px;
+      background: var(--field);
+      border: 1px solid var(--line);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px;
+      height: 14px;
+      background: var(--ink);
+      border: 1px solid var(--bg);
+      margin-top: -6px;
+    }
+
+    /* ─── LOGIN / FRONT PAGE ─── */
+    #auth-screen {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 24px 64px;
+    }
+    .front-grid {
+      display: grid;
+      grid-template-columns: 1.45fr 1fr;
+      gap: 40px;
+      align-items: start;
+    }
+    @media (max-width: 820px) {
+      .front-grid { grid-template-columns: 1fr; }
+    }
+    .front-prose h1 {
+      font-family: var(--serif);
+      font-size: 44px;
+      font-weight: 400;
+      line-height: 1.05;
+      margin: 0 0 14px;
+    }
+    .front-prose p {
+      font-size: 13px;
+      color: var(--ink-2);
+      line-height: 1.65;
+      margin: 0 0 14px;
+    }
+    .front-prose h3 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink);
+      margin: 22px 0 8px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 4px;
+    }
+    .front-prose dl {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .front-prose dt {
+      color: var(--ink);
+      font-weight: 600;
+      margin-top: 8px;
+    }
+    .front-prose dd {
+      margin: 2px 0 0 0;
+      color: var(--muted);
+    }
+    .auth-panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      padding: 20px;
+    }
+    details.adv-drawer {
+      border: 1px solid var(--line);
+      background: var(--bg-2);
+      border-radius: 3px;
+      padding: 10px 12px;
+      margin-bottom: 14px;
+    }
+    details.adv-drawer > summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink-2);
+      user-select: none;
+    }
+    details.adv-drawer[open] > summary {
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      color: var(--ink);
+    }
+    .preset-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+
+    /* ─── MAIN LAYOUT ─── */
+    .shell {
+      display: grid;
+      grid-template-columns: 190px minmax(0, 1fr);
+      min-height: calc(100vh - 50px);
+    }
+    @media (max-width: 800px) {
+      .shell { grid-template-columns: 1fr; }
+    }
+
+    .sidebar {
+      background: var(--bg-2);
+      border-right: 1px solid var(--line);
+      padding: 16px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .user-meta {
+      padding: 6px 10px 14px;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--line);
+      font-size: 12px;
+    }
+    .user-meta .sub {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .nav-btn {
+      text-align: left;
+      background: transparent;
+      border: 1px solid transparent;
+      padding: 7px 10px;
+      color: var(--ink-2);
+      font-size: 12.5px;
+    }
+    .nav-btn:hover {
+      background: var(--surface);
+      color: var(--ink);
+    }
+    .nav-btn.active {
+      background: var(--surface);
+      color: var(--ink);
+      border-color: var(--line);
+      font-weight: 600;
+    }
+
+    .content {
+      padding: 24px 28px 64px;
+      max-width: 1240px;
+      width: 100%;
+    }
+
+    .page-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--line);
+    }
+    .page-head h1 {
+      font-family: var(--f-serif);
+      font-size: 30px;
+      font-weight: 400;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 20px;
+      align-items: start;
+    }
+    @media (max-width: 1000px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 18px;
+    }
+    .card h2 {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 14px;
+      color: var(--ink);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    .field label {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 10px 12px;
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      margin-bottom: 14px;
+    }
+    .checks label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .mix-bar {
+      height: 6px;
+      width: 100%;
+      background: var(--field);
+      border: 1px solid var(--line);
+      display: flex;
+      margin-bottom: 10px;
+    }
+    .mix-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .mix-row {
+      display: grid;
+      grid-template-columns: 160px 1fr 44px 26px;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 8px;
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+    }
+
+    .samples {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .sample {
+      background: var(--bg-2);
+      border: 1px solid var(--line);
+      border-left: 3px solid var(--accent);
+      padding: 10px 12px;
+    }
+    .sample-meta {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      background: var(--field);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+    }
+    th {
+      font-size: 11px;
+      color: var(--muted);
+      background: var(--bg-2);
+      font-weight: 500;
+    }
+
+    .log-box {
+      background: var(--field);
+      border: 1px solid var(--line);
+      height: 520px;
+      overflow-y: auto;
+      padding: 10px 12px;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .log-line {
+      padding: 2px 4px;
+      word-break: break-word;
+    }
+    .log-line.bot {
+      border-left: 2px solid var(--accent);
+      padding-left: 8px;
+      background: rgba(217, 75, 42, 0.08);
+    }
+    .log-ts { color: var(--muted); margin-right: 6px; }
+    .log-ch { color: var(--accent); margin-right: 6px; }
+    .log-usr { font-weight: 600; margin-right: 6px; }
+
+    .notice {
+      margin-top: 10px;
+      padding: 7px 10px;
+      border: 1px solid var(--line);
+      background: var(--field);
+      font-size: 12px;
+    }
+
+    audio {
+      height: 28px;
+      max-width: 200px;
+    }
+
+    /* Instant CSS Hover Tooltips */
+    [data-tip] {
+      position: relative;
+      cursor: help;
+    }
+    .tip-q {
+      display: inline-block;
+      font-size: 10px;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      width: 14px;
+      height: 14px;
+      line-height: 12px;
+      text-align: center;
+      margin-left: 4px;
+    }
+    [data-tip]:hover::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 6px);
+      left: 0;
+      z-index: 100;
+      width: max-content;
+      max-width: 280px;
+      background: var(--field);
+      color: var(--ink);
+      border: 1px solid var(--accent);
+      border-radius: 3px;
+      padding: 6px 9px;
+      font-size: 11px;
+      font-weight: 400;
+      line-height: 1.4;
+      white-space: normal;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <span>mockbot</span>
+      <small id="rail-bot-nick">@mockbot</small>
+    </div>
+
+    <div class="topbar-right">
+      <div class="status-group">
+        <span><span class="dot" id="lamp-irc"></span>IRC</span>
+        <span><span class="dot" id="lamp-bark"></span>Bark TTS</span>
+      </div>
+      <button class="sm hidden" id="rail-backup-btn" onclick="downloadDbBackup()" data-tip="Download a consistent SQLite .db backup snapshot">Backup DB</button>
+      <button class="sm" onclick="toggleTheme()">Theme</button>
+      <button class="sm hidden" id="rail-logout-btn" onclick="doLogout()">Log out</button>
+    </div>
+  </header>
+
+  <!-- LOGIN / SIGN UP -->
+  <div id="auth-screen">
+    <div class="front-grid">
+      <div class="front-prose">
+        <h1>mockbot</h1>
+        <p>
+          <code>@mockbot</code> is a multi-brain Markov chain and Suno Bark TTS bot for Twitch chat.
+          It does not use an LLM or ChatGPT: every sentence it generates is assembled word-by-word from real messages typed in your chat room (or from chat logs and text files you import).
+        </p>
+        <p>
+          Each channel gets its own isolated Markov brain (<code>channel:yourname</code>). You can run the bot strictly on your own chat's vocabulary, blend in weights from other brains, or let viewers run <code>!mock @username</code> to generate a message specifically from one chatter's history.
+        </p>
+
+        <h3>How it works</h3>
+        <dl>
+          <dt>Cadence &amp; live detection</dt>
+          <dd>Spoken messages require both a minimum line count and a minimum minute cooldown to pass (default: 100 chat lines and 15 minutes), and only fire while your stream is live on Twitch.</dd>
+
+          <dt>Moderation &amp; auto-purge</dt>
+          <dd>When a user is timed out or banned in your chat, or a single message is deleted by a moderator, Mockbot automatically deletes their lines from the database and rebuilds your channel's brain in memory. URLs and slurs are stripped before learning.</dd>
+
+          <dt>Bark TTS &amp; OBS browser source</dt>
+          <dd>Optional GPU-accelerated Suno Bark text-to-speech with custom <code>.npz</code> voice cloning, voice drift, and an OBS browser overlay (<code>/obs/yourname</code>) with a volume-reactive avatar.</dd>
+        </dl>
+
+        <h3>Chat commands</h3>
+        <div class="table-wrap" style="margin-top:8px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>Who</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>!speak [topic]</code></td>
+                <td>Everyone</td>
+                <td>Generate a Markov response (optionally seeded with a word or phrase).</td>
+              </tr>
+              <tr>
+                <td><code>!mock @user [topic]</code></td>
+                <td>Everyone</td>
+                <td>Imitate a specific chatter from their message history in your channel (or another brain).</td>
+              </tr>
+              <tr>
+                <td><code>!tts &lt;text&gt;</code></td>
+                <td>Mods / Streamer</td>
+                <td>Read text aloud on your OBS overlay using your channel's Bark TTS voice.</td>
+              </tr>
+              <tr>
+                <td><code>!skip</code></td>
+                <td>Mods / Streamer</td>
+                <td>Clear the TTS queue and stop any audio currently playing in OBS.</td>
+              </tr>
+              <tr>
+                <td><code>!mockbot lines &lt;n&gt;</code></td>
+                <td>Mods / Streamer</td>
+                <td>Set minimum chat lines required between automatic messages.</td>
+              </tr>
+              <tr>
+                <td><code>!mockbot start / stop</code></td>
+                <td>Mods / Streamer</td>
+                <td>Unmute or mute automatic responses in chat.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="auth-panel">
+        <h2 style="margin-bottom:12px;">Sign in or add to channel</h2>
+        <button class="primary" style="width:100%;padding:10px;margin-bottom:16px;" onclick="startTwitchOAuth()">Log in with Twitch</button>
+
+        <div style="border-top:1px solid var(--line);padding-top:14px;">
+          <div style="display:flex;gap:6px;margin-bottom:12px;">
+            <button class="sm primary" id="atab-login" onclick="switchAuthTab('login')">Password login</button>
+            <button class="sm" id="atab-register" onclick="switchAuthTab('register')">Manual signup</button>
+          </div>
+
+          <div id="auth-form-login">
+            <div class="field">
+              <label>Username</label>
+              <input type="text" id="login-user" placeholder="username or channel" onkeydown="if(event.key==='Enter') doLogin()" />
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input type="password" id="login-pass" onkeydown="if(event.key==='Enter') doLogin()" />
+            </div>
+            <button style="width:100%;" onclick="doLogin()">Log in</button>
+          </div>
+
+          <div id="auth-form-register" class="hidden">
+            <div class="field">
+              <label>Twitch channel</label>
+              <input type="text" id="reg-channel" placeholder="channel_name" />
+            </div>
+            <div class="field">
+              <label>Password</label>
+              <input type="password" id="reg-pass" placeholder="set a password" />
+            </div>
+            <div class="row">
+              <div class="field" style="margin:0;">
+                <label>Frequency</label>
+                <select id="reg-cadence">
+                  <option value="150,25">150 lines / 25m</option>
+                  <option value="100,15" selected>100 lines / 15m</option>
+                  <option value="50,10">50 lines / 10m</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Brain</label>
+                <select id="reg-mode">
+                  <option value="blend" selected>70% channel / 30% global</option>
+                  <option value="channel">100% channel only</option>
+                  <option value="global">100% global</option>
+                </select>
+              </div>
+            </div>
+            <button class="primary" style="width:100%;" onclick="doRegister()">Create &amp; join</button>
+          </div>
+        </div>
+
+        <div id="auth-msg" class="notice hidden"></div>
+
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.5;">
+          After adding the bot to your channel, run <code>/vip mockbot</code> or <code>/mod mockbot</code> in your Twitch chat so Follower-Only and Slow Mode do not block its messages.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="shell hidden">
+    <aside class="sidebar">
+      <div class="user-meta">
+        <div id="sb-user-name">@user</div>
+        <div class="sub" id="sb-user-role">streamer</div>
+      </div>
+
+      <button class="nav-btn active" data-view="instance" onclick="switchView('instance')" id="nav-instance-label">Settings</button>
+      <button class="nav-btn" data-view="tts" onclick="switchView('tts')">Bark TTS</button>
+      <button class="nav-btn" data-view="sandbox" onclick="switchView('sandbox')">Sandbox</button>
+      <button class="nav-btn" data-view="brains" onclick="switchView('brains')">Corpus</button>
+      <button class="nav-btn" data-view="telemetry" onclick="switchView('telemetry')">Chat Log</button>
+      <button class="nav-btn hidden" id="nav-users-btn" data-view="users" onclick="switchView('users')">Users</button>
+    </aside>
+
+    <main class="content">
+
+      <!-- SETTINGS -->
+      <section id="view-instance">
+        <div id="verify-banner" class="notice hidden" style="margin-bottom:16px;border-color:var(--accent);color:var(--accent);"></div>
+        <div class="page-head">
+          <h1 id="inst-title">Settings</h1>
+          <div style="display:flex;gap:8px;">
+            <button onclick="previewChannelMix()">Preview</button>
+            <button class="primary" onclick="adminSpeakNow()">Speak in chat</button>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="field" id="adm-chan-picker-wrap">
+              <label>Channel</label>
+              <select id="adm-chan-select" onchange="populateChannelEditor()"></select>
+            </div>
+
+            <!-- 1. CORE SWITCHES -->
+            <div class="checks">
+              <label data-tip="Join this Twitch chat channel on IRC"><input type="checkbox" id="adm-join" /> In my chat</label>
+              <label data-tip="Enable automatic Markov chat responses and !speak commands"><input type="checkbox" id="adm-voice" /> Auto-speak</label>
+              <label data-tip="Only send automatic line/timer messages while the stream is live on Twitch"><input type="checkbox" id="adm-live-only" /> Only when live</label>
+              <label data-tip="Record incoming chat messages into this channel's Markov brain"><input type="checkbox" id="adm-learn" /> Learn from chat</label>
+              <label data-tip="Synthesize bot responses with Suno Bark TTS for your OBS overlay"><input type="checkbox" id="adm-tts" /> Bark TTS audio</label>
+            </div>
+
+            <!-- 2. HOW OFTEN IT TALKS -->
+            <div class="field">
+              <label data-tip="Both minimum chat lines AND minimum cooldown minutes must pass before the bot auto-speaks.">
+                <span>How often should it auto-speak? <span class="tip-q">?</span></span>
+              </label>
+              <div class="preset-pills">
+                <button class="sm" type="button" onclick="applyCadencePreset(150, 20)">Quiet (150 lines / 20m)</button>
+                <button class="sm" type="button" onclick="applyCadencePreset(100, 15)">Normal (100 lines / 15m)</button>
+                <button class="sm" type="button" onclick="applyCadencePreset(45, 8)">Active (45 lines / 8m)</button>
+                <button class="sm" type="button" onclick="applyCadencePreset(20, 3)">Chatty (20 lines / 3m)</button>
+              </div>
+              <div class="row" style="margin:0;">
+                <div class="field" style="margin:0;">
+                  <label data-tip="Minimum chat lines required before auto-speaking. Both Min lines and Min cooldown must be met."><span>Min chat lines <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-lines" min="0" max="5000" />
+                </div>
+                <div class="field" style="margin:0;">
+                  <label data-tip="Minimum minutes that must pass after the bot speaks before it can auto-speak again."><span>Min cooldown (minutes) <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-time" min="0" max="1440" />
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. BRAIN MIX -->
+            <div class="field">
+              <label data-tip="Weighted blend of brains used when generating messages for this channel.">
+                <span>What should it sound like? (Brain mix) <span class="tip-q">?</span></span>
+                <span>
+                  <button class="sm" type="button" onclick="applyMixPreset('blend')">70% Mine / 30% Global</button>
+                  <button class="sm" type="button" onclick="applyMixPreset('local')">100% My Chat</button>
+                  <button class="sm" type="button" onclick="applyMixPreset('global')">100% Global</button>
+                </span>
+              </label>
+              <div id="adm-spectrum-bar" class="mix-bar"></div>
+              <div id="adm-mix-sliders" class="mix-list"></div>
+              <div style="display:flex;gap:8px;">
+                <select id="adm-add-brain-select" style="flex:1;"></select>
+                <button class="sm" type="button" onclick="addBrainToChannelMix()">+ Add brain to mix</button>
+              </div>
+            </div>
+
+            <!-- 4. SIMPLE MODERATION -->
+            <div class="row">
+              <div class="field" style="margin:0;">
+                <label data-tip="Channel-specific banned words or phrases excluded from both learning and generated messages."><span>Blocked words <span class="tip-q">?</span></span></label>
+                <input type="text" id="adm-blocked" placeholder="word1, phrase2" />
+              </div>
+              <div class="field" style="margin:0;">
+                <label data-tip="Bots or users whose messages will never be learned into the corpus or trigger the bot."><span>Ignored bots / users <span class="tip-q">?</span></span></label>
+                <input type="text" id="adm-ignored" placeholder="nightbot, streamelements" />
+              </div>
+            </div>
+
+            <!-- 5. ADVANCED TUNING DRAWER -->
+            <details class="adv-drawer">
+              <summary>Advanced settings (triggers, greetings, Bark voice, Channel Points, custom commands)</summary>
+
+              <div class="checks" style="margin-bottom:12px;">
+                <label data-tip="Automatically generate a Markov greeting when another streamer raids your channel"><input type="checkbox" id="adm-raid" /> Greet raids</label>
+                <label data-tip="Automatically generate a Markov response when someone subscribes or resubs"><input type="checkbox" id="adm-sub" /> Greet subs</label>
+                <label data-tip="Hide this channel's brain from other streamers so they cannot blend or !mock it"><input type="checkbox" id="adm-private-brain" /> Private brain</label>
+                <label data-tip="Feed each Bark TTS clip's output voice tokens into the next clip so the voice mutates over the stream"><input type="checkbox" id="adm-drift" /> Voice drift</label>
+                <label data-tip="Wait for Bark TTS audio synthesis to finish before sending the chat message so voice and text arrive together"><input type="checkbox" id="adm-tts-delay" /> Wait for TTS</label>
+                <label id="adm-global-toggle-wrap" data-tip="Also feed this channel's chat messages into the shared global brain"><input type="checkbox" id="adm-global" /> Feed global</label>
+              </div>
+
+              <div class="row">
+                <div class="field" style="margin:0;">
+                  <label data-tip="Markov N-gram context size. 1 = chaotic word salad, 2 = balanced (default), 3 = structured multi-word phrases."><span>Order (1-3) <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-order" min="1" max="3" />
+                </div>
+                <div class="field" style="margin:0;">
+                  <label data-tip="Markov sampling temperature (0.3–2.5). Below 1.0 favors common phrases; above 1.0 boosts rare/unhinged word transitions."><span>Markov temp <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-temp" min="0.3" max="2.5" step="0.1" value="1.0" />
+                </div>
+                <div class="field" style="margin:0;">
+                  <label data-tip="Percentage chance (0–100%) that an auto-message will be seeded using a keyword from recent chat messages."><span>Context % <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-context" min="0" max="100" value="35" />
+                </div>
+                <div class="field" style="margin:0;">
+                  <label data-tip="Percentage chance (0–100%) to speak when someone mentions @botname in chat (0 = disabled, default)."><span>@Mention % <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-mention" min="0" max="100" value="0" />
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="field" style="margin:0;">
+                  <label data-tip="Default Bark TTS speaker preset (.npz custom voice, v2/en_speaker_0..9, or Unhinged Random hallucination)."><span>Bark voice <span class="tip-q">?</span></span></label>
+                  <select id="adm-voice-preset"></select>
+                </div>
+                <div class="field" style="margin:0;">
+                  <label data-tip="Bark semantic temperature (0.2–1.5, default 0.7). Higher values produce wilder speech pacing, stutters, and vocal hallucinations."><span>Text temp <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-bark-text-temp" min="0.2" max="1.5" step="0.05" value="0.7" />
+                </div>
+                <div class="field" style="margin:0;">
+                  <label data-tip="Bark acoustic waveform temperature (0.2–1.5, default 0.7). Higher values produce more expressive pitch swings and voice grain."><span>Wave temp <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-bark-wave-temp" min="0.2" max="1.5" step="0.05" value="0.7" />
+                </div>
+                <div class="field" style="margin:0;">
+                  <label data-tip="Percentage chance (0–100%) to inject Bark non-speech vocalizations ([laughs], [sighs], [gasps], ♪) into TTS audio."><span>Bark FX % <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-cursedness" min="0" max="100" value="25" />
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="field" style="margin:0;">
+                  <label data-tip="Comma-separated words or phrases that can immediately trigger a Markov response seeded with that word."><span>Trigger words <span class="tip-q">?</span></span></label>
+                  <input type="text" id="adm-triggers" placeholder="taco bell, kojima" />
+                </div>
+                <div class="field" style="margin:0;max-width:110px;">
+                  <label data-tip="Percentage chance (0–100%) to respond when a chat message contains one of your Trigger words."><span>Trigger % <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-trigger-chance" min="0" max="100" value="50" />
+                </div>
+                <div class="field" style="margin:0;">
+                  <label data-tip="Users allowed to run management commands (!mockbot, !tts) in addition to the broadcaster and Twitch mods."><span>Trusted users <span class="tip-q">?</span></span></label>
+                  <input type="text" id="adm-trusted" placeholder="user1, user2" />
+                </div>
+                <div class="field" style="margin:0;max-width:130px;">
+                  <label data-tip="Minimum seconds between !speak or !mock commands for regular chatters (mods & broadcaster bypass)."><span>Cmd cooldown (s) <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-cooldown" min="0" max="3600" value="10" />
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="field" style="margin:0;">
+                  <label data-tip="Twitch Channel Point reward UUID (or * for any text reward) that triggers Bark TTS."><span>Reward ID → TTS <span class="tip-q">?</span></span></label>
+                  <input type="text" id="adm-reward-tts" placeholder="* or reward UUID" />
+                </div>
+                <div class="field" style="margin:0;">
+                  <label data-tip="Twitch Channel Point reward UUID (or * for any text reward) that triggers a Markov message."><span>Reward ID → Markov <span class="tip-q">?</span></span></label>
+                  <input type="text" id="adm-reward-markov" placeholder="* or reward UUID" />
+                </div>
+                <div class="field" style="margin:0;max-width:125px;">
+                  <label data-tip="Minimum cheer bits required to trigger Bark TTS (0 = disabled)."><span>Bits → TTS <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-bits-tts" min="0" max="100000" value="0" />
+                </div>
+                <div class="field" style="margin:0;max-width:135px;">
+                  <label data-tip="Minimum cheer bits required to trigger a Markov message (0 = disabled)."><span>Bits → Markov <span class="tip-q">?</span></span></label>
+                  <input type="number" id="adm-bits-markov" min="0" max="100000" value="0" />
+                </div>
+              </div>
+
+              <div class="field">
+                <label data-tip="Custom chat commands in !cmd=brain:seed format (e.g. !wisdom=channel:egancaerwyn:advice, !pat=channel:patstaresat)."><span>Custom commands (!cmd=brain:seed) <span class="tip-q">?</span></span></label>
+                <input type="text" id="adm-custom-cmds" placeholder="!wisdom=channel:egancaerwyn:advice, !pat=channel:patstaresat" />
+              </div>
+
+              <div class="field hidden" id="adm-custom-learn-wrap">
+                <label>Extra learn brains</label>
+                <input type="text" id="adm-custom-learn" placeholder="custom:souls" />
+              </div>
+
+              <div class="field hidden" id="adm-bot-identity-wrap" style="margin-bottom:0;">
+                <label data-tip="Choose which Twitch bot account joins this channel: @mockbot (default for public users) or @anormalskipviewer (ANSV group)."><span>Bot identity <span class="tip-q">?</span></span></label>
+                <select id="adm-bot-identity">
+                  <option value="mockbot">@mockbot (Public default — !mockbot)</option>
+                  <option value="ansv">@anormalskipviewer (ANSV group — !ansv)</option>
+                </select>
+              </div>
+            </details>
+
+            <button class="primary" style="width:100%;padding:10px;" onclick="saveChannelConfig()">Save settings</button>
+            <div id="adm-save-msg" class="notice hidden"></div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:20px;">
+            <div class="card">
+              <h2>Chat commands</h2>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;">
+                <div><code>!speak [topic]</code> — generate line</div>
+                <div><code>!mock &lt;brain&gt;</code> — use specific brain</div>
+                <div><code>!tts &lt;text&gt;</code> — Bark TTS clip</div>
+                <div><code class="cmd-pfx">!mockbot</code> <code>voice &lt;name&gt;</code> — set voice</div>
+                <div><code class="cmd-pfx">!mockbot</code> <code>lines &lt;n&gt;</code> — line interval</div>
+                <div><code class="cmd-pfx">!mockbot</code> <code>stop / part</code> — mute or leave</div>
+              </div>
+              <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);">
+                Tip: Run <code id="vip-tip-cmd">/vip mockbot</code> or <code id="mod-tip-cmd">/mod mockbot</code> in your Twitch chat so Slow / Follower-Only mode doesn't block responses.
+              </div>
+            </div>
+
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <h2 style="margin:0;">Sample output</h2>
+                <button class="sm" onclick="previewChannelMix()">Roll 3 samples</button>
+              </div>
+              <div id="adm-preview-box" class="samples">
+                <div style="font-size:12px;color:var(--muted);">Click "Roll 3 samples" to test how your current brain mix sounds.</div>
+              </div>
+            </div>
+
+            <div class="card" id="card-channels-list">
+              <h2>Channels</h2>
+              <div id="admin-add-chan-bar" style="display:flex;gap:8px;margin-bottom:10px;">
+                <input type="text" id="adm-new-chan" placeholder="channel_name" />
+                <button class="primary" onclick="adminAddChannel()">Join</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Channel</th>
+                      <th>Status</th>
+                      <th>Mode</th>
+                      <th>Lines</th>
+                      <th>Mix</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="channels-table-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- BARK TTS -->
+      <section id="view-tts" class="hidden">
+        <div class="page-head">
+          <h1>Bark TTS</h1>
+          <span id="tts-vfd-state" style="font-size:12px;color:var(--muted);">Ready</span>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h2>Generate audio</h2>
+            <div class="field">
+              <label>
+                <span>Voice</span>
+                <span style="display:flex;gap:6px;">
+                  <label style="font-size:11px;cursor:pointer;border:1px solid var(--line-strong);padding:2px 7px;border-radius:3px;background:var(--bg-2);color:var(--ink);">
+                    Clone .wav/.mp3
+                    <input type="file" accept=".wav,.mp3,.ogg" style="display:none;" onchange="cloneAudioFile(this)" />
+                  </label>
+                  <label style="font-size:11px;cursor:pointer;border:1px solid var(--line-strong);padding:2px 7px;border-radius:3px;background:var(--bg-2);color:var(--ink);">
+                    Upload .npz
+                    <input type="file" accept=".npz" style="display:none;" onchange="uploadNpzVoice(this)" />
+                  </label>
+                  <button class="sm" onclick="resetVoiceDrift()">Reset drift</button>
+                  <button class="sm danger hidden" id="btn-delete-voice" onclick="deleteSelectedVoice()">Delete voice</button>
+                </span>
+              </label>
+              <select id="tts-gen-voice"></select>
+            </div>
+            <div class="field">
+              <label>
+                <span>Text (supports [laughs], [sighs], [gasps], ♪)</span>
+                <button class="sm" onclick="fillTtsWithMarkov()">Random Markov line</button>
+              </label>
+              <textarea id="tts-gen-text" rows="4" placeholder="Enter text to synthesize..."></textarea>
+            </div>
+            <button class="primary" style="width:100%;" onclick="triggerBarkTts()">Generate TTS</button>
+            <div id="tts-gen-msg" class="notice hidden"></div>
+
+            <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--line);">
+              <div class="field">
+                <label>OBS Browser Source URL</label>
+                <div style="display:flex;gap:8px;">
+                  <input type="text" id="obs-url-box" readonly />
+                  <button onclick="copyObsUrl()">Copy</button>
+                  <button onclick="testObsOverlay()">Test OBS</button>
+                  <button class="danger" onclick="skipObsAudio()">Clear queue &amp; skip</button>
+                </div>
+              </div>
+              <div class="row" style="margin-top:10px;margin-bottom:0;">
+                <div class="field" style="margin:0;">
+                  <label>OBS Avatar Idle Image URL</label>
+                  <input type="text" id="adm-obs-idle" placeholder="https://.../idle.png" onchange="saveChannelConfig()" />
+                </div>
+                <div class="field" style="margin:0;">
+                  <label>OBS Avatar Talking Image URL</label>
+                  <input type="text" id="adm-obs-talk" placeholder="https://.../talk.png" onchange="saveChannelConfig()" />
+                </div>
+                <div class="field" style="margin:0;max-width:140px;">
+                  <label>OBS Key (opt)</label>
+                  <input type="text" id="adm-obs-key" placeholder="secret" onchange="saveChannelConfig()" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <h2 style="margin:0;">Recent clips</h2>
+              <button class="sm" onclick="loadTtsHistory()">Refresh</button>
+            </div>
+            <div class="table-wrap" style="max-height:460px;overflow-y:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Voice</th>
+                    <th>Text</th>
+                    <th>Audio</th>
+                  </tr>
+                </thead>
+                <tbody id="tts-history-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SANDBOX -->
+      <section id="view-sandbox" class="hidden">
+        <div class="page-head">
+          <h1>Sandbox</h1>
+          <button class="primary" onclick="sandboxGenerate(5)">Generate 5</button>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="row">
+              <div class="field" style="margin:0;">
+                <label>Primary brain</label>
+                <select id="sb-brain" onchange="updateSbSpectrum()"></select>
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Second brain</label>
+                <select id="sb-brain-2" onchange="updateSbSpectrum()"></select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>
+                <span>Blend ratio</span>
+                <span id="sb-mix-label">75% / 25%</span>
+              </label>
+              <input type="range" id="sb-primary-pct" min="10" max="100" step="5" value="75" oninput="updateSbSpectrum()" />
+              <div class="mix-bar" style="margin-top:6px;">
+                <div id="sb-spec-1" style="width:75%;background:var(--accent);"></div>
+                <div id="sb-spec-2" style="width:25%;background:var(--ink-2);"></div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="field" style="margin:0;">
+                <label>Order</label>
+                <select id="sb-order">
+                  <option value="1">1</option>
+                  <option value="2" selected>2</option>
+                  <option value="3">3</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0;">
+                <label>
+                  <span>Temp</span>
+                  <span id="sb-temp-label">1.00</span>
+                </label>
+                <input type="range" id="sb-temp" min="0.4" max="2.0" step="0.1" value="1.0" oninput="document.getElementById('sb-temp-label').textContent=parseFloat(this.value).toFixed(2)" />
+              </div>
+            </div>
+
+            <div class="field">
+              <label>Seed word (optional)</label>
+              <input type="text" id="sb-seed" placeholder="topic word..." onkeydown="if(event.key==='Enter') sandboxGenerate(5)" />
+            </div>
+
+            <button class="primary" style="width:100%;" onclick="sandboxGenerate(5)">Generate</button>
+          </div>
+
+          <div class="card">
+            <h2>Output</h2>
+            <div id="sb-output-list" class="samples"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CORPUS -->
+      <section id="view-brains" class="hidden">
+        <div class="page-head">
+          <h1>Corpus</h1>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+              <h2 style="margin:0;">Search lines</h2>
+              <div style="display:flex;gap:6px;">
+                <button class="sm" onclick="trimBrainLines()">Trim oldest</button>
+                <button class="sm hidden" id="btn-purge-global" onclick="purgeOriginFromGlobal()">Purge channel from global</button>
+                <button class="sm" onclick="exportBrainTxt()">Export .txt</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <select id="insp-brain" style="max-width:200px;"></select>
+              <input type="text" id="insp-query" placeholder="search..." onkeydown="if(event.key==='Enter') searchBrainLines()" />
+              <button class="primary" onclick="searchBrainLines()">Search</button>
+            </div>
+            <div id="insp-msg" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
+            <div class="table-wrap" style="max-height:430px;overflow-y:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:60px;">ID</th>
+                    <th style="width:100px;">Channel</th>
+                    <th>Text</th>
+                    <th style="width:65px;"></th>
+                  </tr>
+                </thead>
+                <tbody id="insp-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <h2 style="margin:0;">Import text / chat logs</h2>
+              <label style="font-size:11px;cursor:pointer;border:1px solid var(--line-strong);padding:3px 8px;border-radius:3px;background:var(--bg-2);">
+                Load file(s) (.txt / .log / .json)
+                <input type="file" accept=".txt,.log,.json,.csv" multiple style="display:none;" onchange="loadTxtFileIntoTextarea(this)" />
+              </label>
+            </div>
+            <div class="row">
+              <div class="field" style="margin:0;" id="train-brain-name-wrap">
+                <label>Target brain</label>
+                <select id="train-brain-select" onchange="onTrainBrainSelectChange()"></select>
+                <input type="text" id="train-brain-custom" class="hidden" style="margin-top:6px;" placeholder="new_brain_name" />
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Format</label>
+                <select id="train-format">
+                  <option value="auto" selected>Auto-detect (Text, Chat log, or JSON)</option>
+                  <option value="lines">One line per entry</option>
+                  <option value="sentences">Prose / Paragraphs (split by . ! ?)</option>
+                  <option value="chatlog">Chat log ([time] user: message)</option>
+                  <option value="json">TwitchDownloader / JSON</option>
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label>Text / Chat Log / JSON</label>
+              <textarea id="train-lines" rows="8" placeholder="Paste lines, paragraphs, [timestamp] user: message logs, or JSON..."></textarea>
+            </div>
+            <button class="primary" style="width:100%;" onclick="trainCustomBrain()">Import into corpus</button>
+            <div id="train-msg" class="notice hidden"></div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top:20px;">
+          <div class="card">
+            <h2>Brains</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Brain</th>
+                    <th>Lines</th>
+                    <th>Vocab</th>
+                    <th>Bark Voice</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="brains-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <h2 style="margin:0;">Top chatters (!mock @user)</h2>
+              <button class="sm" onclick="loadTopChatters()">Refresh</button>
+            </div>
+            <div id="mock-preview-box" class="notice hidden" style="margin-bottom:10px;"></div>
+            <div class="table-wrap" style="max-height:320px;overflow-y:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Chatter</th>
+                    <th>Lines</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="chatters-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CHAT LOG -->
+      <section id="view-telemetry" class="hidden">
+        <div class="page-head">
+          <h1>Chat Log</h1>
+          <div style="display:flex;gap:8px;">
+            <select id="log-chan-filter" style="width:170px;" onchange="renderStreamFeed()">
+              <option value="">All channels</option>
+            </select>
+            <select id="log-type-filter" style="width:150px;" onchange="renderStreamFeed()">
+              <option value="all">All events</option>
+              <option value="bot">Bot &amp; TTS only</option>
+              <option value="chat">Chat only</option>
+            </select>
+          </div>
+        </div>
+        <div id="live-feed" class="log-box"></div>
+      </section>
+
+      <!-- USERS -->
+      <section id="view-users" class="hidden">
+        <div class="page-head">
+          <h1>Users</h1>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h2>Add / update user</h2>
+            <div class="row">
+              <div class="field" style="margin:0;">
+                <label>Username</label>
+                <input type="text" id="usr-name" />
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Password</label>
+                <input type="password" id="usr-pass" />
+              </div>
+            </div>
+            <div class="row">
+              <div class="field" style="margin:0;">
+                <label>Role</label>
+                <select id="usr-role">
+                  <option value="streamer" selected>Streamer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Tier</label>
+                <select id="usr-tier">
+                  <option value="pro" selected>Pro (Bark TTS + Cloning)</option>
+                  <option value="free">Free (Markov Only)</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0;">
+                <label>Channel</label>
+                <input type="text" id="usr-chan" />
+              </div>
+            </div>
+            <button class="primary" style="width:100%;" onclick="adminSaveUser()">Save user</button>
+            <div id="usr-msg" class="notice hidden"></div>
+          </div>
+
+          <div class="card">
+            <h2>Accounts</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Username</th>
+                    <th>Role</th>
+                    <th>Tier</th>
+                    <th>Channel</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="users-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+<script>
+  const MIX_COLORS = ['#d94b2a', '#e8a172', '#7fa67c', '#5b8bd6', '#d49b35'];
+  let currentUser = null;
+  let authToken = localStorage.getItem('ansv2_auth_token') || '';
+  let latestStatus = null;
+  let availableVoices = [];
+  let currentChannelMix = [];
+  let allEvents = [];
+
+  const savedTheme = localStorage.getItem('ansv2_theme') || 'chassis';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+
+  function toggleTheme() {
+    const cur = document.documentElement.getAttribute('data-theme');
+    const next = cur === 'chassis' ? 'linen' : 'chassis';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('ansv2_theme', next);
+  }
+
+  let twitchClientId = '';
+  let twitchRedirectUri = '';
+
+  async function initApp() {
+    try {
+      const sRes = await fetch('/api/public/summary');
+      const s = await sRes.json();
+      document.getElementById('rail-bot-nick').textContent = `@${s.bot_nick}`;
+      document.getElementById('lamp-irc').className = 'dot ' + (s.irc_connected ? 'on' : '');
+      document.getElementById('lamp-bark').className = 'dot ' + (s.tts_ready ? 'on' : '');
+      twitchClientId = s.twitch_client_id || '';
+      twitchRedirectUri = s.twitch_redirect_uri || '';
+    } catch (_) {}
+
+    if (authToken) {
+      const ok = await checkSession();
+      if (ok) return;
+    }
+    showAuthScreen();
+  }
+
+  function startTwitchOAuth() {
+    if (!twitchClientId) {
+      alert('client_id is not set in config.toml');
+      return;
+    }
+    const redirect = twitchRedirectUri || (location.origin + '/auth/twitch/callback');
+    const url = `https://id.twitch.tv/oauth2/authorize?client_id=${encodeURIComponent(twitchClientId)}&redirect_uri=${encodeURIComponent(redirect)}&response_type=token&scope=${encodeURIComponent('channel:bot')}`;
+    location.href = url;
+  }
+
+  function switchAuthTab(tab) {
+    document.getElementById('auth-form-login').classList.toggle('hidden', tab !== 'login');
+    document.getElementById('auth-form-register').classList.toggle('hidden', tab !== 'register');
+    document.getElementById('atab-login').className = tab === 'login' ? 'primary' : '';
+    document.getElementById('atab-register').className = tab === 'register' ? 'primary' : '';
+  }
+
+  async function doLogin() {
+    const username = document.getElementById('login-user').value.trim();
+    const password = document.getElementById('login-pass').value.trim();
+    const msgEl = document.getElementById('auth-msg');
+    if (!password) return;
+
+    // If the user pasted a Twitch OAuth token (oauth:...) into the password box, validate directly via Twitch!
+    if (password.startsWith('oauth:')) {
+      const tRes = await fetch('/api/auth/twitch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ access_token: password })
+      });
+      const tData = await tRes.json();
+      if (tData.ok && tData.result) {
+        authToken = tData.result.api_token;
+        localStorage.setItem('ansv2_auth_token', authToken);
+        currentUser = tData.result;
+        enterStudio();
+      } else {
+        msgEl.classList.remove('hidden');
+        msgEl.textContent = tData.message || 'Twitch OAuth login failed';
+      }
+      return;
+    }
+
+    if (!username) return;
+
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (data.ok && data.result) {
+      authToken = data.result.api_token;
+      localStorage.setItem('ansv2_auth_token', authToken);
+      currentUser = data.result;
+      enterStudio();
+    } else {
+      msgEl.classList.remove('hidden');
+      msgEl.textContent = data.message || 'Login failed';
+    }
+  }
+
+  async function doRegister() {
+    const channel_name = document.getElementById('reg-channel').value.trim();
+    const password = document.getElementById('reg-pass').value;
+    const [lines, mins] = document.getElementById('reg-cadence').value.split(',').map(Number);
+    const brain_mode = document.getElementById('reg-mode').value;
+    const msgEl = document.getElementById('auth-msg');
+
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel_name,
+        password,
+        lines_between_messages: lines,
+        time_between_messages: mins,
+        brain_mode
+      })
+    });
+    const data = await res.json();
+    if (data.ok && data.result) {
+      authToken = data.result.api_token;
+      localStorage.setItem('ansv2_auth_token', authToken);
+      currentUser = data.result;
+      enterStudio();
+    } else {
+      msgEl.classList.remove('hidden');
+      msgEl.textContent = data.message || 'Could not create account';
+    }
+  }
+
+  async function checkSession() {
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: { 'X-Auth-Token': authToken }
+      });
+      const data = await res.json();
+      if (data.ok && data.result) {
+        currentUser = data.result;
+        enterStudio();
+        return true;
+      }
+    } catch (_) {}
+    return false;
+  }
+
+  function doLogout() {
+    authToken = '';
+    currentUser = null;
+    localStorage.removeItem('ansv2_auth_token');
+    showAuthScreen();
+  }
+
+  function downloadDbBackup() {
+    fetch('/api/admin/backup_db', {
+      headers: { 'X-Auth-Token': authToken }
+    })
+      .then(r => r.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ansv2-backup-${new Date().toISOString().slice(0,10)}.db`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+  }
+
+  function showAuthScreen() {
+    document.getElementById('auth-screen').classList.remove('hidden');
+    document.getElementById('app').classList.add('hidden');
+    document.getElementById('rail-logout-btn').classList.add('hidden');
+    document.getElementById('rail-backup-btn').classList.add('hidden');
+  }
+
+  async function enterStudio() {
+    document.getElementById('auth-screen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('rail-logout-btn').classList.remove('hidden');
+
+    const isAdmin = currentUser.role === 'admin';
+    document.getElementById('sb-user-name').textContent = '@' + currentUser.username;
+    document.getElementById('sb-user-role').textContent = isAdmin
+      ? 'admin'
+      : `#${currentUser.channel_name}`;
+
+    document.getElementById('nav-users-btn').classList.toggle('hidden', !isAdmin);
+    document.getElementById('adm-chan-picker-wrap').classList.toggle('hidden', !isAdmin);
+    document.getElementById('adm-global-toggle-wrap').classList.toggle('hidden', !isAdmin);
+    document.getElementById('adm-custom-learn-wrap').classList.toggle('hidden', !isAdmin);
+    document.getElementById('adm-bot-identity-wrap').classList.toggle('hidden', !isAdmin);
+    document.getElementById('admin-add-chan-bar').classList.toggle('hidden', !isAdmin);
+    document.getElementById('train-brain-name-wrap').classList.toggle('hidden', !isAdmin);
+    document.getElementById('btn-purge-global').classList.toggle('hidden', !isAdmin);
+    document.getElementById('btn-delete-voice').classList.toggle('hidden', !isAdmin);
+    document.getElementById('rail-backup-btn').classList.toggle('hidden', !isAdmin);
+
+    await loadVoices();
+    await refreshStatus();
+    await loadTtsHistory();
+    sandboxGenerate(4);
+    connectWebSocket();
+  }
+
+  function switchView(viewName) {
+    for (const v of ['instance', 'tts', 'sandbox', 'brains', 'telemetry', 'users']) {
+      const el = document.getElementById(`view-${v}`);
+      if (el) el.classList.toggle('hidden', v !== viewName);
+    }
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === viewName);
+    });
+    if (viewName === 'brains') {
+      searchBrainLines();
+      loadTopChatters();
+    }
+    if (viewName === 'tts') loadTtsHistory();
+    if (viewName === 'users') loadUsers();
+  }
+
+  async function loadVoices() {
+    try {
+      const res = await fetch('/api/tts/voices');
+      availableVoices = await res.json();
+      for (const id of ['adm-voice-preset', 'tts-gen-voice']) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        el.innerHTML = availableVoices.map(v => `<option value="${escapeHtml(v.code)}">${escapeHtml(v.label)}</option>`).join('');
+      }
+    } catch (_) {}
+  }
+
+  async function refreshStatus() {
+    if (!currentUser) return;
+    try {
+      // Refresh user verification status if unverified
+      if (currentUser.role !== 'admin' && !currentUser.verified) {
+        const meRes = await fetch('/api/auth/me', { headers: { 'X-Auth-Token': authToken } });
+        const meData = await meRes.json();
+        if (meData.ok && meData.result) {
+          currentUser = meData.result;
+        }
+      }
+      const vBanner = document.getElementById('verify-banner');
+      if (currentUser.role !== 'admin' && !currentUser.verified) {
+        vBanner.classList.remove('hidden');
+        vBanner.textContent = `Unverified channel: type "!mockbot claim ${currentUser.claim_code}" in #${currentUser.channel_name} as broadcaster to unlock settings.`;
+      } else {
+        vBanner.classList.add('hidden');
+      }
+
+      const res = await fetch('/api/status', {
+        headers: { 'X-Auth-Token': authToken }
+      });
+      const data = await res.json();
+      latestStatus = data;
+
+      document.getElementById('lamp-irc').className = 'dot ' + (data.irc_connected ? 'on' : '');
+      document.getElementById('lamp-bark').className = 'dot ' + (data.tts_busy ? 'busy' : (data.tts_ready ? 'on' : ''));
+      const qCount = data.tts_queue_len || 0;
+      document.getElementById('tts-vfd-state').textContent = data.tts_busy
+        ? `Generating audio... (Queue: ${qCount})`
+        : (data.tts_ready ? `Bark ready (Queue: ${qCount})` : 'Loading Bark...');
+
+      populateBrainDropdowns(data.brains);
+
+      const chanSelect = document.getElementById('adm-chan-select');
+      const prevChan = chanSelect.value;
+      chanSelect.innerHTML = '';
+      for (const c of data.channels) {
+        const opt = document.createElement('option');
+        opt.value = c.record.channel_name;
+        opt.textContent = `#${c.record.channel_name} (${c.currently_joined ? 'joined' : 'parted'})`;
+        chanSelect.appendChild(opt);
+      }
+      if (currentUser.role !== 'admin') {
+        chanSelect.value = currentUser.channel_name;
+        if (!prevChan) populateChannelEditor();
+      } else if (prevChan && [...chanSelect.options].some(o => o.value === prevChan)) {
+        chanSelect.value = prevChan;
+      } else if (data.channels.length > 0 && !prevChan) {
+        chanSelect.value = data.channels[0].record.channel_name;
+        populateChannelEditor();
+      }
+
+      const activeChan = chanSelect.value || currentUser.channel_name;
+      document.getElementById('obs-url-box').value = `${location.origin}/obs/${activeChan}`;
+
+      const cBody = document.getElementById('channels-table-body');
+      const isAdmin = currentUser.role === 'admin';
+      cBody.innerHTML = data.channels.map(c => {
+        const r = c.record;
+        const mixStr = r.brain_mix.map(m => `${m.brain.replace('channel:','#')}:${Math.round(m.weight*100)}%`).join(' ');
+        return `<tr style="cursor:pointer;" onclick="jumpToChannel('${r.channel_name}')">
+          <td><strong>#${escapeHtml(r.channel_name)}</strong> ${c.is_stream_live ? '<span style="color:var(--accent);font-size:10px;">● LIVE</span>' : ''}</td>
+          <td>${c.currently_joined ? '<span style="color:var(--ok)">joined</span>' : '<span style="color:var(--muted)">parted</span>'}</td>
+          <td>${r.voice_enabled ? 'on' : 'muted'}${r.tts_enabled ? ' + tts' : ''}</td>
+          <td>${c.lines_since_last_spoke}/${r.lines_between_messages}</td>
+          <td>${escapeHtml(mixStr)}</td>
+          <td>${isAdmin ? `<button class="sm danger" onclick="event.stopPropagation(); adminDeleteChannel('${escapeHtml(r.channel_name)}')">Delete</button>` : ''}</td>
+        </tr>`;
+      }).join('');
+
+      // Populate Chat Log channel filter
+      const logChanEl = document.getElementById('log-chan-filter');
+      if (logChanEl) {
+        const prevLogChan = logChanEl.value;
+        logChanEl.innerHTML = '<option value="">All channels</option>' +
+          data.channels.map(c => `<option value="${escapeHtml(c.record.channel_name)}">#${escapeHtml(c.record.channel_name)}</option>`).join('');
+        logChanEl.value = prevLogChan;
+      }
+
+      const bBody = document.getElementById('brains-table-body');
+      if (bBody) {
+        bBody.innerHTML = data.brains.map(b => {
+          const voiceOpts = `<option value="">(Channel default)</option>` +
+            availableVoices.map(v => `<option value="${escapeHtml(v.code)}" ${b.default_voice === v.code ? 'selected' : ''}>${escapeHtml(v.label)}</option>`).join('');
+          return `
+          <tr>
+            <td><strong>${escapeHtml(b.name)}</strong></td>
+            <td>${b.sentence_count.toLocaleString()}</td>
+            <td>${b.unique_tokens.toLocaleString()}</td>
+            <td>
+              <select style="padding:3px 6px;font-size:11px;max-width:165px;" onchange="setBrainVoice('${escapeHtml(b.name)}', this.value)">
+                ${voiceOpts}
+              </select>
+            </td>
+            <td style="display:flex;gap:6px;">
+              <button class="sm" onclick="inspectBrainRow('${escapeHtml(b.name)}')">Inspect</button>
+              ${isAdmin ? `<button class="sm" onclick="mergeBrainRow('${escapeHtml(b.name)}')">Merge</button>` : ''}
+              ${isAdmin && b.name !== 'global' ? `<button class="sm danger" onclick="deleteBrainRow('${escapeHtml(b.name)}')">Delete</button>` : ''}
+            </td>
+          </tr>
+        `;
+        }).join('');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function populateBrainDropdowns(brains) {
+    const ids = ['sb-brain', 'sb-brain-2', 'adm-add-brain-select', 'insp-brain', 'train-brain-select'];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      const prev = el.value;
+      el.innerHTML = '';
+      if (id === 'sb-brain-2') {
+        const noneOpt = document.createElement('option');
+        noneOpt.value = '';
+        noneOpt.textContent = 'None';
+        el.appendChild(noneOpt);
+      }
+      const list = ((id === 'insp-brain' || id === 'train-brain-select') && currentUser && currentUser.role !== 'admin')
+        ? brains.filter(b => b.name === `channel:${currentUser.channel_name}`)
+        : brains;
+      for (const b of list) {
+        const opt = document.createElement('option');
+        opt.value = b.name;
+        opt.textContent = `${b.name} (${b.sentence_count.toLocaleString()})`;
+        el.appendChild(opt);
+      }
+      if (id === 'train-brain-select' && currentUser && currentUser.role === 'admin') {
+        // Also ensure all configured channels appear in the import dropdown even if 0 lines yet
+        if (latestStatus && latestStatus.channels) {
+          for (const c of latestStatus.channels) {
+            const cb = `channel:${c.record.channel_name}`;
+            if (![...el.options].some(o => o.value === cb)) {
+              const opt = document.createElement('option');
+              opt.value = cb;
+              opt.textContent = `${cb} (0)`;
+              el.appendChild(opt);
+            }
+          }
+        }
+        const newOpt = document.createElement('option');
+        newOpt.value = '__new__';
+        newOpt.textContent = '+ New custom brain...';
+        el.appendChild(newOpt);
+      }
+      if (prev && [...el.options].some(o => o.value === prev)) {
+        el.value = prev;
+      } else if (id === 'sb-brain-2') {
+        el.value = 'global';
+      } else if (id === 'train-brain-select' && [...el.options].some(o => o.value === 'channel:egancaerwyn')) {
+        el.value = 'channel:egancaerwyn';
+      }
+    }
+  }
+
+  function onTrainBrainSelectChange() {
+    const sel = document.getElementById('train-brain-select').value;
+    document.getElementById('train-brain-custom').classList.toggle('hidden', sel !== '__new__');
+  }
+
+  function jumpToChannel(name) {
+    document.getElementById('adm-chan-select').value = name;
+    populateChannelEditor();
+  }
+
+  function populateChannelEditor() {
+    if (!latestStatus) return;
+    const sel = document.getElementById('adm-chan-select').value;
+    const c = latestStatus.channels.find(x => x.record.channel_name === sel);
+    if (!c) return;
+    const r = c.record;
+    const isAnsv = r.bot_identity === 'ansv';
+    const bNick = isAnsv ? 'anormalskipviewer' : 'mockbot';
+    document.getElementById('adm-bot-identity').value = isAnsv ? 'ansv' : 'mockbot';
+    document.getElementById('rail-bot-nick').textContent = '@' + bNick;
+    document.getElementById('vip-tip-cmd').textContent = `/vip ${bNick}`;
+    document.getElementById('mod-tip-cmd').textContent = `/mod ${bNick}`;
+    document.querySelectorAll('.cmd-pfx').forEach(el => {
+      el.textContent = isAnsv ? '!ansv' : '!mockbot';
+    });
+    document.getElementById('inst-title').textContent = `#${r.channel_name}`;
+
+    document.getElementById('adm-lines').value = r.lines_between_messages;
+    document.getElementById('adm-time').value = r.time_between_messages;
+    document.getElementById('adm-order').value = r.markov_order;
+    document.getElementById('adm-temp').value = (r.temperature || 1.0).toFixed(1);
+    document.getElementById('adm-context').value = r.context_bias_chance !== undefined ? r.context_bias_chance : 35;
+    document.getElementById('adm-mention').value = r.reply_mention_chance;
+    document.getElementById('adm-join').checked = r.join_enabled;
+    document.getElementById('adm-voice').checked = r.voice_enabled;
+    document.getElementById('adm-live-only').checked = !!r.only_when_live;
+    document.getElementById('adm-raid').checked = !!r.raid_greet_enabled;
+    document.getElementById('adm-sub').checked = !!r.sub_greet_enabled;
+    document.getElementById('adm-learn').checked = r.learn_enabled;
+    document.getElementById('adm-private-brain').checked = !!r.private_brain;
+    document.getElementById('adm-tts').checked = !!r.tts_enabled;
+    document.getElementById('adm-drift').checked = !!r.bark_drift_enabled;
+    document.getElementById('adm-tts-delay').checked = !!r.tts_delay_enabled;
+    document.getElementById('adm-global').checked = r.contribute_to_global;
+    document.getElementById('adm-cursedness').value = r.bark_cursedness !== undefined ? r.bark_cursedness : 25;
+    document.getElementById('adm-bark-text-temp').value = (r.bark_text_temp || 0.7).toFixed(2);
+    document.getElementById('adm-bark-wave-temp').value = (r.bark_waveform_temp || 0.7).toFixed(2);
+    document.getElementById('adm-triggers').value = (r.trigger_keywords || []).join(', ');
+    document.getElementById('adm-trigger-chance').value = r.trigger_chance !== undefined ? r.trigger_chance : 50;
+    document.getElementById('adm-reward-tts').value = r.reward_tts_id || '';
+    document.getElementById('adm-reward-markov').value = r.reward_markov_id || '';
+    document.getElementById('adm-bits-tts').value = r.min_bits_tts || 0;
+    document.getElementById('adm-bits-markov').value = r.min_bits_markov || 0;
+    document.getElementById('adm-obs-idle').value = r.obs_idle_img || '';
+    document.getElementById('adm-obs-talk').value = r.obs_talk_img || '';
+    document.getElementById('adm-obs-key').value = r.obs_key || '';
+    if (r.voice_preset) {
+      document.getElementById('adm-voice-preset').value = r.voice_preset;
+      document.getElementById('tts-gen-voice').value = r.voice_preset;
+    }
+    document.getElementById('adm-custom-learn').value = (r.custom_learn_brains || []).join(', ');
+    document.getElementById('adm-custom-cmds').value = (r.custom_commands || []).map(c => {
+      return c.seed ? `!${c.cmd}=${c.brain}:${c.seed}` : `!${c.cmd}=${c.brain}`;
+    }).join(', ');
+    document.getElementById('adm-trusted').value = r.trusted_users.join(', ');
+    document.getElementById('adm-ignored').value = r.ignored_users.join(', ');
+    document.getElementById('adm-blocked').value = (r.blocked_words || []).join(', ');
+    document.getElementById('adm-cooldown').value = r.command_cooldown_secs !== undefined ? r.command_cooldown_secs : 10;
+    const keyQuery = r.obs_key ? `?key=${encodeURIComponent(r.obs_key)}` : '';
+    document.getElementById('obs-url-box').value = `${location.origin}/obs/${r.channel_name}${keyQuery}`;
+
+    currentChannelMix = r.brain_mix.map(x => ({ brain: x.brain, weight: Math.round(x.weight * 100) }));
+    renderMixSliders();
+  }
+
+  function renderMixSliders() {
+    const container = document.getElementById('adm-mix-sliders');
+    container.innerHTML = currentChannelMix.map((item, idx) => {
+      const color = MIX_COLORS[idx % MIX_COLORS.length];
+      return `
+        <div class="mix-row">
+          <span style="border-left:3px solid ${color};padding-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.brain)}</span>
+          <input type="range" min="0" max="100" step="5" value="${item.weight}" oninput="updateMixSlider(${idx}, this.value)" />
+          <span id="mix-wval-${idx}" style="text-align:right;">${item.weight}%</span>
+          <button class="sm danger" onclick="removeMixBrain(${idx})">×</button>
+        </div>
+      `;
+    }).join('');
+    renderAdminSpectrumBar();
+  }
+
+  function renderAdminSpectrumBar() {
+    const bar = document.getElementById('adm-spectrum-bar');
+    const total = currentChannelMix.reduce((a, b) => a + b.weight, 0) || 1;
+    bar.innerHTML = currentChannelMix.map((item, idx) => {
+      const pct = Math.max(0, (item.weight / total) * 100);
+      const color = MIX_COLORS[idx % MIX_COLORS.length];
+      return `<div style="width:${pct}%;background:${color};height:100%;"></div>`;
+    }).join('');
+  }
+
+  function updateMixSlider(idx, val) {
+    currentChannelMix[idx].weight = parseInt(val, 10);
+    document.getElementById(`mix-wval-${idx}`).textContent = `${val}%`;
+    renderAdminSpectrumBar();
+  }
+
+  function removeMixBrain(idx) {
+    if (currentChannelMix.length <= 1) return;
+    currentChannelMix.splice(idx, 1);
+    renderMixSliders();
+  }
+
+  function addBrainToChannelMix() {
+    const b = document.getElementById('adm-add-brain-select').value;
+    if (!b) return;
+    if (!currentChannelMix.some(x => x.brain === b)) {
+      currentChannelMix.push({ brain: b, weight: 25 });
+      renderMixSliders();
+    }
+  }
+
+  function applyCadencePreset(lines, mins) {
+    document.getElementById('adm-lines').value = lines;
+    document.getElementById('adm-time').value = mins;
+  }
+
+  function applyMixPreset(preset) {
+    const chan = document.getElementById('adm-chan-select').value;
+    const cb = `channel:${chan}`;
+    if (preset === 'blend') {
+      currentChannelMix = [{ brain: cb, weight: 70 }, { brain: 'global', weight: 30 }];
+    } else if (preset === 'local') {
+      currentChannelMix = [{ brain: cb, weight: 100 }];
+    } else if (preset === 'global') {
+      currentChannelMix = [{ brain: 'global', weight: 100 }];
+    }
+    renderMixSliders();
+  }
+
+  function getNormalizedChannelMix() {
+    const active = currentChannelMix.filter(x => x.weight > 0);
+    const total = active.reduce((acc, x) => acc + x.weight, 0);
+    if (total <= 0) return [{ brain: 'global', weight: 1.0 }];
+    return active.map(x => ({
+      brain: x.brain,
+      weight: Number((x.weight / total).toFixed(3))
+    }));
+  }
+
+  async function saveChannelConfig() {
+    const channel = document.getElementById('adm-chan-select').value;
+    const msgEl = document.getElementById('adm-save-msg');
+    const mix = getNormalizedChannelMix();
+
+    const rawCmds = document.getElementById('adm-custom-cmds').value.split(',').map(s => s.trim()).filter(Boolean);
+    const custom_commands = rawCmds.map(entry => {
+      const [left, right] = entry.split('=');
+      const cmd = (left || '').trim().replace(/^!/, '').toLowerCase();
+      if (!right) return { cmd, brain: 'default', seed: '' };
+      const idx = right.lastIndexOf(':');
+      if (idx > 0 && !right.endsWith(':') && right.slice(0, idx).includes(':')) {
+        return { cmd, brain: right.slice(0, idx).trim(), seed: right.slice(idx + 1).trim() };
+      }
+      return { cmd, brain: right.trim(), seed: '' };
+    }).filter(c => c.cmd);
+
+    const payload = {
+      channel_name: channel,
+      join_enabled: document.getElementById('adm-join').checked,
+      voice_enabled: document.getElementById('adm-voice').checked,
+      learn_enabled: document.getElementById('adm-learn').checked,
+      contribute_to_global: document.getElementById('adm-global').checked,
+      tts_enabled: document.getElementById('adm-tts').checked,
+      tts_delay_enabled: document.getElementById('adm-tts-delay').checked,
+      voice_preset: document.getElementById('adm-voice-preset').value || 'v2/en_speaker_5',
+      lines_between_messages: parseInt(document.getElementById('adm-lines').value || '50', 10),
+      time_between_messages: parseInt(document.getElementById('adm-time').value || '15', 10),
+      markov_order: parseInt(document.getElementById('adm-order').value || '2', 10),
+      temperature: parseFloat(document.getElementById('adm-temp').value || '1.0'),
+      context_bias_chance: parseInt(document.getElementById('adm-context').value || '35', 10),
+      reply_mention_chance: parseInt(document.getElementById('adm-mention').value || '100', 10),
+      brain_mix: mix,
+      custom_learn_brains: document.getElementById('adm-custom-learn').value.split(',').map(s => s.trim()).filter(Boolean),
+      trusted_users: document.getElementById('adm-trusted').value.split(',').map(s => s.trim()).filter(Boolean),
+      ignored_users: document.getElementById('adm-ignored').value.split(',').map(s => s.trim()).filter(Boolean),
+      blocked_words: document.getElementById('adm-blocked').value.split(',').map(s => s.trim()).filter(Boolean),
+      command_cooldown_secs: parseInt(document.getElementById('adm-cooldown').value || '10', 10),
+      only_when_live: document.getElementById('adm-live-only').checked,
+      raid_greet_enabled: document.getElementById('adm-raid').checked,
+      sub_greet_enabled: document.getElementById('adm-sub').checked,
+      reward_tts_id: document.getElementById('adm-reward-tts').value.trim(),
+      reward_markov_id: document.getElementById('adm-reward-markov').value.trim(),
+      bark_cursedness: parseInt(document.getElementById('adm-cursedness').value || '25', 10),
+      bark_text_temp: parseFloat(document.getElementById('adm-bark-text-temp').value || '0.7'),
+      bark_waveform_temp: parseFloat(document.getElementById('adm-bark-wave-temp').value || '0.7'),
+      bark_drift_enabled: document.getElementById('adm-drift').checked,
+      trigger_keywords: document.getElementById('adm-triggers').value.split(',').map(s => s.trim()).filter(Boolean),
+      trigger_chance: parseInt(document.getElementById('adm-trigger-chance').value || '50', 10),
+      custom_commands,
+      min_bits_tts: parseInt(document.getElementById('adm-bits-tts').value || '0', 10),
+      min_bits_markov: parseInt(document.getElementById('adm-bits-markov').value || '0', 10),
+      obs_idle_img: document.getElementById('adm-obs-idle').value.trim(),
+      obs_talk_img: document.getElementById('adm-obs-talk').value.trim(),
+      obs_key: document.getElementById('adm-obs-key').value.trim(),
+      private_brain: document.getElementById('adm-private-brain').checked,
+      bot_identity: document.getElementById('adm-bot-identity').value || 'mockbot',
+    };
+
+    const res = await fetch('/api/admin/channel', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = data.message;
+    refreshStatus();
+  }
+
+  async function previewChannelMix() {
+    const mix = getNormalizedChannelMix();
+    const order = parseInt(document.getElementById('adm-order').value || '2', 10);
+    const temperature = parseFloat(document.getElementById('adm-temp').value || '1.0');
+    const res = await fetch('/api/public/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brains: mix, order, temperature, count: 3 })
+    });
+    const data = await res.json();
+    const box = document.getElementById('adm-preview-box');
+    if (data.ok && data.results) {
+      box.innerHTML = data.results.map(r => `
+        <div class="sample">
+          <div>${escapeHtml(r.text)}</div>
+          <div class="sample-meta">
+            <span>${r.brains_used.join(' + ')} (${r.word_count}w)</span>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  async function adminSpeakNow() {
+    const channel = document.getElementById('adm-chan-select').value;
+    const msgEl = document.getElementById('adm-save-msg');
+    const res = await fetch('/api/admin/speak', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ channel, seed: null })
+    });
+    const data = await res.json();
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = data.message;
+  }
+
+  async function adminAddChannel() {
+    const ch = document.getElementById('adm-new-chan').value.trim();
+    if (!ch) return;
+    await fetch('/api/public/join', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ channel: ch })
+    });
+    document.getElementById('adm-new-chan').value = '';
+    await refreshStatus();
+    jumpToChannel(ch.replace(/^#/, '').toLowerCase());
+  }
+
+  async function fillTtsWithMarkov() {
+    const mix = getNormalizedChannelMix();
+    const res = await fetch('/api/public/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brains: mix, order: 2, temperature: 1.1, count: 1 })
+    });
+    const data = await res.json();
+    if (data.ok && data.result) {
+      document.getElementById('tts-gen-text').value = data.result.text;
+    }
+  }
+
+  async function triggerBarkTts(customText) {
+    const channel = document.getElementById('adm-chan-select').value || currentUser.channel_name;
+    const text = customText || document.getElementById('tts-gen-text').value.trim();
+    const voice_preset = document.getElementById('tts-gen-voice').value;
+    const msgEl = document.getElementById('tts-gen-msg');
+    if (!text) return;
+
+    const res = await fetch('/api/tts/generate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ channel, text, voice_preset })
+    });
+    const data = await res.json();
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = data.message;
+    refreshStatus();
+  }
+
+  async function loadTtsHistory() {
+    if (!currentUser) return;
+    const res = await fetch('/api/tts/logs?limit=40', {
+      headers: { 'X-Auth-Token': authToken }
+    });
+    const data = await res.json();
+    const tbody = document.getElementById('tts-history-body');
+    if (!data.ok || !data.result) return;
+    tbody.innerHTML = data.result.map(row => `
+      <tr>
+        <td>
+          <strong>#${escapeHtml(row.channel_name)}</strong><br/>
+          <span style="font-size:11px;color:var(--muted);">${escapeHtml(row.voice_preset)}</span>
+        </td>
+        <td>${escapeHtml(row.text_content)}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <audio controls preload="none" src="/${escapeHtml(row.file_path)}"></audio>
+            <button class="sm" title="Save this clip's voice as a reusable .npz preset" onclick="saveClipVoice(${row.id})">Save voice</button>
+            <button class="sm danger" onclick="deleteTtsClip(${row.id})">Delete</button>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  async function deleteTtsClip(id) {
+    await fetch('/api/tts/delete_log', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ id })
+    });
+    loadTtsHistory();
+  }
+
+  async function adminDeleteChannel(channel) {
+    if (!confirm(`Remove channel #${channel} from the bot?`)) return;
+    await fetch('/api/admin/channel/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ channel })
+    });
+    refreshStatus();
+  }
+
+  async function setBrainVoice(brain, voice) {
+    await fetch('/api/admin/brains/voice', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ brain, voice })
+    });
+  }
+
+  async function skipObsAudio() {
+    const channel = document.getElementById('adm-chan-select').value || currentUser.channel_name;
+    const res = await fetch('/api/tts/skip', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ channel })
+    });
+    const data = await res.json();
+    const msgEl = document.getElementById('tts-gen-msg');
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = data.message;
+  }
+
+  async function testObsOverlay() {
+    const channel = document.getElementById('adm-chan-select').value || currentUser.channel_name;
+    const res = await fetch('/api/tts/test_obs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ channel })
+    });
+    const data = await res.json();
+    const msgEl = document.getElementById('tts-gen-msg');
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = data.message;
+  }
+
+  async function saveClipVoice(logId) {
+    const voiceName = prompt('Name for this voice preset (letters, numbers, underscores):');
+    if (!voiceName) return;
+    const res = await fetch('/api/tts/save_voice', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ log_id: logId, voice_name: voiceName.trim() })
+    });
+    const data = await res.json();
+    const msgEl = document.getElementById('tts-gen-msg');
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = data.message;
+    if (data.ok) {
+      await loadVoices();
+    }
+  }
+
+  function exportBrainTxt() {
+    const brain = document.getElementById('insp-brain').value || 'global';
+    fetch(`/api/admin/brains/export?brain=${encodeURIComponent(brain)}`, {
+      headers: { 'X-Auth-Token': authToken }
+    })
+      .then(r => r.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${brain.replace(':', '_')}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+  }
+
+  async function trimBrainLines() {
+    const brain = document.getElementById('insp-brain').value || 'global';
+    const countStr = prompt(`Keep how many newest lines in '${brain}'?`, '10000');
+    if (!countStr) return;
+    const keep_newest = parseInt(countStr, 10);
+    if (!keep_newest || keep_newest < 10) return;
+    const res = await fetch('/api/admin/brains/trim', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ brain, keep_newest })
+    });
+    const data = await res.json();
+    document.getElementById('insp-msg').textContent = data.message;
+    searchBrainLines();
+    refreshStatus();
+  }
+
+  async function purgeOriginFromGlobal() {
+    const channel_origin = prompt('Purge all lines in global originating from which channel?');
+    if (!channel_origin) return;
+    const res = await fetch('/api/admin/brains/purge_origin', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ channel_origin: channel_origin.trim() })
+    });
+    const data = await res.json();
+    document.getElementById('insp-msg').textContent = data.message;
+    searchBrainLines();
+    refreshStatus();
+  }
+
+  async function loadTxtFileIntoTextarea(input) {
+    const files = input.files;
+    if (!files || files.length === 0) return;
+    const chunks = [];
+    for (const file of files) {
+      const text = await file.text();
+      chunks.push(text);
+    }
+    document.getElementById('train-lines').value = chunks.join('\n');
+  }
+
+  function uploadNpzVoice(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const defaultName = file.name.replace(/\.npz$/i, '');
+    const voiceName = prompt('Name for uploaded .npz voice:', defaultName);
+    if (!voiceName) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const bytes = new Uint8Array(reader.result);
+      let hex = '';
+      for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, '0');
+      }
+      const res = await fetch('/api/tts/upload_voice', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth-Token': authToken
+        },
+        body: JSON.stringify({ voice_name: voiceName.trim(), hex_bytes: hex })
+      });
+      const data = await res.json();
+      const msgEl = document.getElementById('tts-gen-msg');
+      msgEl.classList.remove('hidden');
+      msgEl.textContent = data.message;
+      if (data.ok) await loadVoices();
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function deleteSelectedVoice() {
+    const voice = document.getElementById('tts-gen-voice').value;
+    if (!voice || voice === 'random' || voice.startsWith('v2/')) {
+      alert('Only custom .npz voices can be deleted.');
+      return;
+    }
+    if (!confirm(`Delete custom voice '${voice}'?`)) return;
+    const res = await fetch('/api/tts/delete_voice', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ voice_name: voice })
+    });
+    const data = await res.json();
+    const msgEl = document.getElementById('tts-gen-msg');
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = data.message;
+    await loadVoices();
+  }
+
+  function inspectBrainRow(name) {
+    document.getElementById('insp-brain').value = name;
+    searchBrainLines();
+  }
+
+  async function mergeBrainRow(sourceBrain) {
+    const targetBrain = prompt(`Merge all lines from '${sourceBrain}' into which target brain?`, 'global');
+    if (!targetBrain || targetBrain.trim() === sourceBrain) return;
+    const res = await fetch('/api/admin/brains/merge', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ source_brain: sourceBrain, target_brain: targetBrain.trim() })
+    });
+    const data = await res.json();
+    document.getElementById('insp-msg').textContent = data.message;
+    refreshStatus();
+  }
+
+  async function deleteBrainRow(name) {
+    if (!confirm(`Delete brain '${name}' and all its corpus lines?`)) return;
+    const res = await fetch('/api/admin/brains/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ brain: name })
+    });
+    const data = await res.json();
+    document.getElementById('insp-msg').textContent = data.message;
+    refreshStatus();
+  }
+
+  async function resetVoiceDrift() {
+    const channel = document.getElementById('adm-chan-select').value || currentUser.channel_name;
+    const res = await fetch('/api/tts/reset_drift', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ channel })
+    });
+    const data = await res.json();
+    const msgEl = document.getElementById('tts-gen-msg');
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = data.message;
+  }
+
+  function cloneAudioFile(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const ext = (file.name.split('.').pop() || 'wav').toLowerCase();
+    const defaultName = file.name.replace(/\.[^.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const voiceName = prompt('Name for new cloned Bark voice:', defaultName);
+    if (!voiceName) return;
+    const transcript = prompt('Optional transcript of what is spoken in the clip (improves semantic alignment):', '') || '';
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const bytes = new Uint8Array(reader.result);
+      let hex = '';
+      for (let i = 0; i < bytes.length; i++) {
+        hex += bytes[i].toString(16).padStart(2, '0');
+      }
+      const res = await fetch('/api/tts/clone_audio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Auth-Token': authToken
+        },
+        body: JSON.stringify({
+          voice_name: voiceName.trim(),
+          transcript: transcript.trim(),
+          ext,
+          hex_bytes: hex
+        })
+      });
+      const data = await res.json();
+      const msgEl = document.getElementById('tts-gen-msg');
+      msgEl.classList.remove('hidden');
+      msgEl.textContent = data.message;
+      setTimeout(loadVoices, 6000);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  async function loadTopChatters() {
+    const res = await fetch('/api/admin/brains/chatters', {
+      headers: { 'X-Auth-Token': authToken }
+    });
+    const data = await res.json();
+    const tbody = document.getElementById('chatters-table-body');
+    if (!tbody || !data.ok || !data.result) return;
+    tbody.innerHTML = data.result.map(([user, count]) => `
+      <tr>
+        <td><strong>@${escapeHtml(user)}</strong></td>
+        <td>${count}</td>
+        <td><button class="sm" onclick="previewMockChatter('${escapeHtml(user)}')">Mock</button></td>
+      </tr>
+    `).join('');
+  }
+
+  async function previewMockChatter(username) {
+    const channel = document.getElementById('adm-chan-select').value || currentUser.channel_name;
+    const res = await fetch('/api/admin/brains/mock_chatter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ username, channel })
+    });
+    const data = await res.json();
+    const box = document.getElementById('mock-preview-box');
+    box.classList.remove('hidden');
+    box.textContent = data.message;
+  }
+
+  function copyObsUrl() {
+    const box = document.getElementById('obs-url-box');
+    navigator.clipboard.writeText(box.value);
+    const msgEl = document.getElementById('tts-gen-msg');
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = 'Copied OBS URL';
+  }
+
+  function updateSbSpectrum() {
+    const p = parseInt(document.getElementById('sb-primary-pct').value, 10);
+    const secondary = document.getElementById('sb-brain-2').value;
+    const primary = document.getElementById('sb-brain').value;
+    const solo = !secondary || secondary === primary;
+    const p1 = solo ? 100 : p;
+    const p2 = solo ? 0 : (100 - p);
+
+    document.getElementById('sb-mix-label').textContent = `${p1}% / ${p2}%`;
+    document.getElementById('sb-spec-1').style.width = `${p1}%`;
+    document.getElementById('sb-spec-2').style.width = `${p2}%`;
+  }
+
+  async function sandboxGenerate(count = 5) {
+    const primary = document.getElementById('sb-brain').value || 'global';
+    const secondary = document.getElementById('sb-brain-2').value;
+    const primaryPct = parseInt(document.getElementById('sb-primary-pct').value || '75', 10) / 100.0;
+    const order = parseInt(document.getElementById('sb-order').value || '2', 10);
+    const temperature = parseFloat(document.getElementById('sb-temp').value || '1.0');
+    const seed = document.getElementById('sb-seed').value.trim();
+
+    const brains = [];
+    if (!secondary || secondary === primary || primaryPct >= 1.0) {
+      brains.push({ brain: primary, weight: 1.0 });
+    } else {
+      brains.push({ brain: primary, weight: primaryPct });
+      brains.push({ brain: secondary, weight: Number((1.0 - primaryPct).toFixed(2)) });
+    }
+
+    const res = await fetch('/api/public/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brains, order, temperature, seed: seed || null, count })
+    });
+    const data = await res.json();
+    const listEl = document.getElementById('sb-output-list');
+    if (data.ok && data.results && data.results.length > 0) {
+      listEl.innerHTML = data.results.map(r => `
+        <div class="sample">
+          <div>${escapeHtml(r.text)}</div>
+          <div class="sample-meta">
+            <span>${r.brains_used.join(' + ')} (${r.word_count}w)</span>
+            <button class="sm" onclick="sendSandboxToTts(${ JSON.stringify(r.text).replace(/"/g, '&quot;') })">TTS</button>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  function sendSandboxToTts(text) {
+    switchView('tts');
+    document.getElementById('tts-gen-text').value = text;
+    triggerBarkTts(text);
+  }
+
+  async function searchBrainLines() {
+    const brain = document.getElementById('insp-brain').value || 'global';
+    const q = document.getElementById('insp-query').value.trim();
+    const res = await fetch(`/api/admin/brains/lines?brain=${encodeURIComponent(brain)}&q=${encodeURIComponent(q)}&limit=50`, {
+      headers: { 'X-Auth-Token': authToken }
+    });
+    const data = await res.json();
+    const tbody = document.getElementById('insp-table-body');
+    const msgEl = document.getElementById('insp-msg');
+    if (!data.ok) {
+      msgEl.textContent = data.message;
+      return;
+    }
+    msgEl.textContent = `${(data.result || []).length} lines`;
+    tbody.innerHTML = (data.result || []).map(row => `
+      <tr>
+        <td style="color:var(--muted);">#${row.id}</td>
+        <td>${escapeHtml(row.channel_origin)}</td>
+        <td>${escapeHtml(row.content)}</td>
+        <td><button class="sm danger" onclick="deleteBrainLine(${row.id})">Delete</button></td>
+      </tr>
+    `).join('');
+  }
+
+  async function deleteBrainLine(id) {
+    const res = await fetch('/api/admin/brains/delete_line', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ id })
+    });
+    const data = await res.json();
+    document.getElementById('insp-msg').textContent = data.message;
+    searchBrainLines();
+    refreshStatus();
+  }
+
+  async function trainCustomBrain() {
+    let brain = '';
+    if (currentUser.role === 'admin') {
+      const sel = document.getElementById('train-brain-select').value;
+      if (sel === '__new__') {
+        const customName = document.getElementById('train-brain-custom').value.trim();
+        if (!customName) {
+          alert('Enter a name for the new custom brain.');
+          return;
+        }
+        brain = customName;
+      } else {
+        brain = sel || 'global';
+      }
+    } else {
+      brain = `channel:${currentUser.channel_name}`;
+    }
+    const format = document.getElementById('train-format').value || 'auto';
+    const raw_text = document.getElementById('train-lines').value;
+    const msgEl = document.getElementById('train-msg');
+    if (!raw_text.trim()) return;
+    const res = await fetch('/api/admin/brains/import', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ brain, format, raw_text })
+    });
+    const data = await res.json();
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = data.message;
+    if (data.ok) {
+      document.getElementById('train-lines').value = '';
+      refreshStatus();
+      loadTopChatters();
+    }
+  }
+
+  async function loadUsers() {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    const res = await fetch('/api/admin/users', {
+      headers: { 'X-Auth-Token': authToken }
+    });
+    const data = await res.json();
+    const tbody = document.getElementById('users-table-body');
+    if (!data.ok || !data.result) return;
+    tbody.innerHTML = data.result.map(u => `
+      <tr style="cursor:pointer;" onclick="selectUserForEdit('${escapeHtml(u.username)}', '${escapeHtml(u.role)}', '${escapeHtml(u.tier || 'pro')}', '${escapeHtml(u.channel_name)}')">
+        <td><strong>@${escapeHtml(u.username)}</strong></td>
+        <td>${escapeHtml(u.role)}</td>
+        <td>${escapeHtml(u.tier || 'pro')}</td>
+        <td>${u.channel_name === '*' ? '*' : '#' + escapeHtml(u.channel_name)}</td>
+        <td><button class="sm danger" onclick="event.stopPropagation(); adminDeleteUser('${escapeHtml(u.username)}')">Delete</button></td>
+      </tr>
+    `).join('');
+  }
+
+  function selectUserForEdit(username, role, tier, chan) {
+    document.getElementById('usr-name').value = username;
+    document.getElementById('usr-role').value = role;
+    document.getElementById('usr-tier').value = tier || 'pro';
+    document.getElementById('usr-chan').value = chan === '*' ? '' : chan;
+    document.getElementById('usr-pass').placeholder = 'leave blank to keep password';
+  }
+
+  async function adminSaveUser() {
+    const username = document.getElementById('usr-name').value.trim();
+    const password = document.getElementById('usr-pass').value;
+    const role = document.getElementById('usr-role').value;
+    const tier = document.getElementById('usr-tier').value || 'pro';
+    const channel_name = document.getElementById('usr-chan').value.trim() || username;
+    const msgEl = document.getElementById('usr-msg');
+    if (!username) {
+      msgEl.classList.remove('hidden');
+      msgEl.textContent = 'Enter a username.';
+      return;
+    }
+    const res = await fetch('/api/admin/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ username, password, role, tier, channel_name })
+    });
+    const data = await res.json();
+    msgEl.classList.remove('hidden');
+    msgEl.textContent = data.message;
+    if (data.ok) {
+      document.getElementById('usr-name').value = '';
+      document.getElementById('usr-pass').value = '';
+      document.getElementById('usr-chan').value = '';
+      await loadUsers();
+      await refreshStatus();
+    }
+  }
+
+  async function adminDeleteUser(username) {
+    await fetch('/api/admin/users/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ username })
+    });
+    loadUsers();
+  }
+
+  function appendFeedEvent(ev) {
+    if (!currentUser) return;
+    if (currentUser.role !== 'admin') {
+      if (ev.channel && ev.channel !== currentUser.channel_name) return;
+      if (ev.type === 'system_log') return;
+    }
+    if (ev.type === 'tts_generated') {
+      loadTtsHistory();
+    }
+    if (ev.type === 'channel_status_changed') return;
+    allEvents.push(ev);
+    if (allEvents.length > 300) allEvents.shift();
+    renderStreamFeed();
+  }
+
+  function renderStreamFeed() {
+    const feed = document.getElementById('live-feed');
+    if (!feed) return;
+    const chanFilter = (document.getElementById('log-chan-filter') || {}).value || '';
+    const typeFilter = (document.getElementById('log-type-filter') || {}).value || 'all';
+    const filtered = allEvents.filter(ev => {
+      if (chanFilter && ev.channel && ev.channel !== chanFilter) return false;
+      if (typeFilter === 'bot' && ev.type !== 'bot_response' && ev.type !== 'tts_generated') return false;
+      if (typeFilter === 'chat' && ev.type !== 'chat_message') return false;
+      return true;
+    });
+    feed.innerHTML = filtered.map(ev => {
+      const time = new Date((ev.timestamp || Date.now()/1000) * 1000).toLocaleTimeString();
+      if (ev.type === 'chat_message') {
+        return `<div class="log-line">
+          <span class="log-ts">${time}</span>
+          <span class="log-ch">#${escapeHtml(ev.channel)}</span>
+          <span class="log-usr">${escapeHtml(ev.author)}:</span>
+          <span>${escapeHtml(ev.content)}</span>
+        </div>`;
+      } else if (ev.type === 'bot_response') {
+        return `<div class="log-line bot">
+          <span class="log-ts">${time}</span>
+          <span class="log-ch">#${escapeHtml(ev.channel)}</span>
+          <span class="log-usr">bot (${escapeHtml(ev.trigger)}):</span>
+          <span>${escapeHtml(ev.text)}</span>
+          <span style="color:var(--muted);margin-left:6px;">[${ev.brains_used.join('+')}]</span>
+        </div>`;
+      } else if (ev.type === 'tts_generated') {
+        return `<div class="log-line bot">
+          <span class="log-ts">${time}</span>
+          <span class="log-ch">#${escapeHtml(ev.channel)}</span>
+          <span class="log-usr">tts (${escapeHtml(ev.voice_preset)}):</span>
+          <span>"${escapeHtml(ev.text)}" (${ev.duration_secs}s)</span>
+        </div>`;
+      } else if (ev.type === 'system_log') {
+        return `<div class="log-line">
+          <span class="log-ts">${time}</span>
+          <span style="color:var(--muted);">[${escapeHtml(ev.level)}] ${escapeHtml(ev.message)}</span>
+        </div>`;
+      }
+      return '';
+    }).join('');
+    feed.scrollTop = feed.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  let wsConnected = false;
+  function connectWebSocket() {
+    if (wsConnected) return;
+    wsConnected = true;
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${proto}//${location.host}/api/ws`);
+    ws.onmessage = (msg) => {
+      try {
+        const ev = JSON.parse(msg.data);
+        appendFeedEvent(ev);
+      } catch (_) {}
+    };
+    ws.onclose = () => {
+      wsConnected = false;
+      setTimeout(connectWebSocket, 3000);
+    };
+  }
+
+  initApp();
+  setInterval(refreshStatus, 5000);
+</script>
+</body>
+</html>

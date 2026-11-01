@@ -434,13 +434,21 @@ impl AppState {
         &self,
         clean_channel: &str,
         trigger: &str,
-        res: GenerationResult,
+        mut res: GenerationResult,
     ) -> Option<GenerationResult> {
+        res.text = crate::markov::MessageFilter::sanitize_outbound(&res.text);
+        if res.text.is_empty() {
+            return None;
+        }
         let now = chrono::Utc::now().timestamp();
 
         let (tts_enabled, tts_delay_enabled, voice_preset, cursedness, text_temp, waveform_temp, drift_enabled) = {
             let mut chans = self.channels.write().unwrap();
             if let Some(rt) = chans.get_mut(clean_channel) {
+                // Hard 2-second per-channel anti-burst floor
+                if trigger != "manual" && now - rt.last_spoke_epoch < 2 {
+                    return None;
+                }
                 rt.lines_since_last_spoke = 0;
                 rt.last_spoke_epoch = now;
                 rt.total_bot_responses += 1;
@@ -533,7 +541,17 @@ impl AppState {
         voice_override: Option<String>,
     ) -> Result<()> {
         let clean = channel_name.trim().trim_start_matches('#').to_lowercase();
-        let (default_vp, text_temp, waveform_temp, drift_enabled) = {
+        let safe_text = crate::markov::MessageFilter::sanitize_outbound(text);
+        if safe_text.is_empty() {
+            return Err(anyhow!("TTS text is empty after sanitization."));
+        }
+        {
+            let eng = self.engine.read().unwrap();
+            if !eng.filter.is_safe(&safe_text) {
+                return Err(anyhow!("TTS text blocked by safety filter."));
+            }
+        }
+        let (default_vp, text_temp, waveform_temp, drift_enabled, blocked_words) = {
             let chans = self.channels.read().unwrap();
             if let Some(rt) = chans.get(&clean) {
                 (
@@ -541,11 +559,16 @@ impl AppState {
                     rt.record.bark_text_temp,
                     rt.record.bark_waveform_temp,
                     rt.record.bark_drift_enabled,
+                    rt.record.blocked_words.clone(),
                 )
             } else {
-                ("v2/en_speaker_5".to_string(), 0.70, 0.70, false)
+                ("v2/en_speaker_5".to_string(), 0.70, 0.70, false, Vec::new())
             }
         };
+        let lower_t = safe_text.to_lowercase();
+        if blocked_words.iter().any(|bw| !bw.is_empty() && lower_t.contains(bw)) {
+            return Err(anyhow!("TTS text contains a channel-blocked word."));
+        }
         let voice_preset = voice_override.unwrap_or(default_vp);
         let q_len = self.tts_queue_len.load(Ordering::Relaxed);
         if q_len >= 6 {
@@ -561,8 +584,8 @@ impl AppState {
             .send(TtsRequest::Synthesize {
                 seq,
                 channel: clean,
-                text: text.to_string(),
-                chat_text: text.to_string(),
+                text: safe_text.clone(),
+                chat_text: safe_text,
                 voice_preset,
                 text_temp,
                 waveform_temp,

@@ -4,6 +4,7 @@ use std::path::Path;
 
 pub struct MessageFilter {
     url_regex: Regex,
+    pii_regex: Regex,
     badword_regexes: Vec<Regex>,
     blocked_substrings: Vec<String>,
     pub strip_urls: bool,
@@ -12,8 +13,14 @@ pub struct MessageFilter {
 impl MessageFilter {
     pub fn new(strip_urls: bool, badwords_path: Option<&str>) -> Self {
         let url_regex = Regex::new(r"(?i)\b(?:https?://|www\.)\S+").unwrap();
+        // Match IPv4 addresses, US/intl phone numbers, or email addresses to prevent doxxing
+        let pii_regex = Regex::new(
+            r"(?i)(?:\b(?:\d{1,3}\.){3}\d{1,3}\b|\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b|\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b)",
+        )
+        .unwrap();
         let mut filter = Self {
             url_regex,
+            pii_regex,
             badword_regexes: Vec::new(),
             blocked_substrings: vec![
                 "second ad break is starting".to_string(),
@@ -119,6 +126,44 @@ impl MessageFilter {
     }
 
     pub fn is_safe(&self, text: &str) -> bool {
+        // 1. Block PII (IPv4, phone numbers, email addresses)
+        if self.pii_regex.is_match(text) {
+            return false;
+        }
+
+        // 2. Block Zalgo combining-diacritic spam, Braille ASCII art, and box-drawing art
+        let mut combining_count = 0usize;
+        let mut art_count = 0usize;
+        let mut prev_ch = '\0';
+        let mut repeat_run = 0usize;
+        for ch in text.chars() {
+            let code = ch as u32;
+            if (0x0300..=0x036F).contains(&code)
+                || (0x1AB0..=0x1AFF).contains(&code)
+                || (0x20D0..=0x20FF).contains(&code)
+            {
+                combining_count += 1;
+                if combining_count > 3 {
+                    return false;
+                }
+            }
+            if (0x2800..=0x28FF).contains(&code) || (0x2500..=0x259F).contains(&code) {
+                art_count += 1;
+                if art_count > 2 {
+                    return false;
+                }
+            }
+            if ch == prev_ch {
+                repeat_run += 1;
+                if repeat_run >= 16 {
+                    return false;
+                }
+            } else {
+                prev_ch = ch;
+                repeat_run = 1;
+            }
+        }
+
         let lower = text.to_lowercase();
         for sub in &self.blocked_substrings {
             if lower.contains(sub) {
@@ -131,5 +176,19 @@ impl MessageFilter {
             }
         }
         true
+    }
+
+    /// Ensures outbound bot messages can never execute Twitch slash/dot commands (/ban, /raid, .timeout, !cmd)
+    /// and are capped to a safe Twitch IRC length.
+    pub fn sanitize_outbound(text: &str) -> String {
+        let cleaned: String = text
+            .chars()
+            .filter(|c| !c.is_control())
+            .collect::<String>();
+        let safe_start = cleaned
+            .trim()
+            .trim_start_matches(|c: char| matches!(c, '/' | '.' | '!' | '\\'))
+            .trim();
+        safe_start.chars().take(450).collect()
     }
 }

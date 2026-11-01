@@ -222,6 +222,8 @@ async fn connect_and_run(
     let mut cadence_interval = tokio::time::interval(Duration::from_secs(30));
     let mut ping_interval = tokio::time::interval(Duration::from_secs(180));
     ping_interval.tick().await; // skip immediate tick
+    let mut sent_window: std::collections::VecDeque<tokio::time::Instant> =
+        std::collections::VecDeque::with_capacity(20);
 
     loop {
         tokio::select! {
@@ -453,8 +455,23 @@ async fn connect_and_run(
                     }
                     IrcControlCmd::SendPrivmsg { channel, text } => {
                         let clean = channel.trim_start_matches('#').to_lowercase();
-                        let safe_line: String = text.chars().filter(|c| *c != '\r' && *c != '\n').collect();
+                        let safe_line = crate::markov::MessageFilter::sanitize_outbound(&text);
                         if !safe_line.is_empty() {
+                            // Sliding 30s rate-limit guard (max 18 msgs / 30s per bot account to prevent Twitch global 1hr shadowban)
+                            let now_inst = tokio::time::Instant::now();
+                            while let Some(&front) = sent_window.front() {
+                                if now_inst.duration_since(front) > Duration::from_secs(30) {
+                                    sent_window.pop_front();
+                                } else {
+                                    break;
+                                }
+                            }
+                            if sent_window.len() >= 18 {
+                                warn!("Outbound IRC rate limit reached for @{}; dropping burst message to #{}", nick, clean);
+                                continue;
+                            }
+                            sent_window.push_back(now_inst);
+
                             // Try Helix Send Chat Message API first (grants the official [🤖] Chat Bot Badge when App Access Token + user:bot / channel:bot is configured)
                             let sent_via_helix = try_send_helix_chat_message(state, &nick, &clean, &safe_line).await;
                             if !sent_via_helix {

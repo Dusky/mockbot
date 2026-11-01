@@ -733,10 +733,59 @@ fn is_admin_login(login: &str, state: &AppState) -> bool {
         || l.eq_ignore_ascii_case(&state.config.twitch.mockbot_nickname)
 }
 
+static IP_RATE_LIMITER: std::sync::OnceLock<
+    std::sync::Mutex<std::collections::HashMap<String, Vec<i64>>>,
+> = std::sync::OnceLock::new();
+
+fn check_ip_rate_limit(
+    headers: &HeaderMap,
+    bucket: &str,
+    max_requests: usize,
+    window_secs: i64,
+) -> bool {
+    let ip = headers
+        .get("x-forwarded-for")
+        .or_else(|| headers.get("x-real-ip"))
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .unwrap_or("local");
+
+    // Never rate-limit loopback TUI polling
+    if ip == "local" || ip == "127.0.0.1" {
+        return true;
+    }
+
+    let key = format!("{}:{}", bucket, ip);
+    let now = chrono::Utc::now().timestamp();
+    let map_mutex =
+        IP_RATE_LIMITER.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+    let mut map = map_mutex.lock().unwrap();
+    let entry = map.entry(key).or_default();
+    entry.retain(|&ts| now - ts < window_secs);
+    if entry.len() >= max_requests {
+        return false;
+    }
+    entry.push(now);
+    true
+}
+
 async fn auth_login_handler(
+    headers: HeaderMap,
     State(state): State<Arc<AppState>>,
     Json(req): Json<LoginReq>,
 ) -> impl IntoResponse {
+    if !check_ip_rate_limit(&headers, "auth_login", 10, 60) {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(ApiResponse {
+                ok: false,
+                message: "Too many login attempts. Wait a minute and try again.".to_string(),
+                result: None,
+            }),
+        );
+    }
     let user_clean = req.username.trim().to_lowercase();
     // Allow admin login using config.toml admin_token as password
     if is_admin_login(&user_clean, &state)
@@ -787,9 +836,20 @@ struct RegisterStreamerReq {
 }
 
 async fn auth_register_handler(
+    headers: HeaderMap,
     State(state): State<Arc<AppState>>,
     Json(req): Json<RegisterStreamerReq>,
 ) -> impl IntoResponse {
+    if !check_ip_rate_limit(&headers, "auth_register", 3, 600) {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(ApiResponse::<UserAccount> {
+                ok: false,
+                message: "Rate limit exceeded for manual registration. Please use Sign in with Twitch or wait 10 minutes.".to_string(),
+                result: None,
+            }),
+        );
+    }
     if !state.config.web.public_join_enabled {
         return (
             StatusCode::FORBIDDEN,
@@ -1685,17 +1745,56 @@ struct MultiGenerateResp {
 }
 
 async fn sandbox_generate_handler(
+    headers: HeaderMap,
     State(state): State<Arc<AppState>>,
     Json(req): Json<PublicGenerateReq>,
 ) -> impl IntoResponse {
-    let count = req.count.unwrap_or(1).clamp(1, 10);
+    if !check_ip_rate_limit(&headers, "pub_gen", 30, 60) {
+        return Json(MultiGenerateResp {
+            ok: false,
+            message: "Rate limit exceeded (max 30 generations/min).".to_string(),
+            result: None,
+            results: Vec::new(),
+        });
+    }
+    let is_admin = resolve_auth_user(&headers, &state)
+        .map(|u| u.role == "admin")
+        .unwrap_or(false);
+    let count = req.count.unwrap_or(1).clamp(1, 5);
+    let raw_brains = req.brains.unwrap_or_else(|| {
+        vec![BrainWeight {
+            brain: "global".to_string(),
+            weight: 1.0,
+        }]
+    });
+    // Filter out private channel brains for unauthenticated/non-admin callers
+    let safe_brains: Vec<BrainWeight> = if is_admin {
+        raw_brains
+    } else {
+        let chans = state.channels.read().unwrap();
+        raw_brains
+            .into_iter()
+            .filter(|bw| {
+                if let Some(ch_name) = bw.brain.strip_prefix("channel:") {
+                    !chans
+                        .get(ch_name)
+                        .map(|rt| rt.record.private_brain)
+                        .unwrap_or(false)
+                } else {
+                    true
+                }
+            })
+            .collect()
+    };
     let mut params = GenerationParams {
-        brains: req.brains.unwrap_or_else(|| {
+        brains: if safe_brains.is_empty() {
             vec![BrainWeight {
                 brain: "global".to_string(),
                 weight: 1.0,
             }]
-        }),
+        } else {
+            safe_brains
+        },
         order: req.order.unwrap_or(state.config.markov.default_order).clamp(1, 3),
         temperature: req.temperature.unwrap_or(1.0).clamp(0.25, 3.0),
         seed: req.seed.filter(|s| !s.trim().is_empty()),
@@ -2383,12 +2482,35 @@ async fn custom_import_corpus_handler(
             Json(ApiResponse {
                 ok: false,
                 message: format!(
-                    "Unverified channel. Type '!ansv claim {}' in #{} first.",
+                    "Unverified channel. Type '!mockbot claim {}' in #{} first.",
                     user.claim_code, user.channel_name
                 ),
                 result: None,
             }),
         );
+    }
+
+    if user.role != "admin" {
+        if !check_ip_rate_limit(&headers, "corpus_import", 4, 300) {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(ApiResponse {
+                    ok: false,
+                    message: "Import rate limit reached. Wait a few minutes before importing again.".to_string(),
+                    result: None,
+                }),
+            );
+        }
+        if req.raw_text.len() > 2 * 1024 * 1024 {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse {
+                    ok: false,
+                    message: "Import size capped at 2 MB per upload for streamer accounts.".to_string(),
+                    result: None,
+                }),
+            );
+        }
     }
 
     let raw_brain = req.brain.unwrap_or_default().trim().to_lowercase();
@@ -2454,6 +2576,10 @@ async fn custom_import_corpus_handler(
 
     if !batch.is_empty() {
         let _ = state.db.insert_corpus_batch(&batch);
+        // Cap non-admin channel brains to 25,000 lines max to prevent DB bloat
+        if user.role != "admin" {
+            let _ = state.db.trim_brain_to_newest(&brain_name, 25_000);
+        }
     }
 
     state.log_system(

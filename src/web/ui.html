@@ -226,14 +226,22 @@
     }
     .m4-nav {
       display: flex;
-      gap: 20px;
+      gap: 6px;
+      align-items: center;
       font-size: 13.5px;
     }
     .m4-nav a {
       color: #d1d5db;
       text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 3px;
     }
-    .m4-nav a:hover { color: #fff; text-decoration: underline; }
+    .m4-nav a:hover { color: #fff; background: rgba(255,255,255,0.06); }
+    .m4-nav a.active-tab {
+      color: #fff;
+      background: #6441a5;
+      font-weight: 600;
+    }
     .m4-container {
       max-width: 1100px;
       margin: 24px auto 0;
@@ -754,25 +762,24 @@
     </div>
   </header>
 
-  <!-- PUBLIC PAGE (MOCKUP 4: CLASSIC OPEN-SOURCE UTILITY LAYOUT + SCALABLE CHANNEL DIRECTORY) -->
+  <!-- PUBLIC PAGE (MOCKUP 4: CLASSIC OPEN-SOURCE UTILITY LAYOUT + SEPARATE CHANNELS TAB) -->
   <div id="auth-screen">
     <header class="m4-header">
       <div class="m4-header-inner">
-        <div class="m4-brand">
+        <div class="m4-brand" style="cursor:pointer;" onclick="switchPubPage('overview')">
           <strong>mockbot</strong>
           <span>Twitch Markov Chain &amp; Bark TTS Bot</span>
         </div>
         <nav class="m4-nav">
-          <a href="#m4-channels">Channels</a>
-          <a href="#m4-how">How It Works</a>
-          <a href="#m4-security">Moderation</a>
-          <a href="#m4-commands">Commands</a>
-          <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">GitHub</a>
+          <a href="/" id="pnav-overview" class="active-tab" onclick="switchPubPage('overview');return false;">Overview</a>
+          <a href="/channels" id="pnav-channels" onclick="switchPubPage('channels');return false;">Channels</a>
+          <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">GitHub &nearr;</a>
         </nav>
       </div>
     </header>
 
-    <div class="m4-container">
+    <!-- PAGE 1: OVERVIEW (HOME) -->
+    <div id="pub-page-overview" class="m4-container">
       <!-- MAIN CONTENT COLUMN -->
       <main class="m4-main">
         <h2 style="margin-top:0;">About Mockbot</h2>
@@ -781,55 +788,8 @@
         </p>
         <p>
           Each channel has its own separate corpus (<code>channel:yourname</code>). Streamers can run the bot strictly on their own chat history, blend weights from other brains, import old chat logs, and optionally synthesize spoken audio for OBS using Suno Bark TTS.
+          <a href="/channels" onclick="switchPubPage('channels');return false;" style="color:#6441a5;font-weight:600;margin-left:4px;">Browse active channels &rarr;</a>
         </p>
-
-        <h2 id="m4-channels">Channels Running Mockbot</h2>
-
-        <!-- SCALABLE FILTER / SEARCH / SORT TOOLBAR -->
-        <div class="m4-dir-toolbar">
-          <div style="font-weight:600;color:#374151;" id="chan-dir-summary">Loading channels...</div>
-          <div class="m4-dir-controls">
-            <input type="text" id="chan-dir-search" class="m4-dir-input" placeholder="Search channel..." oninput="renderPublicChannelsTable(1)" />
-            <select id="chan-dir-filter" class="m4-dir-select" onchange="renderPublicChannelsTable(1)">
-              <option value="all">All channels</option>
-              <option value="live">Live now</option>
-            </select>
-            <select id="chan-dir-sort" class="m4-dir-select" onchange="renderPublicChannelsTable(1)">
-              <option value="default">Sort: Live &amp; corpus</option>
-              <option value="followers">Sort: Followers</option>
-              <option value="alpha">Sort: A&ndash;Z</option>
-            </select>
-          </div>
-        </div>
-
-        <table class="m4-table">
-          <thead>
-            <tr>
-              <th style="width:210px;">Channel</th>
-              <th style="width:105px;">Status</th>
-              <th style="width:105px;">Corpus</th>
-              <th>Sample Line from Brain</th>
-              <th style="width:54px;"></th>
-            </tr>
-          </thead>
-          <tbody id="m4-chans-tbody"></tbody>
-        </table>
-
-        <!-- PAGINATION & PAGE SIZE FOOTER -->
-        <div class="m4-dir-footer">
-          <div id="chan-dir-range">Showing 0 channels</div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span>Per page:</span>
-            <select id="chan-dir-pagesize" class="m4-dir-select" style="padding:2px 6px !important;font-size:11.5px !important;" onchange="renderPublicChannelsTable(1)">
-              <option value="8" selected>8</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-            </select>
-            <button class="m4-btn-sm" id="chan-prev-btn" onclick="changeChanDirPage(-1)">&larr; Prev</button>
-            <span id="chan-page-label" style="font-weight:600;">1 / 1</span>
-            <button class="m4-btn-sm" id="chan-next-btn" onclick="changeChanDirPage(1)">Next &rarr;</button>
-          </div>
-        </div>
 
         <h2 id="m4-how">How It Works</h2>
         <svg viewBox="0 0 720 105" style="width:100%;height:auto;margin:8px 0 14px;background:#f9fafb;border:1px solid #d1d5db;border-radius:3px;font-family:sans-serif;">
@@ -948,6 +908,63 @@
           </div>
         </div>
       </aside>
+    </div>
+
+    <!-- PAGE 2: DEDICATED CHANNELS DIRECTORY PAGE -->
+    <div id="pub-page-channels" class="hidden" style="max-width:1100px;margin:24px auto 0;padding:0 20px;">
+      <main class="m4-main">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:12px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:14px;">
+          <h2 style="margin:0;border:none;padding:0;">Channels Running Mockbot</h2>
+          <a href="/" onclick="switchPubPage('overview');return false;" style="font-size:13px;color:#6441a5;text-decoration:none;font-weight:600;">&larr; Back to Overview</a>
+        </div>
+
+        <!-- SCALABLE FILTER / SEARCH / SORT TOOLBAR -->
+        <div class="m4-dir-toolbar">
+          <div style="font-weight:600;color:#374151;" id="chan-dir-summary">Loading channels...</div>
+          <div class="m4-dir-controls">
+            <input type="text" id="chan-dir-search" class="m4-dir-input" placeholder="Search channel..." oninput="renderPublicChannelsTable(1)" />
+            <select id="chan-dir-filter" class="m4-dir-select" onchange="renderPublicChannelsTable(1)">
+              <option value="all">All channels</option>
+              <option value="live">Live now</option>
+            </select>
+            <select id="chan-dir-sort" class="m4-dir-select" onchange="renderPublicChannelsTable(1)">
+              <option value="default">Sort: Live &amp; corpus</option>
+              <option value="followers">Sort: Followers</option>
+              <option value="alpha">Sort: A&ndash;Z</option>
+            </select>
+          </div>
+        </div>
+
+        <table class="m4-table">
+          <thead>
+            <tr>
+              <th style="width:220px;">Channel</th>
+              <th style="width:110px;">Status</th>
+              <th style="width:240px;">Bio / Stream</th>
+              <th style="width:110px;">Corpus</th>
+              <th>Sample Line from Brain</th>
+              <th style="width:58px;"></th>
+            </tr>
+          </thead>
+          <tbody id="m4-chans-tbody"></tbody>
+        </table>
+
+        <!-- PAGINATION & PAGE SIZE FOOTER -->
+        <div class="m4-dir-footer">
+          <div id="chan-dir-range">Showing 0 channels</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span>Per page:</span>
+            <select id="chan-dir-pagesize" class="m4-dir-select" style="padding:2px 6px !important;font-size:11.5px !important;" onchange="renderPublicChannelsTable(1)">
+              <option value="15" selected>15</option>
+              <option value="30">30</option>
+              <option value="100">100</option>
+            </select>
+            <button class="m4-btn-sm" id="chan-prev-btn" onclick="changeChanDirPage(-1)">&larr; Prev</button>
+            <span id="chan-page-label" style="font-weight:600;">1 / 1</span>
+            <button class="m4-btn-sm" id="chan-next-btn" onclick="changeChanDirPage(1)">Next &rarr;</button>
+          </div>
+        </div>
+      </main>
     </div>
   </div>
 
@@ -1637,6 +1654,9 @@
     } catch (_) {}
 
     loadPublicChannels();
+    if (location.pathname === '/channels' || location.hash === '#channels') {
+      switchPubPage('channels', false);
+    }
 
     if (authToken) {
       const ok = await checkSession();
@@ -1658,6 +1678,28 @@
       }
     } catch (_) {}
   }
+
+  function switchPubPage(tab, pushHistory = true) {
+    const isChans = tab === 'channels';
+    document.getElementById('pub-page-overview').classList.toggle('hidden', isChans);
+    document.getElementById('pub-page-channels').classList.toggle('hidden', !isChans);
+    document.getElementById('pnav-overview').classList.toggle('active-tab', !isChans);
+    document.getElementById('pnav-channels').classList.toggle('active-tab', isChans);
+    if (pushHistory) {
+      history.pushState(null, '', isChans ? '/channels' : '/');
+    }
+    if (isChans) {
+      renderPublicChannelsTable(chanDirPage);
+    }
+  }
+
+  window.addEventListener('popstate', () => {
+    if (location.pathname === '/channels' || location.hash === '#channels') {
+      switchPubPage('channels', false);
+    } else {
+      switchPubPage('overview', false);
+    }
+  });
 
   function changeChanDirPage(delta) {
     renderPublicChannelsTable(chanDirPage + delta);
@@ -1707,14 +1749,14 @@
     document.getElementById('chan-next-btn').disabled = chanDirPage >= totalPages;
 
     if (slice.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6b7280;padding:16px;">No channels match your filter.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#6b7280;padding:16px;">No channels match your filter.</td></tr>';
       return;
     }
 
     tbody.innerHTML = slice.map(c => {
-      const tipText = c.is_live
-        ? `${c.stream_game}: ${c.stream_title}`
-        : (c.bio || `#${c.channel_name}`);
+      const bioOrTitle = c.is_live
+        ? `${c.stream_game ? c.stream_game + ': ' : ''}${c.stream_title || 'Live'}`
+        : (c.bio || '');
       const statusCell = c.is_live
         ? `<span style="color:#16a34a;font-weight:600;">&#9679; LIVE (${c.stream_viewers})</span>`
         : `<span style="color:#6b7280;">${c.followers.toLocaleString()} flw</span>`;
@@ -1725,12 +1767,13 @@
       return `
         <tr>
           <td>
-            <div style="display:flex;align-items:center;gap:8px;" title="${escapeHtml(tipText)}">
+            <div style="display:flex;align-items:center;gap:8px;">
               <img src="${escapeHtml(c.avatar_url)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#e5e7eb;" alt="" />
               <a href="https://twitch.tv/${encodeURIComponent(c.channel_name)}" target="_blank" rel="noopener" style="color:#6441a5;font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(c.display_name)}</a>
             </div>
           </td>
           <td style="white-space:nowrap;font-size:12.5px;">${statusCell}</td>
+          <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;color:#4b5563;" title="${escapeHtml(bioOrTitle)}">${escapeHtml(bioOrTitle)}</td>
           <td style="white-space:nowrap;font-size:12.5px;color:#4b5563;">${c.corpus_lines.toLocaleString()} lines</td>
           <td class="m4-quote-cell" id="card-quote-${escapeHtml(c.channel_name)}" title="${escapeHtml(c.sample_quote || '')}">${quoteText}</td>
           <td style="text-align:right;">

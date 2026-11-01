@@ -185,453 +185,255 @@
       margin-top: -6px;
     }
 
-    /* ─── PUBLIC WEB APP LANDING PAGE ─── */
+    /* ─── MOCKUP 4 PUBLIC PAGE (FFZ / Chatterino Classic Open-Source Style) ─── */
     #auth-screen {
-      font-family: var(--f-sans);
-      color: var(--ink);
-      max-width: 1140px;
-      margin: 0 auto;
-      padding: 52px 32px 88px;
-    }
-    .pub-nav {
-      display: flex;
-      align-items: center;
-      gap: 22px;
-      font-family: var(--f-sans);
-      font-size: 13px;
-    }
-    .pub-nav a {
-      color: var(--ink-2);
-      text-decoration: none;
-      font-weight: 500;
-      transition: color 0.15s;
-    }
-    .pub-nav a:hover {
-      color: var(--accent);
-    }
-    .hero-split {
-      display: grid;
-      grid-template-columns: 1.3fr 0.9fr;
-      gap: 48px;
-      align-items: stretch;
+      background: #f3f4f6;
+      color: #1f2937;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 14.5px;
+      line-height: 1.55;
+      min-height: 100vh;
       padding-bottom: 56px;
-      border-bottom: 1px solid var(--line);
     }
-    @media (max-width: 900px) {
-      .hero-split { grid-template-columns: 1fr; gap: 32px; }
-      .pub-nav { display: none; }
+    .m4-header {
+      background: #1f242d;
+      color: #fff;
+      border-bottom: 3px solid #6441a5;
     }
-    .hero-copy {
+    .m4-header-inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 12px 20px;
       display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    .hero-kicker {
-      display: inline-flex;
       align-items: center;
-      gap: 8px;
-      font-family: var(--f-mono);
-      font-size: 11.5px;
-      color: var(--accent);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 14px;
-    }
-    .hero-copy h1 {
-      font-family: var(--f-serif);
-      font-size: 54px;
-      font-weight: 400;
-      line-height: 1.05;
-      letter-spacing: -0.015em;
-      margin: 0 0 18px;
-      color: var(--ink);
-    }
-    .hero-copy p {
-      font-size: 15.5px;
-      line-height: 1.68;
-      color: var(--ink-2);
-      margin: 0 0 14px;
-    }
-    .hero-actions {
-      display: flex;
+      justify-content: space-between;
       flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 18px;
-      margin-bottom: 28px;
-    }
-    .hero-stats-strip {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
       gap: 12px;
-      padding-top: 20px;
-      border-top: 1px solid var(--line);
-      margin-top: auto;
     }
-    .hero-stat-item {
+    .m4-brand {
       display: flex;
-      flex-direction: column;
-      gap: 2px;
+      align-items: baseline;
+      gap: 12px;
     }
-    .hero-stat-val {
-      font-family: var(--f-mono);
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--ink);
+    .m4-brand strong {
+      font-size: 20px;
+      color: #fff;
+      letter-spacing: -0.01em;
     }
-    .hero-stat-lbl {
-      font-size: 11.5px;
-      color: var(--muted);
+    .m4-brand span {
+      font-size: 13px;
+      color: #9ca3af;
     }
-    .btn-link {
-      display: inline-flex;
+    .m4-nav {
+      display: flex;
+      gap: 20px;
+      font-size: 13.5px;
+    }
+    .m4-nav a {
+      color: #d1d5db;
+      text-decoration: none;
+    }
+    .m4-nav a:hover { color: #fff; text-decoration: underline; }
+    .m4-container {
+      max-width: 1100px;
+      margin: 24px auto 0;
+      padding: 0 20px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 300px;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 860px) {
+      .m4-container { grid-template-columns: 1fr; }
+    }
+    .m4-main {
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      padding: 28px 32px;
+    }
+    .m4-main h2 {
+      font-size: 18.5px;
+      color: #111827;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e5e7eb;
+      margin: 26px 0 12px;
+    }
+    .m4-main h2:first-child { margin-top: 0; }
+    .m4-main p {
+      margin-bottom: 12px;
+      color: #374151;
+    }
+    .m4-main ul {
+      margin: 0 0 16px 20px;
+      color: #374151;
+    }
+    .m4-main li { margin-bottom: 6px; }
+    .m4-main code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12.5px;
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: #111827;
+    }
+    .m4-dir-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      background: #f9fafb;
+      border: 1px solid #d1d5db;
+      border-bottom: none;
+      padding: 8px 10px;
+      border-radius: 3px 3px 0 0;
+      font-size: 12.5px;
+    }
+    .m4-dir-controls {
+      display: flex;
       align-items: center;
       gap: 6px;
-      padding: 10px 16px;
-      font-family: var(--f-sans);
-      font-size: 13.5px;
-      font-weight: 500;
-      text-decoration: none;
-      border-radius: 3px;
-      border: 1px solid var(--line-strong);
-      background: var(--surface);
-      color: var(--ink);
-      cursor: pointer;
+      flex-wrap: wrap;
     }
-    .btn-link:hover {
-      border-color: var(--ink);
+    .m4-dir-input, .m4-dir-select {
+      background: #ffffff !important;
+      color: #111827 !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 3px !important;
+      padding: 4px 8px !important;
+      font-family: inherit !important;
+      font-size: 12.5px !important;
+      width: auto !important;
     }
-    .btn-link.primary-cta {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-      font-weight: 600;
-    }
-    .btn-link.primary-cta:hover {
-      filter: brightness(1.08);
-    }
-    .auth-panel {
-      background: var(--surface);
-      border: 1px solid var(--line-strong);
-      border-top: 3px solid var(--accent);
-      border-radius: 4px;
-      padding: 26px;
-      font-family: var(--f-sans);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    .auth-panel h2 {
-      font-family: var(--f-sans);
-      font-size: 17px;
-      font-weight: 600;
-      color: var(--ink);
-      margin: 0 0 6px;
-      text-transform: none;
-      letter-spacing: 0;
-    }
-    .auth-panel .sub-note {
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 16px;
-      line-height: 1.45;
-    }
-    .pub-section {
-      padding: 56px 0;
-      border-bottom: 1px solid var(--line);
-    }
-    .pub-section-head {
-      margin-bottom: 28px;
-    }
-    .pub-section-head h2 {
-      font-family: var(--f-serif);
-      font-size: 36px;
-      font-weight: 400;
-      color: var(--ink);
-      margin: 0 0 6px;
-      text-transform: none;
-      letter-spacing: 0;
-    }
-    .pub-section-head p {
-      font-size: 15px;
-      color: var(--muted);
-      max-width: 720px;
-      line-height: 1.6;
-    }
-    .pub-grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-    @media (max-width: 780px) {
-      .pub-grid-2 { grid-template-columns: 1fr; }
-    }
-    .pub-feature-card {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 4px;
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .pub-card-tag {
-      font-family: var(--f-mono);
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--accent);
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-    .pub-feature-card h3 {
-      font-family: var(--f-sans);
-      font-size: 16.5px;
-      font-weight: 600;
-      color: var(--ink);
-      margin: 0;
-    }
-    .pub-feature-card p {
-      font-size: 14px;
-      color: var(--ink-2);
-      line-height: 1.64;
-      margin: 0;
-    }
-
-    /* Animated Flowchart & Markov Crossover Diagram */
-    .flow-wrap {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 4px;
-      padding: 24px;
-      margin-bottom: 24px;
-      overflow-x: auto;
-    }
-    .flow-svg {
+    .m4-table {
       width: 100%;
-      min-width: 820px;
-      height: auto;
-      display: block;
-      font-family: var(--f-mono);
-    }
-    .flow-wire {
-      fill: none;
-      stroke: var(--line-strong);
-      stroke-width: 1.5;
-    }
-    .flow-pulse {
-      fill: none;
-      stroke: var(--accent);
-      stroke-width: 2;
-      stroke-dasharray: 6 18;
-      animation: wireFlow 1.8s linear infinite;
-    }
-    .flow-pulse-ok {
-      fill: none;
-      stroke: var(--ok);
-      stroke-width: 2;
-      stroke-dasharray: 6 18;
-      animation: wireFlow 2.1s linear infinite;
-    }
-    @keyframes wireFlow {
-      from { stroke-dashoffset: 24; }
-      to   { stroke-dashoffset: 0; }
-    }
-    .flow-node {
-      fill: var(--bg-2);
-      stroke: var(--line-strong);
-      stroke-width: 1.2;
-      rx: 4;
-    }
-    .flow-node-accent {
-      fill: var(--bg-2);
-      stroke: var(--accent);
-      stroke-width: 1.5;
-      rx: 4;
-    }
-    .flow-node-ok {
-      fill: var(--bg-2);
-      stroke: var(--ok);
-      stroke-width: 1.5;
-      rx: 4;
-    }
-    .flow-title {
-      fill: var(--ink);
-      font-size: 12px;
-      font-weight: 600;
-    }
-    .flow-sub {
-      fill: var(--muted);
-      font-size: 10.5px;
-    }
-    .flow-badge {
-      fill: var(--accent);
-      font-size: 10px;
-      font-weight: 600;
-    }
-    .crossover-box {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 4px;
-      padding: 20px 24px;
-    }
-    .crossover-grid {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      gap: 14px;
-      align-items: center;
-      font-family: var(--f-mono);
-      font-size: 12.5px;
-      margin-top: 14px;
-    }
-    @media (max-width: 780px) {
-      .crossover-grid { grid-template-columns: 1fr; }
-    }
-    .x-msg {
-      background: var(--bg-2);
-      border: 1px solid var(--line);
-      padding: 10px 12px;
-      border-radius: 3px;
-      color: var(--ink-2);
-    }
-    .x-pivot {
-      background: var(--field);
-      border: 1px solid var(--accent);
-      color: var(--ink);
-      padding: 8px 14px;
-      border-radius: 3px;
-      font-weight: 600;
-      text-align: center;
-    }
-    .x-out {
-      margin-top: 14px;
-      padding: 12px 14px;
-      background: var(--field);
-      border-left: 3px solid var(--accent);
-      font-family: var(--f-mono);
+      border-collapse: collapse;
       font-size: 13px;
-      color: var(--ink);
+      margin: 0;
+      background: #fff;
     }
-
-    /* Stream & Channel Directory Cards — Balanced 2-Column Grid */
-    .streams-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 20px;
+    .m4-table th, .m4-table td {
+      border: 1px solid #d1d5db;
+      padding: 7px 10px;
+      text-align: left;
+      vertical-align: middle;
+      color: #1f2937;
     }
-    @media (max-width: 780px) {
-      .streams-grid { grid-template-columns: 1fr; }
-    }
-    .stream-card {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 4px;
-      padding: 20px 22px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .stream-card.is-live {
-      border-color: var(--ok);
-    }
-    .stream-card-top {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-    }
-    .stream-avatar {
-      width: 50px;
-      height: 50px;
-      border-radius: 50%;
-      border: 1px solid var(--line-strong);
-      object-fit: cover;
-      background: var(--field);
-      flex-shrink: 0;
-    }
-    .stream-title-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-    .stream-name {
-      font-family: var(--f-sans);
-      font-size: 16px;
+    .m4-table th {
+      background: #f3f4f6;
       font-weight: 600;
-      color: var(--ink);
-      text-decoration: none;
+      color: #374151;
+      font-size: 12px;
+    }
+    .m4-table tr:hover td {
+      background: #f9fafb;
+    }
+    .m4-quote-cell {
+      max-width: 280px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-    .stream-name:hover {
-      color: var(--accent);
-      text-decoration: underline;
-    }
-    .stream-badge-live {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 2px 8px;
-      font-family: var(--f-mono);
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--ok);
-      border: 1px solid var(--ok);
-      border-radius: 3px;
-      background: rgba(127, 166, 124, 0.1);
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .stream-badge-off {
-      font-family: var(--f-mono);
-      font-size: 11.5px;
-      color: var(--muted);
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .stream-bio {
-      font-family: var(--f-sans);
-      font-size: 13.5px;
-      color: var(--ink-2);
-      line-height: 1.5;
-    }
-    .stream-stats-bar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      font-family: var(--f-mono);
-      font-size: 11.5px;
-      color: var(--muted);
-      padding-top: 10px;
-      border-top: 1px solid var(--line);
-      margin-top: auto;
-    }
-    .stream-quote-box {
-      background: var(--field);
-      border: 1px solid var(--line);
-      border-left: 3px solid var(--accent);
-      padding: 10px 14px;
-      font-family: var(--f-mono);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 12px;
-      color: var(--ink);
-      line-height: 1.5;
+      color: #374151;
     }
-    .pub-footer {
-      padding-top: 32px;
+    .m4-dir-footer {
       display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
       align-items: center;
+      justify-content: space-between;
+      background: #f9fafb;
+      border: 1px solid #d1d5db;
+      border-top: none;
+      padding: 6px 10px;
+      border-radius: 0 0 3px 3px;
+      font-size: 12px;
+      color: #4b5563;
+      margin-bottom: 18px;
+    }
+    .m4-btn-sm {
+      background: #ffffff !important;
+      color: #374151 !important;
+      border: 1px solid #cbd5e1 !important;
+      padding: 3px 8px !important;
+      border-radius: 3px !important;
+      font-family: inherit !important;
+      font-size: 12px !important;
+      cursor: pointer;
+    }
+    .m4-btn-sm:hover:not(:disabled) {
+      background: #f3f4f6 !important;
+      border-color: #9ca3af !important;
+    }
+    .m4-btn-sm:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .m4-sidebar {
+      display: flex;
+      flex-direction: column;
       gap: 16px;
+    }
+    .m4-sidebox {
+      background: #ffffff;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .m4-sidebox-title {
+      background: #f9fafb;
+      border-bottom: 1px solid #d1d5db;
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 13.5px;
+      color: #111827;
+    }
+    .m4-sidebox-body {
+      padding: 14px;
       font-size: 13px;
-      color: var(--muted);
+      color: #374151;
     }
-    .pub-footer a {
-      color: var(--ink-2);
-      text-decoration: none;
+    .m4-twitch-btn {
+      display: block;
+      width: 100%;
+      padding: 9px 12px;
+      background: #6441a5 !important;
+      color: #fff !important;
+      border: 1px solid #503484 !important;
+      border-radius: 3px;
+      font-family: inherit !important;
+      font-weight: 600;
+      font-size: 13.5px;
+      text-align: center;
+      cursor: pointer;
     }
-    .pub-footer a:hover {
-      color: var(--ink);
-      text-decoration: underline;
+    .m4-twitch-btn:hover { background: #563791 !important; }
+    .m4-input {
+      width: 100% !important;
+      padding: 7px 9px !important;
+      background: #ffffff !important;
+      color: #111827 !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 3px !important;
+      font-family: inherit !important;
+      font-size: 13px !important;
+      margin-bottom: 8px;
+    }
+    .m4-tab-btn {
+      flex: 1;
+      padding: 5px 8px !important;
+      font-family: inherit !important;
+      font-size: 12px !important;
+      background: #f3f4f6 !important;
+      color: #374151 !important;
+      border: 1px solid #cbd5e1 !important;
+    }
+    .m4-tab-btn.active {
+      background: #374151 !important;
+      color: #ffffff !important;
+      border-color: #374151 !important;
+      font-weight: 600;
     }
     details.adv-drawer {
       border: 1px solid var(--line);
@@ -934,21 +736,11 @@
 </head>
 <body>
 
-  <header class="topbar">
-    <div style="display:flex;align-items:center;gap:28px;">
-      <div class="brand" style="cursor:pointer;" onclick="window.scrollTo({top:0,behavior:'smooth'})">
-        <span>mockbot</span>
-        <small id="rail-bot-nick">@mockbot</small>
-      </div>
-      <nav class="pub-nav" id="pub-nav-links">
-        <a href="#sec-streams">Channels</a>
-        <a href="#sec-flowchart">How It Works</a>
-        <a href="#sec-overview">Features</a>
-        <a href="#sec-tts">Bark TTS &amp; OBS</a>
-        <a href="#sec-security">Security &amp; Moderation</a>
-        <a href="#sec-commands">Commands</a>
-        <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">GitHub &nearr;</a>
-      </nav>
+  <!-- LOGGED-IN APP TOPBAR -->
+  <header class="topbar hidden" id="app-topbar">
+    <div class="brand">
+      <span>mockbot</span>
+      <small id="rail-bot-nick">@mockbot</small>
     </div>
 
     <div class="topbar-right">
@@ -962,436 +754,201 @@
     </div>
   </header>
 
-  <!-- PUBLIC LANDING PAGE & LOGIN -->
+  <!-- PUBLIC PAGE (MOCKUP 4: CLASSIC OPEN-SOURCE UTILITY LAYOUT + SCALABLE CHANNEL DIRECTORY) -->
   <div id="auth-screen">
-    <!-- HERO -->
-    <div class="hero-split">
-      <div class="hero-copy">
-        <div>
-          <div class="hero-kicker">&#9632; Rust Markov Engine &middot; Suno Bark TTS &middot; Twitch IRCv3</div>
-          <h1>A Twitch chat bot that learns from your community and talks back.</h1>
-          <p>
-            <strong>Mockbot</strong> is a multi-brain Markov chain and Suno Bark TTS bot for Twitch. It listens to your live chat room and builds a statistical word-transition graph from the messages your viewers type. Every sentence it generates is stitched together word-by-word from your own community's vocabulary, emotes, and inside jokes.
-          </p>
-          <p>
-            Every streamer gets an isolated brain (<code>channel:yourname</code>) with full control over how often the bot speaks, which brains it blends together, blocked words, automatic ban/timeout purges, and optional GPU-accelerated Bark text-to-speech for OBS.
-          </p>
-
-          <div class="hero-actions">
-            <a class="btn-link" href="#sec-streams">Explore active channels &darr;</a>
-            <a class="btn-link" href="#sec-flowchart">Signal flowchart &darr;</a>
-            <a class="btn-link" href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">Source on GitHub &nearr;</a>
-          </div>
+    <header class="m4-header">
+      <div class="m4-header-inner">
+        <div class="m4-brand">
+          <strong>mockbot</strong>
+          <span>Twitch Markov Chain &amp; Bark TTS Bot</span>
         </div>
-
-        <div class="hero-stats-strip">
-          <div class="hero-stat-item">
-            <span class="hero-stat-val" id="hero-stat-chans">4</span>
-            <span class="hero-stat-lbl">Active channels</span>
-          </div>
-          <div class="hero-stat-item">
-            <span class="hero-stat-val">106k+</span>
-            <span class="hero-stat-lbl">Corpus lines</span>
-          </div>
-          <div class="hero-stat-item">
-            <span class="hero-stat-val">44k+</span>
-            <span class="hero-stat-lbl">Unique vocabulary</span>
-          </div>
-          <div class="hero-stat-item">
-            <span class="hero-stat-val" style="color:var(--ok);">Orders 1&ndash;3</span>
-            <span class="hero-stat-lbl">N-gram graph</span>
-          </div>
-        </div>
+        <nav class="m4-nav">
+          <a href="#m4-channels">Channels</a>
+          <a href="#m4-how">How It Works</a>
+          <a href="#m4-security">Moderation</a>
+          <a href="#m4-commands">Commands</a>
+          <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">GitHub</a>
+        </nav>
       </div>
+    </header>
 
-      <!-- SIGN IN CARD -->
-      <div class="auth-panel">
-        <h2>Streamer dashboard</h2>
-        <p class="sub-note">Sign in with your Twitch account to add <code>@mockbot</code> to your channel or manage your settings.</p>
+    <div class="m4-container">
+      <!-- MAIN CONTENT COLUMN -->
+      <main class="m4-main">
+        <h2 style="margin-top:0;">About Mockbot</h2>
+        <p>
+          <strong>Mockbot</strong> (<code>@mockbot</code> on Twitch) is a chat bot written in Rust that builds a word-transition table (Markov chain) from messages sent in your Twitch chat. When triggered by chat activity or commands like <code>!speak</code>, it generates responses by stitching together words and phrases learned from your channel.
+        </p>
+        <p>
+          Each channel has its own separate corpus (<code>channel:yourname</code>). Streamers can run the bot strictly on their own chat history, blend weights from other brains, import old chat logs, and optionally synthesize spoken audio for OBS using Suno Bark TTS.
+        </p>
 
-        <button class="btn-link primary-cta" style="width:100%;justify-content:center;margin-bottom:18px;" onclick="startTwitchOAuth()">Continue with Twitch</button>
+        <h2 id="m4-channels">Channels Running Mockbot</h2>
 
-        <div style="border-top:1px solid var(--line);padding-top:14px;">
-          <div style="display:flex;gap:6px;margin-bottom:12px;">
-            <button class="sm primary" id="atab-login" onclick="switchAuthTab('login')">Password login</button>
-            <button class="sm" id="atab-register" onclick="switchAuthTab('register')">Manual signup</button>
-          </div>
-
-          <div id="auth-form-login">
-            <div class="field">
-              <label>Username</label>
-              <input type="text" id="login-user" placeholder="username or channel" onkeydown="if(event.key==='Enter') doLogin()" />
-            </div>
-            <div class="field">
-              <label>Password</label>
-              <input type="password" id="login-pass" onkeydown="if(event.key==='Enter') doLogin()" />
-            </div>
-            <button style="width:100%;" onclick="doLogin()">Log in</button>
-          </div>
-
-          <div id="auth-form-register" class="hidden">
-            <div class="field">
-              <label>Twitch channel</label>
-              <input type="text" id="reg-channel" placeholder="channel_name" />
-            </div>
-            <div class="field">
-              <label>Password</label>
-              <input type="password" id="reg-pass" placeholder="set a password" />
-            </div>
-            <div class="row">
-              <div class="field" style="margin:0;">
-                <label>Frequency</label>
-                <select id="reg-cadence">
-                  <option value="150,25">150 lines / 25m</option>
-                  <option value="100,15" selected>100 lines / 15m</option>
-                  <option value="50,10">50 lines / 10m</option>
-                </select>
-              </div>
-              <div class="field" style="margin:0;">
-                <label>Brain</label>
-                <select id="reg-mode">
-                  <option value="blend" selected>70% channel / 30% global</option>
-                  <option value="channel">100% channel only</option>
-                  <option value="global">100% global</option>
-                </select>
-              </div>
-            </div>
-            <button class="primary" style="width:100%;" onclick="doRegister()">Create &amp; join</button>
+        <!-- SCALABLE FILTER / SEARCH / SORT TOOLBAR -->
+        <div class="m4-dir-toolbar">
+          <div style="font-weight:600;color:#374151;" id="chan-dir-summary">Loading channels...</div>
+          <div class="m4-dir-controls">
+            <input type="text" id="chan-dir-search" class="m4-dir-input" placeholder="Search channel..." oninput="renderPublicChannelsTable(1)" />
+            <select id="chan-dir-filter" class="m4-dir-select" onchange="renderPublicChannelsTable(1)">
+              <option value="all">All channels</option>
+              <option value="live">Live now</option>
+            </select>
+            <select id="chan-dir-sort" class="m4-dir-select" onchange="renderPublicChannelsTable(1)">
+              <option value="default">Sort: Live &amp; corpus</option>
+              <option value="followers">Sort: Followers</option>
+              <option value="alpha">Sort: A&ndash;Z</option>
+            </select>
           </div>
         </div>
 
-        <div id="auth-msg" class="notice hidden"></div>
+        <table class="m4-table">
+          <thead>
+            <tr>
+              <th style="width:210px;">Channel</th>
+              <th style="width:105px;">Status</th>
+              <th style="width:105px;">Corpus</th>
+              <th>Sample Line from Brain</th>
+              <th style="width:54px;"></th>
+            </tr>
+          </thead>
+          <tbody id="m4-chans-tbody"></tbody>
+        </table>
 
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);line-height:1.5;">
-          <strong>Tip for streamers:</strong> Run <code>/vip mockbot</code> or <code>/mod mockbot</code> in your Twitch chat so Slow Mode and Follower-Only Mode don't block its messages.
+        <!-- PAGINATION & PAGE SIZE FOOTER -->
+        <div class="m4-dir-footer">
+          <div id="chan-dir-range">Showing 0 channels</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span>Per page:</span>
+            <select id="chan-dir-pagesize" class="m4-dir-select" style="padding:2px 6px !important;font-size:11.5px !important;" onchange="renderPublicChannelsTable(1)">
+              <option value="8" selected>8</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+            </select>
+            <button class="m4-btn-sm" id="chan-prev-btn" onclick="changeChanDirPage(-1)">&larr; Prev</button>
+            <span id="chan-page-label" style="font-weight:600;">1 / 1</span>
+            <button class="m4-btn-sm" id="chan-next-btn" onclick="changeChanDirPage(1)">Next &rarr;</button>
+          </div>
         </div>
-      </div>
-    </div>
 
-    <!-- SECTION: CHANNELS & LIVE STREAMS DIRECTORY -->
-    <section class="pub-section" id="sec-streams">
-      <div class="pub-section-head" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;">
-        <div>
-          <h2>Streams &amp; channels using Mockbot</h2>
-          <p>Live Twitch stream status, channel bios, corpus statistics, and sample Markov quotes from active channels.</p>
-        </div>
-        <button class="sm" type="button" onclick="loadPublicChannels()">Refresh directory</button>
-      </div>
+        <h2 id="m4-how">How It Works</h2>
+        <svg viewBox="0 0 720 105" style="width:100%;height:auto;margin:8px 0 14px;background:#f9fafb;border:1px solid #d1d5db;border-radius:3px;font-family:sans-serif;">
+          <rect x="14" y="22" width="140" height="60" rx="3" fill="#fff" stroke="#9ca3af" />
+          <text x="84" y="47" text-anchor="middle" font-size="12" font-weight="600" fill="#111">1. Twitch Chat</text>
+          <text x="84" y="65" text-anchor="middle" font-size="10.5" fill="#555">IRC messages &amp; mods</text>
+          <line x1="154" y1="52" x2="190" y2="52" stroke="#6b7280" stroke-width="1.5" />
+          <polygon points="190,52 184,48 184,56" fill="#6b7280" />
 
-      <div id="pub-streams-grid" class="streams-grid"></div>
-    </section>
+          <rect x="192" y="22" width="155" height="60" rx="3" fill="#fff" stroke="#9ca3af" />
+          <text x="269" y="47" text-anchor="middle" font-size="12" font-weight="600" fill="#111">2. Filter &amp; Ban Purge</text>
+          <text x="269" y="65" text-anchor="middle" font-size="10.5" fill="#555">Strip URLs, blocklist, bans</text>
+          <line x1="347" y1="52" x2="383" y2="52" stroke="#6b7280" stroke-width="1.5" />
+          <polygon points="383,52 377,48 377,56" fill="#6b7280" />
 
-    <!-- SECTION 0: SIGNAL FLOWCHART & MARKOV DIAGRAM -->
-    <section class="pub-section" id="sec-flowchart">
-      <div class="pub-section-head">
-        <h2>Signal path &amp; how sentences are stitched</h2>
-        <p>From incoming Twitch IRC messages through N-gram graph transitions to chat responses and OBS audio playback.</p>
-      </div>
+          <rect x="385" y="22" width="155" height="60" rx="3" fill="#fff" stroke="#9ca3af" />
+          <text x="462" y="47" text-anchor="middle" font-size="12" font-weight="600" fill="#111">3. N-Gram Brain</text>
+          <text x="462" y="65" text-anchor="middle" font-size="10.5" fill="#555">Orders 1&ndash;3 word graph</text>
+          <line x1="540" y1="52" x2="576" y2="52" stroke="#6b7280" stroke-width="1.5" />
+          <polygon points="576,52 570,48 570,56" fill="#6b7280" />
 
-      <div class="flow-wrap">
-        <svg class="flow-svg" viewBox="0 0 1040 270" xmlns="http://www.w3.org/2000/svg">
-          <!-- Wires -->
-          <!-- 1. IRC -> Filter -->
-          <path class="flow-wire" d="M 200 78 L 245 78" />
-          <path class="flow-pulse" d="M 200 78 L 245 78" />
-
-          <!-- IRC -> Moderation Shield (bottom row) -->
-          <path class="flow-wire" d="M 106 130 L 106 205 L 245 205" />
-          <path class="flow-pulse" d="M 106 130 L 106 205 L 245 205" />
-
-          <!-- Moderation Shield -> Multi-Brain Graph -->
-          <path class="flow-wire" d="M 445 205 L 575 205 L 575 138" />
-          <path class="flow-pulse" d="M 445 205 L 575 205 L 575 138" />
-
-          <!-- 2. Filter -> Multi-Brain Graph -->
-          <path class="flow-wire" d="M 445 78 L 485 78" />
-          <path class="flow-pulse-ok" d="M 445 78 L 485 78" />
-
-          <!-- 3. Multi-Brain Graph -> Step Blender -->
-          <path class="flow-wire" d="M 675 78 L 715 78" />
-          <path class="flow-pulse" d="M 675 78 L 715 78" />
-
-          <!-- 4. Step Blender -> Twitch Chat (top right) & Bark TTS (bottom right) -->
-          <path class="flow-wire" d="M 865 55 L 895 55" />
-          <path class="flow-pulse-ok" d="M 865 55 L 895 55" />
-          <path class="flow-wire" d="M 790 130 L 790 205 L 895 205" />
-          <path class="flow-pulse" d="M 790 130 L 790 205 L 895 205" />
-
-          <!-- NODE 1: TWITCH IRCv3 -->
-          <rect class="flow-node" x="12" y="24" width="188" height="106" />
-          <text class="flow-badge" x="26" y="45">01 &middot; INGEST</text>
-          <text class="flow-title" x="26" y="65">Twitch IRCv3 TLS</text>
-          <text class="flow-sub" x="26" y="84">PRIVMSG &amp; USERNOTICE</text>
-          <text class="flow-sub" x="26" y="100">Raids, Subs, Bits, Points</text>
-          <text class="flow-sub" x="26" y="116">Live stream poll (60s)</text>
-
-          <!-- NODE 2: SANITIZER & VOCAB -->
-          <rect class="flow-node-ok" x="245" y="24" width="200" height="106" />
-          <text class="flow-badge" x="259" y="45" style="fill:var(--ok)">02 &middot; SANITIZE</text>
-          <text class="flow-title" x="259" y="65">Filter &amp; Tokenizer</text>
-          <text class="flow-sub" x="259" y="84">Strip URLs &amp; !commands</text>
-          <text class="flow-sub" x="259" y="100">Check blocked words</text>
-          <text class="flow-sub" x="259" y="116">Intern TokenId (u32)</text>
-
-          <!-- NODE 2B: MODERATION SHIELD -->
-          <rect class="flow-node-accent" x="245" y="158" width="200" height="90" />
-          <text class="flow-badge" x="259" y="179">MODERATION SHIELD</text>
-          <text class="flow-title" x="259" y="198">CLEARCHAT / CLEARMSG</text>
-          <text class="flow-sub" x="259" y="216">Ban, timeout, or delete</text>
-          <text class="flow-sub" x="259" y="232">&rarr; Purge SQLite &amp; rebuild</text>
-
-          <!-- NODE 3: MULTI-BRAIN GRAPH -->
-          <rect class="flow-node" x="485" y="18" width="190" height="120" />
-          <text class="flow-badge" x="499" y="39">03 &middot; CORPUS GRAPH</text>
-          <text class="flow-title" x="499" y="59">Multi-Brain N-Grams</text>
-          <text class="flow-sub" x="499" y="78">&bull; channel:&lt;streamer&gt;</text>
-          <text class="flow-sub" x="499" y="94">&bull; user:&lt;chatter&gt; (!mock)</text>
-          <text class="flow-sub" x="499" y="110">&bull; custom:&lt;persona&gt;</text>
-          <text class="flow-sub" x="499" y="126">&bull; Orders 1&ndash;3 + RevSeed</text>
-
-          <!-- NODE 4: STEP BLENDER -->
-          <rect class="flow-node-accent" x="715" y="24" width="150" height="106" />
-          <text class="flow-badge" x="729" y="45">04 &middot; SYNTHESIS</text>
-          <text class="flow-title" x="729" y="65">Step Blender</text>
-          <text class="flow-sub" x="729" y="84">70/30 brain weights</text>
-          <text class="flow-sub" x="729" y="100">Temp + topic seed</text>
-          <text class="flow-sub" x="729" y="116">&lt;70% overlap guard</text>
-
-          <!-- NODE 5A: TWITCH CHAT OUT -->
-          <rect class="flow-node-ok" x="895" y="18" width="135" height="92" />
-          <text class="flow-badge" x="907" y="38" style="fill:var(--ok)">05A &middot; CHAT</text>
-          <text class="flow-title" x="907" y="56">Twitch Chat</text>
-          <text class="flow-sub" x="907" y="74">@mockbot reply</text>
-          <text class="flow-sub" x="907" y="90">AND cadence gate</text>
-
-          <!-- NODE 5B: GPU BARK TTS & OBS -->
-          <rect class="flow-node-accent" x="895" y="150" width="135" height="102" />
-          <text class="flow-badge" x="907" y="170">05B &middot; AUDIO</text>
-          <text class="flow-title" x="907" y="188">CUDA Bark TTS</text>
-          <text class="flow-sub" x="907" y="206">.npz voice + FX</text>
-          <text class="flow-sub" x="907" y="222">WebSocket push &rarr;</text>
-          <text class="flow-sub" x="907" y="238">/obs/&lt;channel&gt;</text>
+          <rect x="578" y="22" width="128" height="60" rx="3" fill="#fff" stroke="#6441a5" stroke-width="1.5" />
+          <text x="642" y="47" text-anchor="middle" font-size="12" font-weight="600" fill="#111">4. Chat &amp; OBS</text>
+          <text x="642" y="65" text-anchor="middle" font-size="10.5" fill="#555">Reply + Bark TTS</text>
         </svg>
-      </div>
 
-      <!-- INTERACTIVE MARKOV STATE CROSSOVER EXAMPLE -->
-      <div class="crossover-box">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
-          <div>
-            <strong style="font-size:14px;color:var(--ink);">How Markov word-stitching works (Order-2 state crossover)</strong>
-            <div style="font-size:13px;color:var(--muted);">Two separate chat messages that share a 2-word pair allow the chain to jump tracks mid-sentence:</div>
-          </div>
-          <button class="sm" type="button" onclick="cycleCrossoverDemo()">Next example &rarr;</button>
-        </div>
+        <ul>
+          <li><strong>Cadence gate:</strong> Automatic messages require <em>both</em> a minimum number of chat lines (default 100) and a minimum cooldown timer (default 15 minutes) to pass, and only run while the stream is live.</li>
+          <li><strong>Chatter imitation (<code>!mock @user</code>):</strong> Builds an on-the-fly Markov chain from a single chatter's message history in your channel.</li>
+          <li><strong>Bark TTS &amp; OBS overlay:</strong> Optional Suno Bark speech synthesis with custom <code>.npz</code> voice cloning (from <code>.wav</code> / <code>.mp3</code> uploads) and a volume-reactive avatar overlay at <code>/obs/yourchannel</code>.</li>
+        </ul>
 
-        <div class="crossover-grid">
-          <div class="x-msg" id="x-msg-a">
-            <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">CHAT MESSAGE #1 (20 minutes ago)</div>
-            <span style="color:var(--ink);">"i swear the best part is</span> <strong style="color:var(--accent);">eating at</strong> <span style="color:var(--muted);">taco bell at 3am"</span>
-          </div>
-          <div class="x-pivot" id="x-pivot">
-            <div style="font-size:9.5px;color:var(--muted);font-weight:400;">SHARED 2-GRAM STATE</div>
-            [ eating, at ]
-          </div>
-          <div class="x-msg" id="x-msg-b">
-            <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">CHAT MESSAGE #2 (5 minutes ago)</div>
-            <span style="color:var(--muted);">"why was everyone</span> <strong style="color:var(--accent);">eating at</strong> <span style="color:var(--ink);">the boss room during phase two"</span>
-          </div>
-        </div>
+        <h2 id="m4-security">Moderation &amp; Security</h2>
+        <ul>
+          <li><strong>Automatic ban &amp; timeout purge:</strong> When a user is banned or timed out (<code>CLEARCHAT</code>) or a message is deleted by a mod (<code>CLEARMSG</code>), Mockbot immediately deletes that user's lines from SQLite and rebuilds your channel's brain in memory.</li>
+          <li><strong>Word filters &amp; overlap guard:</strong> Strips URLs, filters incoming and outgoing messages against global and channel-specific blocked word lists, and rejects generated lines that copy more than 70% of any single source message.</li>
+          <li><strong>Broadcaster verification &amp; private brains:</strong> Only the channel owner (via Twitch OAuth) can change settings. Channels can enable <strong>Private brain</strong> so other streamers cannot blend or <code>!mock</code> their chat history.</li>
+        </ul>
 
-        <div class="x-out" id="x-out">
-          <span style="color:var(--muted);font-size:11px;">GENERATED OUTPUT &rarr;</span>
-          <strong>@mockbot:</strong> i swear the best part is eating at the boss room during phase two
-        </div>
-      </div>
-    </section>
-
-    <!-- SECTION 1: WHAT IT DOES -->
-    <section class="pub-section" id="sec-overview">
-      <div class="pub-section-head">
-        <h2>What Mockbot does</h2>
-        <p>Built in Rust to handle multi-channel Markov generation, live corpus editing, and custom persona mixing.</p>
-      </div>
-
-      <div class="pub-grid-2">
-        <div class="pub-feature-card">
-          <div class="pub-card-tag">01 &middot; Isolated Corpora</div>
-          <h3>Per-Channel Brains &amp; Real-Time Blending</h3>
-          <p>
-            Every channel has its own Markov brain (<code>channel:yourname</code>) that learns from incoming chat messages. You can run 100% on your own community's chat, blend multiple brains together with percentage sliders (such as 70% your channel + 30% global), or import historical logs (<code>TwitchDownloaderCLI</code> JSON, plain text, or IRC chat logs) so the bot knows your channel's lore immediately.
-          </p>
-        </div>
-
-        <div class="pub-feature-card">
-          <div class="pub-card-tag">02 &middot; Interactive Commands</div>
-          <h3><code>!speak</code>, <code>!mock @user</code> &amp; Custom Commands</h3>
-          <p>
-            Viewers can run <code>!speak [topic]</code> to generate a sentence seeded around a specific word, or run <code>!mock @username</code> to generate a message built strictly from that single chatter's message history in your channel. Streamers can also define custom <code>!commands</code> mapped to specific brains and seed words.
-          </p>
-        </div>
-
-        <div class="pub-feature-card">
-          <div class="pub-card-tag">03 &middot; Anti-Spam Cadence</div>
-          <h3>AND-Gated Cadence &amp; Live Stream Detection</h3>
-          <p>
-            Mockbot won't spam a quiet or offline channel. Automatic messages use an <strong>AND</strong> gate — requiring <em>both</em> a minimum number of chat lines (default 100 lines) and a minimum cooldown timer (default 15 minutes) to pass before speaking — and pause automatically whenever your Twitch stream is offline.
-          </p>
-        </div>
-
-        <div class="pub-feature-card">
-          <div class="pub-card-tag">04 &middot; Stream Events</div>
-          <h3>Channel Points, Bits, Raids &amp; Subs</h3>
-          <p>
-            Hook your Twitch community events directly into the bot: trigger Markov responses or Bark TTS audio clips automatically when someone raids your channel, subscribes, cheers a minimum number of bits, or redeems a specific Twitch Channel Point reward.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- SECTION 2: BARK TTS & OBS -->
-    <section class="pub-section" id="sec-tts">
-      <div class="pub-section-head">
-        <h2>Suno Bark TTS &amp; OBS Overlay</h2>
-        <p>Optional GPU-accelerated text-to-speech with custom voice cloning and a browser-source overlay for OBS Studio.</p>
-      </div>
-
-      <div class="pub-grid-2">
-        <div class="pub-feature-card">
-          <div class="pub-card-tag" style="color:var(--ok);">GPU Synthesis &middot; .npz Cloning</div>
-          <h3>Expressive Bark Audio &amp; Voice Cloning</h3>
-          <p>
-            Suno Bark synthesizes natural vocal inflections including laughter (<code>[laughs]</code>), sighs (<code>[sighs]</code>), gasps, and singing (<code>&sung;</code>). Upload any <code>.wav</code> or <code>.mp3</code> clip in the dashboard to clone a custom <code>.npz</code> voice preset, enable <strong>Voice Drift</strong> so the voice mutates over the course of a stream, or save funny Bark hallucinations as permanent voices.
-          </p>
-        </div>
-
-        <div class="pub-feature-card">
-          <div class="pub-card-tag" style="color:var(--ok);">60fps WebAudio RMS &middot; /obs/channel</div>
-          <h3>Volume-Reactive OBS Browser Source</h3>
-          <p>
-            Drop your channel's <code>/obs/yourname</code> URL into OBS as a Browser Source. It plays incoming TTS clips automatically, animates your custom idle/talking PNG or GIF avatar at 60fps using WebAudio RMS volume analysis, and supports instant panic-skipping from the web dashboard or by typing <code>!skip</code> in chat.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- SECTION 3: SECURITY & MODERATION -->
-    <section class="pub-section" id="sec-security">
-      <div class="pub-section-head">
-        <h2>Security, Privacy &amp; Moderation</h2>
-        <p>Designed for live Twitch streams where moderation safety, ban enforcement, and channel isolation actually matter.</p>
-      </div>
-
-      <div class="pub-grid-2">
-        <div class="pub-feature-card">
-          <div class="pub-card-tag">IRC CLEARCHAT &amp; CLEARMSG</div>
-          <h3>Automatic Ban &amp; Timeout Purge</h3>
-          <p>
-            Mockbot listens to Twitch IRC moderation events in real time. The moment a moderator bans or times out a user — or deletes a single message — Mockbot automatically purges every line learned from that user out of SQLite and rebuilds your channel's Markov brain in memory so deleted content can never be repeated.
-          </p>
-        </div>
-
-        <div class="pub-feature-card">
-          <div class="pub-card-tag">Overlap &lt; 70% &middot; Word Blocklists</div>
-          <h3>Blocked Words, Bot Ignore Lists &amp; Anti-Parroting</h3>
-          <p>
-            Incoming chat messages and generated outputs are filtered against both a global blocklist and your channel's custom blocked-words list. URLs and bot commands are stripped before training, known bots (Nightbot, StreamElements, Sery_Bot, etc.) are ignored automatically, and contiguous N-gram overlap checks prevent the bot from parroting a single message verbatim.
-          </p>
-        </div>
-
-        <div class="pub-feature-card">
-          <div class="pub-card-tag">Twitch OAuth &middot; Corpus Isolation</div>
-          <h3>Verified Ownership &amp; Private Brains</h3>
-          <p>
-            Channel settings are locked to verified broadcasters via Twitch OAuth (or in-chat broadcaster verification with <code>!mockbot claim</code>). You can enable <strong>Private brain</strong> in your settings so other streamers cannot blend or <code>!mock</code> your channel's corpus, and lock your OBS overlay URL behind a secret key (<code>?key=...</code>).
-          </p>
-        </div>
-
-        <div class="pub-feature-card">
-          <div class="pub-card-tag">Rust Single-Binary &middot; Local SQLite</div>
-          <h3>Open Source &amp; Self-Hosted</h3>
-          <p>
-            Mockbot is a single-binary Rust application (<code>tokio</code>, <code>axum</code>, <code>rusqlite</code>, <code>ratatui</code>) with an embedded SQLite database and local CUDA Python worker for Bark TTS. Inspect the full source code on <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="color:var(--accent);">GitHub (Dusky/mockbot)</a>.
-          </p>
-        </div>
-      </div>
-    </section>
-
-    <!-- SECTION 4: CHAT COMMANDS -->
-    <section class="pub-section" id="sec-commands" style="border-bottom:none;padding-bottom:24px;">
-      <div class="pub-section-head">
-        <h2>Chat commands reference</h2>
-        <p>Commands available in your Twitch chat once <code>@mockbot</code> joins your channel.</p>
-      </div>
-
-      <div class="table-wrap">
-        <table>
+        <h2 id="m4-commands">Chat Commands</h2>
+        <table class="m4-table">
           <thead>
             <tr>
               <th>Command</th>
-              <th>Permission</th>
+              <th>Who</th>
               <th>Description</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td><code>!speak [topic]</code></td>
-              <td>Everyone (cooldown)</td>
-              <td>Generate a Markov chat response, optionally seeded with a topic word or phrase.</td>
-            </tr>
-            <tr>
-              <td><code>!mock @username [topic]</code></td>
-              <td>Everyone (cooldown)</td>
-              <td>Generate a sentence built strictly from a specific chatter's message history in your channel (or another public brain).</td>
-            </tr>
-            <tr>
-              <td><code>!tts &lt;text&gt;</code></td>
-              <td>Streamer / Mods / Trusted</td>
-              <td>Synthesize text with your channel's Bark TTS voice and play it on your OBS overlay.</td>
-            </tr>
-            <tr>
-              <td><code>!skip</code></td>
-              <td>Streamer / Mods / Trusted</td>
-              <td>Clear pending TTS clips in the queue and immediately stop any audio playing in OBS.</td>
-            </tr>
-            <tr>
-              <td><code>!mockbot lines &lt;n&gt;</code></td>
-              <td>Streamer / Mods / Trusted</td>
-              <td>Set the minimum number of chat lines required between automatic messages.</td>
-            </tr>
-            <tr>
-              <td><code>!mockbot time &lt;minutes&gt;</code></td>
-              <td>Streamer / Mods / Trusted</td>
-              <td>Set the minimum cooldown in minutes between automatic messages.</td>
-            </tr>
-            <tr>
-              <td><code>!mockbot voice &lt;preset&gt;</code></td>
-              <td>Streamer / Mods / Trusted</td>
-              <td>Change your channel's active Bark TTS voice preset from chat.</td>
-            </tr>
-            <tr>
-              <td><code>!mockbot start / stop</code></td>
-              <td>Streamer / Mods / Trusted</td>
-              <td>Unmute or mute automatic Markov responses in your channel.</td>
-            </tr>
-            <tr>
-              <td><code>!mockbot part</code></td>
-              <td>Streamer / Mods</td>
-              <td>Have the bot leave your Twitch chat channel immediately.</td>
-            </tr>
+            <tr><td><code>!speak [topic]</code></td><td>Everyone</td><td>Generate a Markov message (optionally seeded with a word).</td></tr>
+            <tr><td><code>!mock @user [topic]</code></td><td>Everyone</td><td>Generate a line from a specific chatter's message history.</td></tr>
+            <tr><td><code>!tts &lt;text&gt;</code></td><td>Mods / Streamer</td><td>Read text aloud on the OBS overlay with Bark TTS.</td></tr>
+            <tr><td><code>!skip</code></td><td>Mods / Streamer</td><td>Clear the TTS queue and stop OBS audio playback.</td></tr>
+            <tr><td><code>!mockbot lines &lt;n&gt;</code></td><td>Mods / Streamer</td><td>Change the minimum chat lines between auto-messages.</td></tr>
+            <tr><td><code>!mockbot start / stop</code></td><td>Mods / Streamer</td><td>Enable or mute automatic chat responses.</td></tr>
           </tbody>
         </table>
-      </div>
-    </section>
+      </main>
 
-    <footer class="pub-footer">
-      <div>
-        <strong>mockbot</strong> &mdash; Multi-brain Markov chain &amp; Bark TTS platform for Twitch.
-      </div>
-      <div style="display:flex;gap:20px;">
-        <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">GitHub Repository (Dusky/mockbot) &nearr;</a>
-        <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">Back to top &uarr;</a>
-      </div>
-    </footer>
+      <!-- RIGHT SIDEBAR -->
+      <aside class="m4-sidebar">
+        <div class="m4-sidebox">
+          <div class="m4-sidebox-title">Streamer Dashboard</div>
+          <div class="m4-sidebox-body">
+            <p style="margin-bottom:12px;color:#4b5563;">Log in with Twitch to add <code>@mockbot</code> to your channel or manage settings.</p>
+            <button class="m4-twitch-btn" onclick="startTwitchOAuth()">Sign in with Twitch</button>
+
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:14px 0;" />
+            <div style="display:flex;gap:4px;margin-bottom:10px;">
+              <button class="m4-tab-btn active" id="atab-login" onclick="switchAuthTab('login')">Password Login</button>
+              <button class="m4-tab-btn" id="atab-register" onclick="switchAuthTab('register')">Manual Signup</button>
+            </div>
+
+            <div id="auth-form-login">
+              <input class="m4-input" type="text" id="login-user" placeholder="Username or channel" onkeydown="if(event.key==='Enter') doLogin()" />
+              <input class="m4-input" type="password" id="login-pass" placeholder="Password" onkeydown="if(event.key==='Enter') doLogin()" />
+              <button style="width:100%;padding:7px;background:#374151;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="doLogin()">Log in</button>
+            </div>
+
+            <div id="auth-form-register" class="hidden">
+              <input class="m4-input" type="text" id="reg-channel" placeholder="Twitch channel name" />
+              <input class="m4-input" type="password" id="reg-pass" placeholder="Set a password" />
+              <select id="reg-cadence" class="m4-input">
+                <option value="150,25">150 lines / 25m</option>
+                <option value="100,15" selected>100 lines / 15m</option>
+                <option value="50,10">50 lines / 10m</option>
+              </select>
+              <select id="reg-mode" class="m4-input">
+                <option value="blend" selected>70% channel / 30% global</option>
+                <option value="channel">100% channel only</option>
+                <option value="global">100% global</option>
+              </select>
+              <button style="width:100%;padding:7px;background:#374151;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:500;font-family:inherit;" onclick="doRegister()">Create &amp; join</button>
+            </div>
+
+            <div id="auth-msg" class="notice hidden" style="color:#dc2626;background:#fef2f2;border-color:#fecaca;"></div>
+          </div>
+        </div>
+
+        <div class="m4-sidebox">
+          <div class="m4-sidebox-title">Quick Setup</div>
+          <div class="m4-sidebox-body" style="color:#4b5563;line-height:1.5;">
+            <ol style="margin-left:16px;">
+              <li style="margin-bottom:6px;">Sign in with Twitch above to join <code>@mockbot</code> to your chat.</li>
+              <li style="margin-bottom:6px;">Type <code>/vip mockbot</code> or <code>/mod mockbot</code> in your Twitch chat so Slow Mode doesn't block it.</li>
+              <li>Use <code>!speak</code> in chat or upload old logs in the Corpus tab.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="m4-sidebox">
+          <div class="m4-sidebox-title">Source Code</div>
+          <div class="m4-sidebox-body" style="color:#4b5563;">
+            Written in Rust (<code>tokio</code>, <code>axum</code>, <code>rusqlite</code>, <code>ratatui</code>).<br/>
+            <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="color:#6441a5;font-weight:600;display:inline-block;margin-top:6px;">github.com/Dusky/mockbot &rarr;</a>
+          </div>
+        </div>
+      </aside>
+    </div>
   </div>
 
   <!-- APP -->
@@ -2088,57 +1645,100 @@
     showAuthScreen();
   }
 
+  let allPublicChannels = [];
+  let chanDirPage = 1;
+
   async function loadPublicChannels() {
-    const grid = document.getElementById('pub-streams-grid');
-    if (!grid) return;
     try {
       const res = await fetch('/api/public/channels');
       const chans = await res.json();
-      if (!Array.isArray(chans) || chans.length === 0) {
-        grid.innerHTML = '<div style="color:var(--muted);font-size:13px;">No channels active yet.</div>';
-        return;
+      if (Array.isArray(chans)) {
+        allPublicChannels = chans;
+        renderPublicChannelsTable(1);
       }
-      grid.innerHTML = chans.map(c => {
-        const avatar = c.avatar_url || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" fill="%23211f1b"/></svg>';
-        const statusBadge = c.is_live
-          ? `<span class="stream-badge-live"><span class="dot on"></span>LIVE &middot; ${c.stream_viewers} viewers</span>`
-          : `<span class="stream-badge-off">${c.followers ? c.followers.toLocaleString() + ' followers' : 'Offline'}</span>`;
-        const detailLine = c.is_live
-          ? `<div class="stream-bio"><strong>${escapeHtml(c.stream_game || 'Live')}</strong>: ${escapeHtml(c.stream_title || '')}</div>`
-          : (c.bio ? `<div class="stream-bio">${escapeHtml(c.bio)}</div>` : '');
-        const quoteHtml = (!c.private_brain && c.sample_quote)
-          ? `<div class="stream-quote-box">
-               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-                 <span style="font-size:10px;color:var(--muted);">SAMPLE MARKOV LINE</span>
-                 <button class="sm" style="padding:1px 6px;font-size:10px;" onclick="rollCardQuote('${escapeHtml(c.channel_name)}', this)">Roll quote</button>
-               </div>
-               <div id="card-quote-${escapeHtml(c.channel_name)}">"${escapeHtml(c.sample_quote)}"</div>
-             </div>`
-          : '';
-        return `
-          <div class="stream-card ${c.is_live ? 'is-live' : ''}">
-            <div class="stream-card-top">
-              <img class="stream-avatar" src="${escapeHtml(avatar)}" alt="${escapeHtml(c.display_name)}" />
-              <div style="flex:1;min-width:0;">
-                <div class="stream-title-row">
-                  <a class="stream-name" href="https://twitch.tv/${encodeURIComponent(c.channel_name)}" target="_blank" rel="noopener">${escapeHtml(c.display_name)} &nearr;</a>
-                  ${statusBadge}
-                </div>
-                <div style="font-family:var(--f-mono);font-size:11px;color:var(--muted);">#${escapeHtml(c.channel_name)}</div>
-              </div>
-            </div>
-            ${detailLine}
-            ${quoteHtml}
-            <div class="stream-stats-bar">
-              <span>${c.corpus_lines.toLocaleString()} lines</span>
-              <span>&middot;</span>
-              <span>${c.vocab_size.toLocaleString()} vocab words</span>
-              ${c.tts_enabled ? '<span>&middot;</span><span style="color:var(--accent);">Bark TTS</span>' : ''}
-            </div>
-          </div>
-        `;
-      }).join('');
     } catch (_) {}
+  }
+
+  function changeChanDirPage(delta) {
+    renderPublicChannelsTable(chanDirPage + delta);
+  }
+
+  function renderPublicChannelsTable(page) {
+    const tbody = document.getElementById('m4-chans-tbody');
+    if (!tbody) return;
+
+    const q = (document.getElementById('chan-dir-search')?.value || '').trim().toLowerCase();
+    const filterMode = document.getElementById('chan-dir-filter')?.value || 'all';
+    const sortMode = document.getElementById('chan-dir-sort')?.value || 'default';
+    const pageSize = parseInt(document.getElementById('chan-dir-pagesize')?.value || '8', 10);
+
+    const liveCount = allPublicChannels.filter(c => c.is_live).length;
+    const sumEl = document.getElementById('chan-dir-summary');
+    if (sumEl) {
+      sumEl.textContent = `${allPublicChannels.length} channels (${liveCount} live)`;
+    }
+
+    let filtered = allPublicChannels.filter(c => {
+      if (filterMode === 'live' && !c.is_live) return false;
+      if (q && !c.channel_name.toLowerCase().includes(q) && !c.display_name.toLowerCase().includes(q) && !(c.bio || '').toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
+
+    if (sortMode === 'followers') {
+      filtered.sort((a, b) => (b.followers || 0) - (a.followers || 0));
+    } else if (sortMode === 'alpha') {
+      filtered.sort((a, b) => a.channel_name.localeCompare(b.channel_name));
+    } else {
+      filtered.sort((a, b) => (Number(b.is_live) - Number(a.is_live)) || (b.corpus_lines - a.corpus_lines));
+    }
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    chanDirPage = Math.min(Math.max(1, page || 1), totalPages);
+    const startIdx = (chanDirPage - 1) * pageSize;
+    const slice = filtered.slice(startIdx, startIdx + pageSize);
+
+    document.getElementById('chan-dir-range').textContent = filtered.length === 0
+      ? 'No matching channels'
+      : `Showing ${startIdx + 1}–${startIdx + slice.length} of ${filtered.length}`;
+    document.getElementById('chan-page-label').textContent = `${chanDirPage} / ${totalPages}`;
+    document.getElementById('chan-prev-btn').disabled = chanDirPage <= 1;
+    document.getElementById('chan-next-btn').disabled = chanDirPage >= totalPages;
+
+    if (slice.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#6b7280;padding:16px;">No channels match your filter.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = slice.map(c => {
+      const tipText = c.is_live
+        ? `${c.stream_game}: ${c.stream_title}`
+        : (c.bio || `#${c.channel_name}`);
+      const statusCell = c.is_live
+        ? `<span style="color:#16a34a;font-weight:600;">&#9679; LIVE (${c.stream_viewers})</span>`
+        : `<span style="color:#6b7280;">${c.followers.toLocaleString()} flw</span>`;
+      const quoteText = (!c.private_brain && c.sample_quote)
+        ? `"${escapeHtml(c.sample_quote)}"`
+        : '<span style="color:#9ca3af;">(private brain)</span>';
+
+      return `
+        <tr>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;" title="${escapeHtml(tipText)}">
+              <img src="${escapeHtml(c.avatar_url)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;flex-shrink:0;background:#e5e7eb;" alt="" />
+              <a href="https://twitch.tv/${encodeURIComponent(c.channel_name)}" target="_blank" rel="noopener" style="color:#6441a5;font-weight:600;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(c.display_name)}</a>
+            </div>
+          </td>
+          <td style="white-space:nowrap;font-size:12.5px;">${statusCell}</td>
+          <td style="white-space:nowrap;font-size:12.5px;color:#4b5563;">${c.corpus_lines.toLocaleString()} lines</td>
+          <td class="m4-quote-cell" id="card-quote-${escapeHtml(c.channel_name)}" title="${escapeHtml(c.sample_quote || '')}">${quoteText}</td>
+          <td style="text-align:right;">
+            ${!c.private_brain ? `<button class="m4-btn-sm" onclick="rollCardQuote('${escapeHtml(c.channel_name)}', this)">Roll</button>` : ''}
+          </td>
+        </tr>
+      `;
+    }).join('');
   }
 
   async function rollCardQuote(channelName, btnEl) {
@@ -2162,6 +1762,9 @@
       const data = await res.json();
       if (data.ok && data.result) {
         box.textContent = `"${data.result.text}"`;
+        box.title = data.result.text;
+        const found = allPublicChannels.find(x => x.channel_name === channelName);
+        if (found) found.sample_quote = data.result.text;
       }
     } catch (_) {}
     if (btnEl) btnEl.disabled = false;
@@ -2180,8 +1783,8 @@
   function switchAuthTab(tab) {
     document.getElementById('auth-form-login').classList.toggle('hidden', tab !== 'login');
     document.getElementById('auth-form-register').classList.toggle('hidden', tab !== 'register');
-    document.getElementById('atab-login').className = tab === 'login' ? 'primary' : '';
-    document.getElementById('atab-register').className = tab === 'register' ? 'primary' : '';
+    document.getElementById('atab-login').className = 'm4-tab-btn' + (tab === 'login' ? ' active' : '');
+    document.getElementById('atab-register').className = 'm4-tab-btn' + (tab === 'register' ? ' active' : '');
   }
 
   async function doLogin() {
@@ -2299,15 +1902,13 @@
   function showAuthScreen() {
     document.getElementById('auth-screen').classList.remove('hidden');
     document.getElementById('app').classList.add('hidden');
-    document.getElementById('pub-nav-links').classList.remove('hidden');
-    document.getElementById('rail-logout-btn').classList.add('hidden');
-    document.getElementById('rail-backup-btn').classList.add('hidden');
+    document.getElementById('app-topbar').classList.add('hidden');
   }
 
   async function enterStudio() {
     document.getElementById('auth-screen').classList.add('hidden');
     document.getElementById('app').classList.remove('hidden');
-    document.getElementById('pub-nav-links').classList.add('hidden');
+    document.getElementById('app-topbar').classList.remove('hidden');
     document.getElementById('rail-logout-btn').classList.remove('hidden');
 
     const isAdmin = currentUser.role === 'admin';

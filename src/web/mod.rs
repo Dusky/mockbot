@@ -123,38 +123,146 @@ async fn obs_overlay_handler(
 <html>
 <head>
 <meta charset="utf-8" />
-<title>ANSV2 OBS Bark TTS Overlay — #{clean}</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<title>mockbot TTS Player — #{clean}</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-  body {{ margin: 0; padding: 24px; background: transparent; overflow: hidden; font-family: 'IBM Plex Mono', monospace; color: #f4f0e6; }}
-  #stage {{ display: none; align-items: flex-end; gap: 18px; max-width: 760px; }}
+  *, *::before, *::after {{ box-sizing: border-box; }}
+  html, body {{
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #ffffff;
+  }}
+  body.popup-mode {{
+    background: #12151e;
+  }}
+  body.chroma-green {{
+    background: #00ff00 !important;
+  }}
+  #popup-bar {{
+    display: none;
+    background: #1f242d;
+    border-bottom: 2px solid #6441a5;
+    padding: 8px 14px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    color: #e5e7eb;
+    z-index: 100;
+    position: relative;
+  }}
+  body.popup-mode #popup-bar {{
+    display: flex;
+  }}
+  #popup-bar button {{
+    background: #2e3547;
+    color: #fff;
+    border: 1px solid #475569;
+    border-radius: 3px;
+    padding: 4px 9px;
+    font-size: 11.5px;
+    cursor: pointer;
+  }}
+  #popup-bar button:hover {{ background: #3b445b; }}
+  #canvas-area {{
+    position: relative;
+    width: 100%;
+    height: 100%;
+    padding: 28px;
+    display: flex;
+  }}
+  body.popup-mode #canvas-area {{
+    height: calc(100vh - 42px);
+  }}
+  .pos-bottom-left   {{ align-items: flex-end; justify-content: flex-start; }}
+  .pos-bottom-center {{ align-items: flex-end; justify-content: center; }}
+  .pos-bottom-right  {{ align-items: flex-end; justify-content: flex-end; }}
+  .pos-top-left      {{ align-items: flex-start; justify-content: flex-start; }}
+  .pos-top-center    {{ align-items: flex-start; justify-content: center; }}
+  .pos-center        {{ align-items: center; justify-content: center; }}
+
+  #stage {{
+    display: none;
+    align-items: flex-end;
+    gap: 18px;
+    max-width: 820px;
+  }}
   #avatar {{
-    max-width: 140px;
-    max-height: 140px;
     object-fit: contain;
     transition: transform 0.06s ease-out;
     transform-origin: bottom center;
+    flex-shrink: 0;
   }}
   #banner {{
-    background: rgba(20, 19, 17, 0.94);
-    border: 1px solid #5c564b;
-    border-left: 4px solid #d94b2a;
-    border-radius: 4px;
+    background: rgba(20, 22, 30, 0.92);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-left: 4px solid #6441a5;
+    border-radius: 6px;
     padding: 14px 18px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.55);
   }}
-  .voice-tag {{ font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: #d94b2a; margin-bottom: 4px; }}
-  .line-text {{ font-size: 1.05rem; font-weight: 600; line-height: 1.4; }}
+  .voice-tag {{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #a78bfa;
+    margin-bottom: 5px;
+  }}
+  .line-text {{
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }}
+  #idle-hint {{
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #64748b;
+    font-size: 13px;
+    text-align: center;
+    pointer-events: none;
+  }}
+  body.popup-mode #idle-hint {{
+    display: block;
+  }}
 </style>
 </head>
 <body>
-  <div id="stage">
-    <img id="avatar" class="hidden" alt="" />
-    <div id="banner">
-      <div class="voice-tag" id="voice-label">BARK TTS</div>
-      <div class="line-text" id="tts-text"></div>
+  <div id="popup-bar">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <span id="ws-dot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;"></span>
+      <strong>#{clean} TTS Player</strong>
+      <span id="q-status" style="color:#94a3b8;">(Waiting for TTS...)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <label style="font-size:11px;color:#94a3b8;">Vol</label>
+      <input type="range" id="pop-vol" min="0" max="1" step="0.05" value="1" style="width:70px;" oninput="player.volume=parseFloat(this.value)" />
+      <button onclick="skipCurrent()">Skip</button>
+      <button onclick="document.body.classList.toggle('chroma-green')">Chroma Green</button>
     </div>
   </div>
+
+  <div id="canvas-area" class="pos-bottom-left">
+    <div id="idle-hint">Listening for Bark TTS clips in <strong>#{clean}</strong>...<br/><span style="font-size:11px;">(Keep this window open to play audio automatically)</span></div>
+    <div id="stage">
+      <img id="avatar" alt="" />
+      <div id="banner">
+        <div class="voice-tag" id="voice-label">BARK TTS</div>
+        <div class="line-text" id="tts-text"></div>
+      </div>
+    </div>
+  </div>
+
   <audio id="player" crossorigin="anonymous" preload="auto"></audio>
   <script>
     const targetChannel = {clean:?};
@@ -168,17 +276,55 @@ async fn obs_overlay_handler(
       throw new Error('Invalid OBS overlay key');
     }}
 
+    const isPopup = urlParams.get('popup') === '1';
+    if (isPopup) {{
+      document.body.classList.add('popup-mode');
+    }}
+
+    const mode = urlParams.get('mode') || (urlParams.get('banner') === 'false' ? 'avatar' : 'full');
+    const pos = urlParams.get('pos') || 'bottom-left';
+    const accent = urlParams.get('accent') || '#6441a5';
+    const textColor = urlParams.get('color') || '#ffffff';
+    const bgOpacity = parseFloat(urlParams.get('opacity') ?? '0.92');
+    const fontSize = parseInt(urlParams.get('size') || '20', 10);
+    const avatarSize = parseInt(urlParams.get('avsize') || '140', 10);
+    const animStyle = urlParams.get('anim') || 'bounce';
+    const alwaysAvatar = urlParams.get('always_avatar') === '1';
+    const showVoice = urlParams.get('voice_tag') !== '0';
     const vol = Math.min(1, Math.max(0, parseFloat(urlParams.get('volume') || '1.0')));
-    const showBanner = urlParams.get('banner') !== 'false';
-    const queue = [];
-    let playing = false;
-    const player = document.getElementById('player');
-    player.volume = isNaN(vol) ? 1.0 : vol;
+
+    const canvasArea = document.getElementById('canvas-area');
+    canvasArea.className = 'pos-' + pos;
+
     const stage = document.getElementById('stage');
     const banner = document.getElementById('banner');
     const avatar = document.getElementById('avatar');
+    const voiceLabel = document.getElementById('voice-label');
+    const ttsText = document.getElementById('tts-text');
+    const idleHint = document.getElementById('idle-hint');
+    const qStatus = document.getElementById('q-status');
 
-    if (idleImg) {{
+    // Apply custom visual styles
+    avatar.style.maxWidth = avatarSize + 'px';
+    avatar.style.maxHeight = avatarSize + 'px';
+    ttsText.style.fontSize = fontSize + 'px';
+    ttsText.style.color = textColor;
+    voiceLabel.style.color = accent;
+    voiceLabel.style.display = showVoice ? 'block' : 'none';
+    banner.style.borderLeftColor = accent;
+    if (bgOpacity <= 0.02) {{
+      banner.style.background = 'transparent';
+      banner.style.border = 'none';
+      banner.style.boxShadow = 'none';
+      banner.style.padding = '4px 8px';
+    }} else {{
+      banner.style.background = `rgba(18, 21, 30, ${{bgOpacity}})`;
+    }}
+
+    const showBanner = (mode === 'full' || mode === 'banner');
+    const showAvatar = (mode === 'full' || mode === 'avatar') && !!idleImg;
+
+    if (showAvatar) {{
       avatar.src = idleImg;
       avatar.style.display = 'block';
     }} else {{
@@ -187,6 +333,19 @@ async fn obs_overlay_handler(
     if (!showBanner) {{
       banner.style.display = 'none';
     }}
+
+    if (alwaysAvatar && showAvatar) {{
+      stage.style.display = 'flex';
+      if (!showBanner) banner.style.display = 'none';
+      else banner.style.visibility = 'hidden';
+      if (idleHint) idleHint.style.display = 'none';
+    }}
+
+    const queue = [];
+    let playing = false;
+    const player = document.getElementById('player');
+    player.volume = isNaN(vol) ? 1.0 : vol;
+    document.getElementById('pop-vol').value = player.volume;
 
     let audioCtx = null;
     let analyser = null;
@@ -207,7 +366,7 @@ async fn obs_overlay_handler(
 
     function animateAvatar() {{
       if (!playing) return;
-      if (analyser && dataArr && idleImg) {{
+      if (analyser && dataArr && showAvatar) {{
         analyser.getByteTimeDomainData(dataArr);
         let sum = 0;
         for (let i = 0; i < dataArr.length; i++) {{
@@ -215,10 +374,12 @@ async fn obs_overlay_handler(
           sum += v * v;
         }}
         const rms = Math.sqrt(sum / dataArr.length);
-        if (rms > 0.035) {{
+        if (rms > 0.032) {{
           if (avatar.src !== talkImg && talkImg) avatar.src = talkImg;
-          const lift = Math.min(10, Math.round(rms * 42));
-          avatar.style.transform = `translateY(-${{lift}}px) scale(1.03)`;
+          if (animStyle === 'bounce') {{
+            const lift = Math.min(12, Math.round(rms * 44));
+            avatar.style.transform = `translateY(-${{lift}}px) scale(1.03)`;
+          }}
         }} else {{
           if (avatar.src !== idleImg) avatar.src = idleImg;
           avatar.style.transform = 'none';
@@ -227,31 +388,63 @@ async fn obs_overlay_handler(
       requestAnimationFrame(animateAvatar);
     }}
 
+    function updateStatusText() {{
+      if (!qStatus) return;
+      qStatus.textContent = playing
+        ? `Playing (Queue: ${{queue.length}})`
+        : (queue.length > 0 ? `Queue: ${{queue.length}}` : '(Waiting for TTS...)');
+    }}
+
     function playNext() {{
+      updateStatusText();
       if (playing || queue.length === 0) return;
       playing = true;
       ensureAnalyser();
       if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
       const item = queue.shift();
-      document.getElementById('voice-label').textContent = item.voice_preset;
-      document.getElementById('tts-text').textContent = item.text;
-      stage.style.display = 'flex';
+      updateStatusText();
+      voiceLabel.textContent = item.voice_preset;
+      ttsText.textContent = item.text;
+      if (idleHint) idleHint.style.display = 'none';
+      if (mode !== 'audio') {{
+        stage.style.display = 'flex';
+        if (showBanner) banner.style.visibility = 'visible';
+      }}
       player.src = item.audio_url;
       player.play().then(() => requestAnimationFrame(animateAvatar)).catch(() => finish());
     }}
+
     function finish() {{
-      stage.style.display = 'none';
+      if (alwaysAvatar && showAvatar) {{
+        banner.style.visibility = 'hidden';
+      }} else {{
+        stage.style.display = 'none';
+        if (isPopup && idleHint && queue.length === 0) idleHint.style.display = 'block';
+      }}
       if (idleImg) avatar.src = idleImg;
       avatar.style.transform = 'none';
       playing = false;
-      setTimeout(playNext, 400);
+      updateStatusText();
+      setTimeout(playNext, 350);
     }}
+
+    function skipCurrent() {{
+      queue.length = 0;
+      player.pause();
+      player.removeAttribute('src');
+      finish();
+    }}
+
     player.onended = finish;
     player.onerror = finish;
 
     function connect() {{
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
       const ws = new WebSocket(`${{proto}}//${{location.host}}/api/ws`);
+      ws.onopen = () => {{
+        const dot = document.getElementById('ws-dot');
+        if (dot) dot.style.background = '#22c55e';
+      }};
       ws.onmessage = (e) => {{
         try {{
           const ev = JSON.parse(e.data);
@@ -259,14 +452,15 @@ async fn obs_overlay_handler(
             queue.push(ev);
             playNext();
           }} else if (ev.type === 'tts_skip' && ev.channel === targetChannel) {{
-            queue.length = 0;
-            player.pause();
-            player.removeAttribute('src');
-            finish();
+            skipCurrent();
           }}
         }} catch (_) {{}}
       }};
-      ws.onclose = () => setTimeout(connect, 3000);
+      ws.onclose = () => {{
+        const dot = document.getElementById('ws-dot');
+        if (dot) dot.style.background = '#ef4444';
+        setTimeout(connect, 3000);
+      }};
     }}
     connect();
   </script>

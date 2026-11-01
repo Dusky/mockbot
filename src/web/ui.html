@@ -1280,30 +1280,119 @@
             <div id="tts-gen-msg" class="notice hidden"></div>
 
             <div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--line);">
-              <div class="field">
-                <label>OBS Browser Source URL</label>
-                <div style="display:flex;gap:8px;">
-                  <input type="text" id="obs-url-box" readonly />
-                  <button onclick="copyObsUrl()">Copy</button>
-                  <button onclick="testObsOverlay()">Test OBS</button>
-                  <button class="danger" onclick="skipObsAudio()">Clear queue &amp; skip</button>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                <h2 style="margin:0;">OBS &amp; Pop-Up Player Display</h2>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <button class="primary sm" onclick="openPopupTtsPlayer()" data-tip="Open a standalone pop-up window that plays incoming TTS clips automatically">Pop out TTS player &nearr;</button>
+                  <button class="sm" onclick="testObsOverlay()">Send test clip</button>
+                  <button class="sm danger" onclick="skipObsAudio()">Clear queue &amp; skip</button>
                 </div>
               </div>
-              <div class="row" style="margin-top:10px;margin-bottom:10px;">
+
+              <div class="field">
+                <label data-tip="Paste this URL into an OBS Browser Source (recommended 800x300) or use the Pop-out TTS player button above."><span>OBS Browser Source URL <span class="tip-q">?</span></span></label>
+                <div style="display:flex;gap:8px;">
+                  <input type="text" id="obs-url-box" readonly />
+                  <button onclick="copyObsUrl()">Copy URL</button>
+                </div>
+              </div>
+
+              <!-- LIVE VISUAL PREVIEW OF ON-STREAM DISPLAY -->
+              <div id="obs-live-preview-wrap" style="background:repeating-conic-gradient(#181b24 0% 25%, #12151c 0% 50%) 50% / 16px 16px;border:1px solid var(--line);border-radius:4px;padding:16px;margin-bottom:12px;min-height:110px;display:flex;align-items:flex-end;gap:14px;">
+                <img id="obs-prev-avatar" src="" alt="" style="max-width:72px;max-height:72px;object-fit:contain;display:none;" />
+                <div id="obs-prev-banner" style="background:rgba(18,21,30,0.92);border:1px solid rgba(255,255,255,0.18);border-left:4px solid #6441a5;border-radius:6px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.45);flex:1;">
+                  <div id="obs-prev-vtag" style="font-family:var(--f-mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#6441a5;margin-bottom:4px;">v2/en_speaker_5</div>
+                  <div id="obs-prev-text" style="font-size:16px;font-weight:600;color:#ffffff;line-height:1.35;">Sample on-stream TTS subtitle preview!</div>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="field" style="margin:0;">
+                  <label>On-stream display mode</label>
+                  <select id="obs-cfg-mode" onchange="updateObsPreviewAndUrl()">
+                    <option value="full" selected>Text Banner + Avatar</option>
+                    <option value="banner">Text Banner Only</option>
+                    <option value="avatar">Avatar Only (No text)</option>
+                    <option value="audio">Audio Only (Invisible on stream)</option>
+                  </select>
+                </div>
+                <div class="field" style="margin:0;">
+                  <label>Screen position</label>
+                  <select id="obs-cfg-pos" onchange="updateObsPreviewAndUrl()">
+                    <option value="bottom-left" selected>Bottom Left</option>
+                    <option value="bottom-center">Bottom Center</option>
+                    <option value="bottom-right">Bottom Right</option>
+                    <option value="top-center">Top Center</option>
+                    <option value="center">Center</option>
+                  </select>
+                </div>
+                <div class="field" style="margin:0;">
+                  <label>Avatar motion</label>
+                  <select id="obs-cfg-anim" onchange="updateObsPreviewAndUrl()">
+                    <option value="bounce" selected>Bounce + Swap PNG</option>
+                    <option value="swap">Swap Idle/Talk PNG only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="field" style="margin:0;">
+                  <label>Text size</label>
+                  <select id="obs-cfg-size" onchange="updateObsPreviewAndUrl()">
+                    <option value="16">Small (16px)</option>
+                    <option value="20" selected>Medium (20px)</option>
+                    <option value="26">Large (26px)</option>
+                    <option value="32">Extra Large (32px)</option>
+                  </select>
+                </div>
+                <div class="field" style="margin:0;">
+                  <label>Avatar size</label>
+                  <select id="obs-cfg-avsize" onchange="updateObsPreviewAndUrl()">
+                    <option value="96">Small (96px)</option>
+                    <option value="140" selected>Medium (140px)</option>
+                    <option value="220">Large (220px)</option>
+                  </select>
+                </div>
+                <div class="field" style="margin:0;">
+                  <label>Box opacity</label>
+                  <select id="obs-cfg-opacity" onchange="updateObsPreviewAndUrl()">
+                    <option value="0.92" selected>Solid card (92%)</option>
+                    <option value="0.65">Translucent (65%)</option>
+                    <option value="0">Floating text (0% box)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="row">
+                <div class="field" style="margin:0;">
+                  <label>Accent color</label>
+                  <input type="color" id="obs-cfg-accent" value="#6441a5" style="height:32px;padding:2px;background:var(--field);border:1px solid var(--line);width:100%;cursor:pointer;" oninput="updateObsPreviewAndUrl()" />
+                </div>
+                <div class="field" style="margin:0;">
+                  <label>Text color</label>
+                  <input type="color" id="obs-cfg-color" value="#ffffff" style="height:32px;padding:2px;background:var(--field);border:1px solid var(--line);width:100%;cursor:pointer;" oninput="updateObsPreviewAndUrl()" />
+                </div>
+                <div class="field" style="margin:0;justify-content:center;">
+                  <label style="cursor:pointer;gap:6px;justify-content:flex-start;margin-top:6px;"><input type="checkbox" id="obs-cfg-vtag" checked onchange="updateObsPreviewAndUrl()" /> Show voice label</label>
+                  <label style="cursor:pointer;gap:6px;justify-content:flex-start;"><input type="checkbox" id="obs-cfg-always-av" onchange="updateObsPreviewAndUrl()" /> Always show idle avatar</label>
+                </div>
+              </div>
+
+              <div class="row" style="margin-top:6px;margin-bottom:10px;">
                 <div class="field" style="margin:0;">
                   <label>OBS Avatar Idle Image URL</label>
-                  <input type="text" id="adm-obs-idle" placeholder="https://.../idle.png" />
+                  <input type="text" id="adm-obs-idle" placeholder="https://.../idle.png" oninput="updateObsPreviewAndUrl()" />
                 </div>
                 <div class="field" style="margin:0;">
                   <label>OBS Avatar Talking Image URL</label>
-                  <input type="text" id="adm-obs-talk" placeholder="https://.../talk.png" />
+                  <input type="text" id="adm-obs-talk" placeholder="https://.../talk.png" oninput="updateObsPreviewAndUrl()" />
                 </div>
                 <div class="field" style="margin:0;max-width:140px;">
                   <label>OBS Key (opt)</label>
-                  <input type="text" id="adm-obs-key" placeholder="secret" />
+                  <input type="text" id="adm-obs-key" placeholder="secret" oninput="updateObsPreviewAndUrl()" />
                 </div>
               </div>
-              <button style="width:100%;" onclick="saveChannelConfig()">Save OBS overlay settings</button>
+              <button style="width:100%;" onclick="saveChannelConfig()">Save avatar &amp; key settings</button>
             </div>
           </div>
 
@@ -2138,7 +2227,7 @@
       }
 
       const activeChan = chanSelect.value || impersonatedChannel || currentUser.channel_name;
-      document.getElementById('obs-url-box').value = `${location.origin}/obs/${activeChan}`;
+      updateObsPreviewAndUrl(activeChan);
 
       const cBody = document.getElementById('channels-table-body');
       const isAdmin = isEffectiveAdmin();
@@ -2324,8 +2413,7 @@
     document.getElementById('adm-ignored').value = r.ignored_users.join(', ');
     document.getElementById('adm-blocked').value = (r.blocked_words || []).join(', ');
     document.getElementById('adm-cooldown').value = r.command_cooldown_secs !== undefined ? r.command_cooldown_secs : 10;
-    const keyQuery = r.obs_key ? `?key=${encodeURIComponent(r.obs_key)}` : '';
-    document.getElementById('obs-url-box').value = `${location.origin}/obs/${r.channel_name}${keyQuery}`;
+    updateObsPreviewAndUrl(r.channel_name);
 
     currentChannelMix = r.brain_mix.map(x => ({ brain: x.brain, weight: Math.round(x.weight * 100) }));
     renderMixSliders();
@@ -2925,6 +3013,101 @@
     const box = document.getElementById('mock-preview-box');
     box.classList.remove('hidden');
     box.textContent = data.message;
+  }
+
+  function buildObsUrl(forPopup = false, chanOverride = '') {
+    const ch = chanOverride || effectiveChannelName() || 'channel';
+    const params = new URLSearchParams();
+    const key = (document.getElementById('adm-obs-key')?.value || '').trim();
+    const mode = document.getElementById('obs-cfg-mode')?.value || 'full';
+    const pos = document.getElementById('obs-cfg-pos')?.value || 'bottom-left';
+    const anim = document.getElementById('obs-cfg-anim')?.value || 'bounce';
+    const size = document.getElementById('obs-cfg-size')?.value || '20';
+    const avsize = document.getElementById('obs-cfg-avsize')?.value || '140';
+    const opacity = document.getElementById('obs-cfg-opacity')?.value || '0.92';
+    const accent = document.getElementById('obs-cfg-accent')?.value || '#6441a5';
+    const color = document.getElementById('obs-cfg-color')?.value || '#ffffff';
+    const vtag = document.getElementById('obs-cfg-vtag')?.checked ?? true;
+    const alwaysAv = document.getElementById('obs-cfg-always-av')?.checked ?? false;
+
+    if (forPopup) params.set('popup', '1');
+    if (key) params.set('key', key);
+    if (mode !== 'full') params.set('mode', mode);
+    if (pos !== 'bottom-left') params.set('pos', pos);
+    if (anim !== 'bounce') params.set('anim', anim);
+    if (size !== '20') params.set('size', size);
+    if (avsize !== '140') params.set('avsize', avsize);
+    if (opacity !== '0.92') params.set('opacity', opacity);
+    if (accent !== '#6441a5') params.set('accent', accent);
+    if (color !== '#ffffff') params.set('color', color);
+    if (!vtag) params.set('voice_tag', '0');
+    if (alwaysAv) params.set('always_avatar', '1');
+
+    const qs = params.toString();
+    return `${location.origin}/obs/${encodeURIComponent(ch)}${qs ? '?' + qs : ''}`;
+  }
+
+  function updateObsPreviewAndUrl(chanOverride = '') {
+    const box = document.getElementById('obs-url-box');
+    if (box) box.value = buildObsUrl(false, chanOverride);
+
+    const mode = document.getElementById('obs-cfg-mode')?.value || 'full';
+    const size = document.getElementById('obs-cfg-size')?.value || '20';
+    const opacity = parseFloat(document.getElementById('obs-cfg-opacity')?.value ?? '0.92');
+    const accent = document.getElementById('obs-cfg-accent')?.value || '#6441a5';
+    const color = document.getElementById('obs-cfg-color')?.value || '#ffffff';
+    const vtag = document.getElementById('obs-cfg-vtag')?.checked ?? true;
+    const idleUrl = (document.getElementById('adm-obs-idle')?.value || '').trim();
+
+    const prevBanner = document.getElementById('obs-prev-banner');
+    const prevAvatar = document.getElementById('obs-prev-avatar');
+    const prevVtag = document.getElementById('obs-prev-vtag');
+    const prevText = document.getElementById('obs-prev-text');
+    if (!prevBanner || !prevAvatar || !prevVtag || !prevText) return;
+
+    const showAvatar = (mode === 'full' || mode === 'avatar') && !!idleUrl;
+    const showBanner = (mode === 'full' || mode === 'banner');
+
+    if (showAvatar) {
+      prevAvatar.src = idleUrl;
+      prevAvatar.style.display = 'block';
+    } else {
+      prevAvatar.style.display = 'none';
+    }
+
+    if (mode === 'audio') {
+      prevBanner.style.display = 'block';
+      prevBanner.style.background = 'transparent';
+      prevBanner.style.border = 'none';
+      prevBanner.style.boxShadow = 'none';
+      prevVtag.style.display = 'none';
+      prevText.style.fontSize = '13px';
+      prevText.style.color = '#94a3b8';
+      prevText.textContent = '(Audio-only mode: plays TTS audio with no on-screen visuals)';
+      return;
+    }
+
+    prevBanner.style.display = showBanner ? 'block' : 'none';
+    prevBanner.style.borderLeftColor = accent;
+    if (opacity <= 0.02) {
+      prevBanner.style.background = 'transparent';
+      prevBanner.style.border = 'none';
+      prevBanner.style.boxShadow = 'none';
+    } else {
+      prevBanner.style.background = `rgba(18, 21, 30, ${opacity})`;
+      prevBanner.style.border = '1px solid rgba(255,255,255,0.18)';
+      prevBanner.style.borderLeft = `4px solid ${accent}`;
+    }
+    prevVtag.style.display = vtag ? 'block' : 'none';
+    prevVtag.style.color = accent;
+    prevText.style.fontSize = Math.min(24, parseInt(size, 10)) + 'px';
+    prevText.style.color = color;
+    prevText.textContent = 'Sample on-stream TTS subtitle preview!';
+  }
+
+  function openPopupTtsPlayer() {
+    const url = buildObsUrl(true);
+    window.open(url, 'mockbot_tts_player', 'width=560,height=380,menubar=no,toolbar=no,location=no,status=no');
   }
 
   function copyObsUrl() {

@@ -759,6 +759,8 @@
         <span><span class="dot" id="lamp-irc"></span>IRC</span>
         <span><span class="dot" id="lamp-bark"></span>Bark TTS</span>
       </div>
+      <select id="admin-view-as-select" class="hidden" style="width:auto;padding:4px 8px;font-size:12px;" onchange="setViewAsChannel(this.value)" data-tip="Preview and manage the dashboard exactly as a specific streamer sees it"></select>
+      <button class="sm primary hidden" id="btn-exit-view-as" onclick="setViewAsChannel('')">Exit streamer view</button>
       <button class="sm hidden" id="rail-backup-btn" onclick="downloadDbBackup()" data-tip="Download a consistent SQLite .db backup snapshot">Backup DB</button>
       <button class="sm" onclick="toggleTheme()">Theme</button>
       <button class="sm hidden" id="rail-logout-btn" onclick="doLogout()">Log out</button>
@@ -1580,6 +1582,7 @@
 <script>
   const MIX_COLORS = ['#d94b2a', '#e8a172', '#7fa67c', '#5b8bd6', '#d49b35'];
   let currentUser = null;
+  let impersonatedChannel = '';
   let authToken = localStorage.getItem('ansv2_auth_token') || '';
   let latestStatus = null;
   let availableVoices = [];
@@ -1948,17 +1951,58 @@
     document.getElementById('app-topbar').classList.add('hidden');
   }
 
-  async function enterStudio() {
-    document.getElementById('auth-screen').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    document.getElementById('app-topbar').classList.remove('hidden');
-    document.getElementById('rail-logout-btn').classList.remove('hidden');
+  function isEffectiveAdmin() {
+    return currentUser && currentUser.role === 'admin' && !impersonatedChannel;
+  }
 
-    const isAdmin = currentUser.role === 'admin';
-    document.getElementById('sb-user-name').textContent = '@' + currentUser.username;
-    document.getElementById('sb-user-role').textContent = isAdmin
-      ? 'admin'
-      : `#${currentUser.channel_name}`;
+  function effectiveChannelName() {
+    if (impersonatedChannel) return impersonatedChannel;
+    if (currentUser && currentUser.role !== 'admin') return currentUser.channel_name;
+    return document.getElementById('adm-chan-select')?.value || '';
+  }
+
+  async function setViewAsChannel(chan) {
+    impersonatedChannel = (chan || '').trim().replace(/^#/, '').toLowerCase();
+    const sel = document.getElementById('admin-view-as-select');
+    if (sel) sel.value = impersonatedChannel;
+    document.getElementById('btn-exit-view-as').classList.toggle('hidden', !impersonatedChannel);
+
+    applyRoleVisibility();
+    if (impersonatedChannel) {
+      document.getElementById('adm-chan-select').value = impersonatedChannel;
+      document.getElementById('insp-brain').value = `channel:${impersonatedChannel}`;
+      const logChanEl = document.getElementById('log-chan-filter');
+      if (logChanEl) logChanEl.value = impersonatedChannel;
+      switchView('instance');
+      history.replaceState(null, '', `/channel/${impersonatedChannel}`);
+    } else {
+      const logChanEl = document.getElementById('log-chan-filter');
+      if (logChanEl) logChanEl.value = '';
+      if (location.pathname.startsWith('/channel/')) {
+        history.replaceState(null, '', '/');
+      }
+    }
+    await refreshStatus();
+    populateChannelEditor();
+    await loadTtsHistory();
+    renderStreamFeed();
+  }
+
+  function applyRoleVisibility() {
+    const isRealAdmin = currentUser && currentUser.role === 'admin';
+    const isAdmin = isEffectiveAdmin();
+    document.getElementById('admin-view-as-select').classList.toggle('hidden', !isRealAdmin);
+    document.getElementById('btn-exit-view-as').classList.toggle('hidden', !isRealAdmin || !impersonatedChannel);
+
+    if (impersonatedChannel) {
+      document.getElementById('sb-user-name').textContent = '@' + impersonatedChannel;
+      document.getElementById('sb-user-role').textContent = 'streamer (viewing as)';
+    } else {
+      document.getElementById('sb-user-name').textContent = '@' + currentUser.username;
+      document.getElementById('sb-user-role').textContent = isAdmin
+        ? 'admin'
+        : `#${currentUser.channel_name}`;
+    }
 
     document.getElementById('nav-users-btn').classList.toggle('hidden', !isAdmin);
     document.getElementById('nav-sandbox-btn').classList.toggle('hidden', !isAdmin);
@@ -1974,6 +2018,24 @@
     document.getElementById('btn-purge-global').classList.toggle('hidden', !isAdmin);
     document.getElementById('btn-delete-voice').classList.toggle('hidden', !isAdmin);
     document.getElementById('rail-backup-btn').classList.toggle('hidden', !isAdmin);
+  }
+
+  async function enterStudio() {
+    document.getElementById('auth-screen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('app-topbar').classList.remove('hidden');
+    document.getElementById('rail-logout-btn').classList.remove('hidden');
+
+    if (currentUser.role === 'admin') {
+      const m = location.pathname.match(/^\/channel\/([a-zA-Z0-9_]+)/);
+      const urlAs = new URLSearchParams(location.search).get('as');
+      if (m) {
+        impersonatedChannel = m[1].toLowerCase();
+      } else if (urlAs) {
+        impersonatedChannel = urlAs.replace(/^#/, '').toLowerCase();
+      }
+    }
+    applyRoleVisibility();
 
     await loadVoices();
     await refreshStatus();
@@ -2053,9 +2115,21 @@
         opt.textContent = `#${c.record.channel_name} (${c.currently_joined ? 'joined' : 'parted'})`;
         chanSelect.appendChild(opt);
       }
-      if (currentUser.role !== 'admin') {
-        chanSelect.value = currentUser.channel_name;
-        if (!prevChan) populateChannelEditor();
+
+      // Populate topbar "View as streamer" dropdown for Admins
+      if (currentUser.role === 'admin') {
+        const viewAsSel = document.getElementById('admin-view-as-select');
+        if (viewAsSel) {
+          viewAsSel.innerHTML = `<option value="">View: Admin (All channels)</option>` +
+            data.channels.map(c => `<option value="${escapeHtml(c.record.channel_name)}">View as: #${escapeHtml(c.record.channel_name)}</option>`).join('');
+          viewAsSel.value = impersonatedChannel || '';
+        }
+      }
+
+      if (!isEffectiveAdmin()) {
+        const targetCh = impersonatedChannel || currentUser.channel_name;
+        chanSelect.value = targetCh;
+        if (prevChan !== targetCh) populateChannelEditor();
       } else if (prevChan && [...chanSelect.options].some(o => o.value === prevChan)) {
         chanSelect.value = prevChan;
       } else if (data.channels.length > 0 && !prevChan) {
@@ -2063,11 +2137,11 @@
         populateChannelEditor();
       }
 
-      const activeChan = chanSelect.value || currentUser.channel_name;
+      const activeChan = chanSelect.value || impersonatedChannel || currentUser.channel_name;
       document.getElementById('obs-url-box').value = `${location.origin}/obs/${activeChan}`;
 
       const cBody = document.getElementById('channels-table-body');
-      const isAdmin = currentUser.role === 'admin';
+      const isAdmin = isEffectiveAdmin();
       cBody.innerHTML = data.channels.map(c => {
         const r = c.record;
         const mixStr = r.brain_mix.map(m => `${m.brain.replace('channel:','#')}:${Math.round(m.weight*100)}%`).join(' ');
@@ -2077,7 +2151,10 @@
           <td>${r.voice_enabled ? 'on' : 'muted'}${r.tts_enabled ? ' + tts' : ''}</td>
           <td>${c.lines_since_last_spoke}/${r.lines_between_messages}</td>
           <td>${escapeHtml(mixStr)}</td>
-          <td>${isAdmin ? `<button class="sm danger" onclick="event.stopPropagation(); adminDeleteChannel('${escapeHtml(r.channel_name)}')">Delete</button>` : ''}</td>
+          <td style="display:flex;gap:6px;justify-content:flex-end;">
+            ${isAdmin ? `<button class="sm" onclick="event.stopPropagation(); setViewAsChannel('${escapeHtml(r.channel_name)}')">View as</button>` : ''}
+            ${isAdmin ? `<button class="sm danger" onclick="event.stopPropagation(); adminDeleteChannel('${escapeHtml(r.channel_name)}')">Delete</button>` : ''}
+          </td>
         </tr>`;
       }).join('');
 
@@ -2132,8 +2209,8 @@
         noneOpt.textContent = 'None';
         el.appendChild(noneOpt);
       }
-      const list = ((id === 'insp-brain' || id === 'train-brain-select') && currentUser && currentUser.role !== 'admin')
-        ? brains.filter(b => b.name === `channel:${currentUser.channel_name}`)
+      const list = ((id === 'insp-brain' || id === 'train-brain-select') && !isEffectiveAdmin())
+        ? brains.filter(b => b.name === `channel:${effectiveChannelName()}`)
         : brains;
       for (const b of list) {
         const opt = document.createElement('option');
@@ -2494,7 +2571,8 @@
 
   async function loadTtsHistory() {
     if (!currentUser) return;
-    const res = await fetch('/api/tts/logs?limit=40', {
+    const chanParam = impersonatedChannel ? `&channel=${encodeURIComponent(impersonatedChannel)}` : '';
+    const res = await fetch(`/api/tts/logs?limit=40${chanParam}`, {
       headers: { 'X-Auth-Token': authToken }
     });
     const data = await res.json();
@@ -2817,7 +2895,8 @@
   }
 
   async function loadTopChatters() {
-    const res = await fetch('/api/admin/brains/chatters', {
+    const chanParam = impersonatedChannel ? `?channel=${encodeURIComponent(impersonatedChannel)}` : '';
+    const res = await fetch(`/api/admin/brains/chatters${chanParam}`, {
       headers: { 'X-Auth-Token': authToken }
     });
     const data = await res.json();
@@ -2912,7 +2991,9 @@
   }
 
   async function searchBrainLines() {
-    const brain = document.getElementById('insp-brain').value || 'global';
+    const brain = !isEffectiveAdmin()
+      ? `channel:${effectiveChannelName()}`
+      : (document.getElementById('insp-brain').value || 'global');
     const q = document.getElementById('insp-query').value.trim();
     const res = await fetch(`/api/admin/brains/lines?brain=${encodeURIComponent(brain)}&q=${encodeURIComponent(q)}&limit=50`, {
       headers: { 'X-Auth-Token': authToken }
@@ -2974,7 +3055,7 @@
 
   async function trainCustomBrain() {
     let brain = '';
-    if (currentUser.role === 'admin') {
+    if (isEffectiveAdmin()) {
       const sel = document.getElementById('train-brain-select').value;
       if (sel === '__new__') {
         const customName = document.getElementById('train-brain-custom').value.trim();
@@ -2987,7 +3068,7 @@
         brain = sel || 'global';
       }
     } else {
-      brain = `channel:${currentUser.channel_name}`;
+      brain = `channel:${effectiveChannelName()}`;
     }
     const format = document.getElementById('train-format').value || 'auto';
     const raw_text = document.getElementById('train-lines').value;
@@ -3025,7 +3106,10 @@
         <td>${escapeHtml(u.role)}</td>
         <td>${escapeHtml(u.tier || 'pro')}</td>
         <td>${u.channel_name === '*' ? '*' : '#' + escapeHtml(u.channel_name)}</td>
-        <td><button class="sm danger" onclick="event.stopPropagation(); adminDeleteUser('${escapeHtml(u.username)}')">Delete</button></td>
+        <td style="display:flex;gap:6px;justify-content:flex-end;">
+          ${u.channel_name !== '*' ? `<button class="sm" onclick="event.stopPropagation(); setViewAsChannel('${escapeHtml(u.channel_name)}')">View as</button>` : ''}
+          <button class="sm danger" onclick="event.stopPropagation(); adminDeleteUser('${escapeHtml(u.username)}')">Delete</button>
+        </td>
       </tr>
     `).join('');
   }

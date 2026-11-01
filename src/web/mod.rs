@@ -26,6 +26,7 @@ pub async fn run_web_server(state: Arc<AppState>) -> anyhow::Result<()> {
     let app = Router::new()
         .route("/", get(index_handler))
         .route("/channels", get(index_handler))
+        .route("/channel/:channel", get(index_handler))
         .route("/admin", get(index_handler))
         .route("/obs/:channel", get(obs_overlay_handler))
         .route("/outputs/:channel/:filename", get(serve_wav_handler))

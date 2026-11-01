@@ -98,6 +98,17 @@ impl MessageFilter {
         if words.len() < 2 {
             return None;
         }
+        // Reject repetitive emote/raid-chant spam (e.g. "Foxy Raid egancaRaid ... Foxy Raid egancaRaid ...")
+        if words.len() >= 6 {
+            let unique_count = words
+                .iter()
+                .map(|w| w.to_lowercase())
+                .collect::<std::collections::HashSet<String>>()
+                .len();
+            if unique_count * 100 / words.len() < 42 {
+                return None;
+            }
+        }
         let normalized = words.join(" ");
 
         if !self.is_safe(&normalized) {

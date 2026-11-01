@@ -68,6 +68,10 @@ pub async fn run_web_server(state: Arc<AppState>) -> anyhow::Result<()> {
             "/api/admin/brains/delete_line",
             post(delete_brain_line_handler),
         )
+        .route(
+            "/api/admin/brains/delete_query",
+            post(delete_brain_query_handler),
+        )
         .route("/api/admin/brains/delete", post(admin_delete_brain_handler))
         .route("/api/admin/brains/merge", post(admin_merge_brain_handler))
         .route(
@@ -2851,6 +2855,65 @@ async fn export_brain_lines_handler(
 #[derive(Deserialize)]
 struct DeleteLineReq {
     id: i64,
+}
+
+#[derive(Deserialize)]
+struct DeleteBrainQueryReq {
+    brain: String,
+    query: String,
+}
+
+async fn delete_brain_query_handler(
+    headers: HeaderMap,
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<DeleteBrainQueryReq>,
+) -> impl IntoResponse {
+    let Some(user) = resolve_auth_user(&headers, &state) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(ApiResponse::<()> {
+                ok: false,
+                message: "Sign in required.".to_string(),
+                result: None,
+            }),
+        );
+    };
+
+    let target_brain = if user.role == "admin" {
+        req.brain.trim().to_string()
+    } else {
+        format!("channel:{}", user.channel_name)
+    };
+
+    match state
+        .db
+        .delete_matching_query_in_brain(&target_brain, &req.query)
+    {
+        Ok(deleted) => {
+            if deleted > 0 {
+                let _ = state.rebuild_brain_from_db(&target_brain);
+            }
+            (
+                StatusCode::OK,
+                Json(ApiResponse {
+                    ok: true,
+                    message: format!(
+                        "Deleted {} matching lines from '{}' and rebuilt brain.",
+                        deleted, target_brain
+                    ),
+                    result: None,
+                }),
+            )
+        }
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse {
+                ok: false,
+                message: e.to_string(),
+                result: None,
+            }),
+        ),
+    }
 }
 
 async fn delete_brain_line_handler(

@@ -9,43 +9,43 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root, [data-theme="chassis"] {
-      --bg:          #141311;
-      --bg-2:        #1b1916;
-      --surface:     #211f1b;
-      --field:       #0e0d0b;
-      --ink:         #f4f0e6;
-      --ink-2:       #c7c1b4;
-      --muted:       #857f72;
-      --line:        #3d3932;
-      --line-strong: #5c564b;
-      --accent:      #d94b2a;
-      --ok:          #7fa67c;
-      --warn:        #d49b35;
-      --danger:      #d94b2a;
-      --shadow:      #080706;
+      --bg:          #151821;
+      --bg-2:        #1c202c;
+      --surface:     #222736;
+      --field:       #10131a;
+      --ink:         #f3f4f6;
+      --ink-2:       #cbd5e1;
+      --muted:       #94a3b8;
+      --line:        #2e3547;
+      --line-strong: #475569;
+      --accent:      #6441a5;
+      --ok:          #22c55e;
+      --warn:        #f59e0b;
+      --danger:      #ef4444;
+      --shadow:      #08090c;
     }
 
     [data-theme="linen"] {
-      --bg:          #efe8d8;
-      --bg-2:        #e6dec9;
-      --surface:     #f7f1e3;
-      --field:       #ebe3d0;
-      --ink:         #1a2640;
-      --ink-2:       #3a4666;
-      --muted:       #6a6957;
-      --line:        #bfb59b;
-      --line-strong: #8c826a;
-      --accent:      #c14a3b;
-      --ok:          #2e6f40;
-      --warn:        #b06d18;
-      --danger:      #c14a3b;
-      --shadow:      #cfc5ad;
+      --bg:          #f3f4f6;
+      --bg-2:        #e5e7eb;
+      --surface:     #ffffff;
+      --field:       #f9fafb;
+      --ink:         #111827;
+      --ink-2:       #374151;
+      --muted:       #6b7280;
+      --line:        #d1d5db;
+      --line-strong: #9ca3af;
+      --accent:      #6441a5;
+      --ok:          #16a34a;
+      --warn:        #d97706;
+      --danger:      #dc2626;
+      --shadow:      #d1d5db;
     }
 
     :root {
-      --f-serif: 'Instrument Serif', Georgia, serif;
-      --f-sans:  'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      --f-mono:  'IBM Plex Mono', ui-monospace, monospace;
+      --f-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --f-sans:  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --f-mono:  ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "IBM Plex Mono", monospace;
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -54,8 +54,8 @@
     body {
       background-color: var(--bg);
       color: var(--ink);
-      font-family: var(--f-mono);
-      font-size: 13px;
+      font-family: var(--f-sans);
+      font-size: 13.5px;
       line-height: 1.5;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
@@ -63,8 +63,9 @@
 
     /* ─── TOP BAR ─── */
     .topbar {
-      background: var(--bg-2);
-      border-bottom: 1px solid var(--line);
+      background: #1f242d;
+      color: #fff;
+      border-bottom: 3px solid #6441a5;
       padding: 10px 20px;
       display: flex;
       align-items: center;
@@ -76,15 +77,17 @@
       display: flex;
       align-items: baseline;
       gap: 10px;
-      font-family: var(--f-serif);
-      font-size: 26px;
+      font-family: var(--f-sans);
+      font-size: 20px;
+      font-weight: 700;
       line-height: 1;
-      color: var(--ink);
+      color: #fff;
     }
     .brand small {
       font-family: var(--f-mono);
-      font-size: 11px;
-      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+      color: #9ca3af;
     }
 
     .topbar-right {
@@ -97,8 +100,8 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      font-size: 11.5px;
-      color: var(--ink-2);
+      font-size: 12px;
+      color: #d1d5db;
     }
     .dot {
       width: 7px;
@@ -978,7 +981,7 @@
 
       <button class="nav-btn active" data-view="instance" onclick="switchView('instance')" id="nav-instance-label">Settings</button>
       <button class="nav-btn" data-view="tts" onclick="switchView('tts')">Bark TTS</button>
-      <button class="nav-btn" data-view="sandbox" onclick="switchView('sandbox')">Sandbox</button>
+      <button class="nav-btn hidden" id="nav-sandbox-btn" data-view="sandbox" onclick="switchView('sandbox')">Sandbox</button>
       <button class="nav-btn" data-view="brains" onclick="switchView('brains')">Corpus</button>
       <button class="nav-btn" data-view="telemetry" onclick="switchView('telemetry')">Chat Log</button>
       <button class="nav-btn hidden" id="nav-users-btn" data-view="users" onclick="switchView('users')">Users</button>
@@ -990,9 +993,12 @@
       <section id="view-instance">
         <div id="verify-banner" class="notice hidden" style="margin-bottom:16px;border-color:var(--accent);color:var(--accent);"></div>
         <div class="page-head">
-          <h1 id="inst-title">Settings</h1>
+          <div>
+            <h1 id="inst-title" style="font-size:22px;font-weight:700;">Settings</h1>
+            <div id="inst-status-bar" style="font-size:12.5px;color:var(--muted);margin-top:4px;"></div>
+          </div>
           <div style="display:flex;gap:8px;">
-            <button onclick="previewChannelMix()">Preview</button>
+            <button onclick="previewChannelMix()">Roll samples</button>
             <button class="primary" onclick="adminSpeakNow()">Speak in chat</button>
           </div>
         </div>
@@ -1195,9 +1201,12 @@
             </div>
 
             <div class="card">
-              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
                 <h2 style="margin:0;">Sample output</h2>
-                <button class="sm" onclick="previewChannelMix()">Roll 3 samples</button>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <input type="text" id="adm-preview-seed" placeholder="optional topic/seed..." style="width:150px;padding:4px 8px;font-size:12px;" onkeydown="if(event.key==='Enter') previewChannelMix()" />
+                  <button class="sm primary" onclick="previewChannelMix()">Roll 3 samples</button>
+                </div>
               </div>
               <div id="adm-preview-box" class="samples">
                 <div style="font-size:12px;color:var(--muted);">Click "Roll 3 samples" to test how your current brain mix sounds.</div>
@@ -1278,20 +1287,21 @@
                   <button class="danger" onclick="skipObsAudio()">Clear queue &amp; skip</button>
                 </div>
               </div>
-              <div class="row" style="margin-top:10px;margin-bottom:0;">
+              <div class="row" style="margin-top:10px;margin-bottom:10px;">
                 <div class="field" style="margin:0;">
                   <label>OBS Avatar Idle Image URL</label>
-                  <input type="text" id="adm-obs-idle" placeholder="https://.../idle.png" onchange="saveChannelConfig()" />
+                  <input type="text" id="adm-obs-idle" placeholder="https://.../idle.png" />
                 </div>
                 <div class="field" style="margin:0;">
                   <label>OBS Avatar Talking Image URL</label>
-                  <input type="text" id="adm-obs-talk" placeholder="https://.../talk.png" onchange="saveChannelConfig()" />
+                  <input type="text" id="adm-obs-talk" placeholder="https://.../talk.png" />
                 </div>
                 <div class="field" style="margin:0;max-width:140px;">
                   <label>OBS Key (opt)</label>
-                  <input type="text" id="adm-obs-key" placeholder="secret" onchange="saveChannelConfig()" />
+                  <input type="text" id="adm-obs-key" placeholder="secret" />
                 </div>
               </div>
+              <button style="width:100%;" onclick="saveChannelConfig()">Save OBS overlay settings</button>
             </div>
           </div>
 
@@ -1300,18 +1310,7 @@
               <h2 style="margin:0;">Recent clips</h2>
               <button class="sm" onclick="loadTtsHistory()">Refresh</button>
             </div>
-            <div class="table-wrap" style="max-height:460px;overflow-y:auto;">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Voice</th>
-                    <th>Text</th>
-                    <th>Audio</th>
-                  </tr>
-                </thead>
-                <tbody id="tts-history-body"></tbody>
-              </table>
-            </div>
+            <div id="tts-history-body" class="samples" style="max-height:500px;overflow-y:auto;"></div>
           </div>
         </div>
       </section>
@@ -1399,8 +1398,9 @@
             </div>
             <div style="display:flex;gap:8px;margin-bottom:10px;">
               <select id="insp-brain" style="max-width:200px;"></select>
-              <input type="text" id="insp-query" placeholder="search..." onkeydown="if(event.key==='Enter') searchBrainLines()" />
+              <input type="text" id="insp-query" placeholder="search lines..." onkeydown="if(event.key==='Enter') searchBrainLines()" />
               <button class="primary" onclick="searchBrainLines()">Search</button>
+              <button class="danger" title="Delete all lines in this brain matching your search query" onclick="deleteMatchingBrainLines()">Delete matching</button>
             </div>
             <div id="insp-msg" style="font-size:11px;color:var(--muted);margin-bottom:6px;"></div>
             <div class="table-wrap" style="max-height:430px;overflow-y:auto;">
@@ -1453,7 +1453,7 @@
         </div>
 
         <div class="grid-2" style="margin-top:20px;">
-          <div class="card">
+          <div class="card" id="card-brains-admin">
             <h2>Brains</h2>
             <div class="table-wrap">
               <table>
@@ -1961,6 +1961,10 @@
       : `#${currentUser.channel_name}`;
 
     document.getElementById('nav-users-btn').classList.toggle('hidden', !isAdmin);
+    document.getElementById('nav-sandbox-btn').classList.toggle('hidden', !isAdmin);
+    document.getElementById('card-channels-list').classList.toggle('hidden', !isAdmin);
+    document.getElementById('card-brains-admin').classList.toggle('hidden', !isAdmin);
+    document.getElementById('insp-brain').classList.toggle('hidden', !isAdmin);
     document.getElementById('adm-chan-picker-wrap').classList.toggle('hidden', !isAdmin);
     document.getElementById('adm-global-toggle-wrap').classList.toggle('hidden', !isAdmin);
     document.getElementById('adm-custom-learn-wrap').classList.toggle('hidden', !isAdmin);
@@ -2191,6 +2195,16 @@
       el.textContent = isAnsv ? '!ansv' : '!mockbot';
     });
     document.getElementById('inst-title').textContent = `#${r.channel_name}`;
+    const chanBrainObj = (latestStatus.brains || []).find(b => b.name === `channel:${r.channel_name}`);
+    const learnedCount = chanBrainObj ? chanBrainObj.sentence_count.toLocaleString() : '0';
+    const liveBadge = c.is_stream_live
+      ? `<span style="color:var(--ok);font-weight:600;">● LIVE (${c.stream_viewers || 0} viewers)</span>`
+      : `<span>Stream: Offline</span>`;
+    const joinBadge = c.currently_joined
+      ? `<span style="color:var(--ok);font-weight:600;">● Joined</span>`
+      : `<span style="color:var(--muted);">○ Parted</span>`;
+    document.getElementById('inst-status-bar').innerHTML =
+      `${joinBadge} &middot; ${liveBadge} &middot; Lines since last message: <strong>${c.lines_since_last_spoke} / ${r.lines_between_messages}</strong> &middot; Corpus: <strong>${learnedCount} lines</strong> &middot; Bot: <code>@${bNick}</code>`;
 
     document.getElementById('adm-lines').value = r.lines_between_messages;
     document.getElementById('adm-time').value = r.time_between_messages;
@@ -2392,10 +2406,11 @@
     const mix = getNormalizedChannelMix();
     const order = parseInt(document.getElementById('adm-order').value || '2', 10);
     const temperature = parseFloat(document.getElementById('adm-temp').value || '1.0');
+    const seedVal = (document.getElementById('adm-preview-seed')?.value || '').trim();
     const res = await fetch('/api/public/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ brains: mix, order, temperature, count: 3 })
+      body: JSON.stringify({ brains: mix, order, temperature, seed: seedVal || null, count: 3 })
     });
     const data = await res.json();
     const box = document.getElementById('adm-preview-box');
@@ -2485,21 +2500,25 @@
     const data = await res.json();
     const tbody = document.getElementById('tts-history-body');
     if (!data.ok || !data.result) return;
+    if (data.result.length === 0) {
+      tbody.innerHTML = '<div style="font-size:12.5px;color:var(--muted);">No TTS clips generated yet.</div>';
+      return;
+    }
     tbody.innerHTML = data.result.map(row => `
-      <tr>
-        <td>
-          <strong>#${escapeHtml(row.channel_name)}</strong><br/>
-          <span style="font-size:11px;color:var(--muted);">${escapeHtml(row.voice_preset)}</span>
-        </td>
-        <td>${escapeHtml(row.text_content)}</td>
-        <td>
+      <div class="sample" style="border-left-color:var(--accent);">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">
+          <div>
+            <strong>#${escapeHtml(row.channel_name)}</strong>
+            <span style="font-size:11.5px;color:var(--muted);margin-left:6px;">${escapeHtml(row.voice_preset)}</span>
+          </div>
           <div style="display:flex;align-items:center;gap:6px;">
             <audio controls preload="none" src="/${escapeHtml(row.file_path)}"></audio>
             <button class="sm" title="Save this clip's voice as a reusable .npz preset" onclick="saveClipVoice(${row.id})">Save voice</button>
             <button class="sm danger" onclick="deleteTtsClip(${row.id})">Delete</button>
           </div>
-        </td>
-      </tr>
+        </div>
+        <div style="font-size:13px;color:var(--ink);line-height:1.45;">${escapeHtml(row.text_content)}</div>
+      </div>
     `).join('');
   }
 
@@ -2914,6 +2933,28 @@
         <td><button class="sm danger" onclick="deleteBrainLine(${row.id})">Delete</button></td>
       </tr>
     `).join('');
+  }
+
+  async function deleteMatchingBrainLines() {
+    const brain = document.getElementById('insp-brain').value || `channel:${currentUser.channel_name}`;
+    const query = document.getElementById('insp-query').value.trim();
+    if (!query) {
+      alert('Type a search word or phrase in the search box first to delete matching lines.');
+      return;
+    }
+    if (!confirm(`Delete all lines in '${brain}' containing "${query}"?`)) return;
+    const res = await fetch('/api/admin/brains/delete_query', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ brain, query })
+    });
+    const data = await res.json();
+    document.getElementById('insp-msg').textContent = data.message;
+    searchBrainLines();
+    refreshStatus();
   }
 
   async function deleteBrainLine(id) {

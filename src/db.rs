@@ -723,6 +723,16 @@ impl Database {
         content: &str,
     ) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+        let exists: Option<i64> = conn
+            .query_row(
+                "SELECT id FROM corpus_lines WHERE brain_name = ?1 AND content = ?2 LIMIT 1",
+                params![brain_name, content],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if exists.is_some() {
+            return Ok(());
+        }
         conn.execute(
             "INSERT INTO corpus_lines (brain_name, channel_origin, author, content, created_at)
              VALUES (?1, ?2, ?3, ?4, ?5)",
@@ -735,6 +745,20 @@ impl Database {
             ],
         )?;
         Ok(())
+    }
+
+    pub fn delete_matching_query_in_brain(&self, brain_name: &str, query: &str) -> Result<usize> {
+        let q = query.trim();
+        if q.is_empty() {
+            return Ok(0);
+        }
+        let pattern = format!("%{}%", q);
+        let conn = self.conn.lock().unwrap();
+        let deleted = conn.execute(
+            "DELETE FROM corpus_lines WHERE brain_name = ?1 AND content LIKE ?2",
+            params![brain_name, pattern],
+        )?;
+        Ok(deleted)
     }
 
     pub fn insert_corpus_batch(

@@ -768,7 +768,7 @@
   </header>
 
   <!-- PUBLIC PAGE (MOCKUP 4: CLASSIC OPEN-SOURCE UTILITY LAYOUT + SEPARATE CHANNELS TAB) -->
-  <div id="auth-screen">
+  <div id="auth-screen" class="hidden">
     <header class="m4-header">
       <div class="m4-header-inner">
         <div class="m4-brand" style="cursor:pointer;" onclick="switchPubPage('overview')">
@@ -1735,6 +1735,28 @@
   let twitchRedirectUri = '';
 
   async function initApp() {
+    if (authToken) {
+      document.getElementById('app-topbar').classList.remove('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      const ok = await checkSession();
+      if (ok) {
+        fetch('/api/public/summary')
+          .then(r => r.json())
+          .then(s => {
+            twitchClientId = s.twitch_client_id || '';
+            twitchRedirectUri = s.twitch_redirect_uri || '';
+          })
+          .catch(() => {});
+        return;
+      }
+    }
+
+    showAuthScreen();
+    if (location.pathname === '/channels' || location.hash === '#channels') {
+      switchPubPage('channels', false);
+    }
+    loadPublicChannels();
+
     try {
       const sRes = await fetch('/api/public/summary');
       const s = await sRes.json();
@@ -1744,17 +1766,6 @@
       twitchClientId = s.twitch_client_id || '';
       twitchRedirectUri = s.twitch_redirect_uri || '';
     } catch (_) {}
-
-    loadPublicChannels();
-    if (location.pathname === '/channels' || location.hash === '#channels') {
-      switchPubPage('channels', false);
-    }
-
-    if (authToken) {
-      const ok = await checkSession();
-      if (ok) return;
-    }
-    showAuthScreen();
   }
 
   let allPublicChannels = [];

@@ -221,20 +221,6 @@ async fn obs_overlay_handler(
     line-height: 1.4;
     text-shadow: 0 1px 3px rgba(0,0,0,0.8);
   }}
-  #idle-hint {{
-    display: none;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: #64748b;
-    font-size: 13px;
-    text-align: center;
-    pointer-events: none;
-  }}
-  body.popup-mode #idle-hint {{
-    display: block;
-  }}
 </style>
 </head>
 <body>
@@ -242,7 +228,7 @@ async fn obs_overlay_handler(
     <div style="display:flex;align-items:center;gap:8px;">
       <span id="ws-dot" style="width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;"></span>
       <strong>#{clean} TTS Player</strong>
-      <span id="q-status" style="color:#94a3b8;">(Waiting for TTS...)</span>
+      <span id="q-status" style="color:#94a3b8;">(Idle)</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px;">
       <label style="font-size:11px;color:#94a3b8;">Vol</label>
@@ -253,7 +239,6 @@ async fn obs_overlay_handler(
   </div>
 
   <div id="canvas-area" class="pos-bottom-left">
-    <div id="idle-hint">Listening for Bark TTS clips in <strong>#{clean}</strong>...<br/><span style="font-size:11px;">(Keep this window open to play audio automatically)</span></div>
     <div id="stage">
       <img id="avatar" alt="" />
       <div id="banner">
@@ -301,7 +286,6 @@ async fn obs_overlay_handler(
     const avatar = document.getElementById('avatar');
     const voiceLabel = document.getElementById('voice-label');
     const ttsText = document.getElementById('tts-text');
-    const idleHint = document.getElementById('idle-hint');
     const qStatus = document.getElementById('q-status');
 
     // Apply custom visual styles
@@ -338,7 +322,6 @@ async fn obs_overlay_handler(
       stage.style.display = 'flex';
       if (!showBanner) banner.style.display = 'none';
       else banner.style.visibility = 'hidden';
-      if (idleHint) idleHint.style.display = 'none';
     }}
 
     const queue = [];
@@ -405,7 +388,6 @@ async fn obs_overlay_handler(
       updateStatusText();
       voiceLabel.textContent = item.voice_preset;
       ttsText.textContent = item.text;
-      if (idleHint) idleHint.style.display = 'none';
       if (mode !== 'audio') {{
         stage.style.display = 'flex';
         if (showBanner) banner.style.visibility = 'visible';
@@ -419,7 +401,6 @@ async fn obs_overlay_handler(
         banner.style.visibility = 'hidden';
       }} else {{
         stage.style.display = 'none';
-        if (isPopup && idleHint && queue.length === 0) idleHint.style.display = 'block';
       }}
       if (idleImg) avatar.src = idleImg;
       avatar.style.transform = 'none';

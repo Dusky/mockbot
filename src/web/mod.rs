@@ -242,7 +242,6 @@ async fn obs_overlay_handler(
     <div id="stage">
       <img id="avatar" alt="" />
       <div id="banner">
-        <div class="voice-tag" id="voice-label">BARK TTS</div>
         <div class="line-text" id="tts-text"></div>
       </div>
     </div>
@@ -284,7 +283,6 @@ async fn obs_overlay_handler(
     const stage = document.getElementById('stage');
     const banner = document.getElementById('banner');
     const avatar = document.getElementById('avatar');
-    const voiceLabel = document.getElementById('voice-label');
     const ttsText = document.getElementById('tts-text');
     const qStatus = document.getElementById('q-status');
 
@@ -293,8 +291,6 @@ async fn obs_overlay_handler(
     avatar.style.maxHeight = avatarSize + 'px';
     ttsText.style.fontSize = fontSize + 'px';
     ttsText.style.color = textColor;
-    voiceLabel.style.color = accent;
-    voiceLabel.style.display = showVoice ? 'block' : 'none';
     banner.style.borderLeftColor = accent;
     if (bgOpacity <= 0.02) {{
       banner.style.background = 'transparent';
@@ -386,7 +382,6 @@ async fn obs_overlay_handler(
       if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
       const item = queue.shift();
       updateStatusText();
-      voiceLabel.textContent = item.voice_preset;
       ttsText.textContent = item.text;
       if (mode !== 'audio') {{
         stage.style.display = 'flex';

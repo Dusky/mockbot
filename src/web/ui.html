@@ -1301,7 +1301,6 @@
               <div id="obs-live-preview-wrap" style="background:repeating-conic-gradient(#181b24 0% 25%, #12151c 0% 50%) 50% / 16px 16px;border:1px solid var(--line);border-radius:4px;padding:16px;margin-bottom:12px;min-height:110px;display:flex;align-items:flex-end;gap:14px;">
                 <img id="obs-prev-avatar" src="" alt="" style="max-width:72px;max-height:72px;object-fit:contain;display:none;" />
                 <div id="obs-prev-banner" style="background:rgba(18,21,30,0.92);border:1px solid rgba(255,255,255,0.18);border-left:4px solid #6441a5;border-radius:6px;padding:10px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.45);flex:1;">
-                  <div id="obs-prev-vtag" style="font-family:var(--f-mono);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.08em;color:#6441a5;margin-bottom:4px;">v2/en_speaker_5</div>
                   <div id="obs-prev-text" style="font-size:16px;font-weight:600;color:#ffffff;line-height:1.35;">Sample on-stream TTS subtitle preview!</div>
                 </div>
               </div>
@@ -1373,8 +1372,7 @@
                   <input type="color" id="obs-cfg-color" value="#ffffff" style="height:32px;padding:2px;background:var(--field);border:1px solid var(--line);width:100%;cursor:pointer;" oninput="updateObsPreviewAndUrl()" />
                 </div>
                 <div class="field" style="margin:0;justify-content:center;">
-                  <label style="cursor:pointer;gap:6px;justify-content:flex-start;margin-top:6px;"><input type="checkbox" id="obs-cfg-vtag" checked onchange="updateObsPreviewAndUrl()" /> Show voice label</label>
-                  <label style="cursor:pointer;gap:6px;justify-content:flex-start;"><input type="checkbox" id="obs-cfg-always-av" onchange="updateObsPreviewAndUrl()" /> Always show idle avatar</label>
+                  <label style="cursor:pointer;gap:6px;justify-content:flex-start;margin-top:16px;"><input type="checkbox" id="obs-cfg-always-av" onchange="updateObsPreviewAndUrl()" /> Always show idle avatar</label>
                 </div>
               </div>
 
@@ -3072,9 +3070,8 @@
 
     const prevBanner = document.getElementById('obs-prev-banner');
     const prevAvatar = document.getElementById('obs-prev-avatar');
-    const prevVtag = document.getElementById('obs-prev-vtag');
     const prevText = document.getElementById('obs-prev-text');
-    if (!prevBanner || !prevAvatar || !prevVtag || !prevText) return;
+    if (!prevBanner || !prevAvatar || !prevText) return;
 
     const showAvatar = (mode === 'full' || mode === 'avatar') && !!idleUrl;
     const showBanner = (mode === 'full' || mode === 'banner');
@@ -3091,7 +3088,6 @@
       prevBanner.style.background = 'transparent';
       prevBanner.style.border = 'none';
       prevBanner.style.boxShadow = 'none';
-      prevVtag.style.display = 'none';
       prevText.style.fontSize = '13px';
       prevText.style.color = '#94a3b8';
       prevText.textContent = '(Audio-only mode: plays TTS audio with no on-screen visuals)';
@@ -3109,8 +3105,6 @@
       prevBanner.style.border = '1px solid rgba(255,255,255,0.18)';
       prevBanner.style.borderLeft = `4px solid ${accent}`;
     }
-    prevVtag.style.display = vtag ? 'block' : 'none';
-    prevVtag.style.color = accent;
     prevText.style.fontSize = Math.min(24, parseInt(size, 10)) + 'px';
     prevText.style.color = color;
     prevText.textContent = 'Sample on-stream TTS subtitle preview!';

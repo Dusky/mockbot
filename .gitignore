@@ -5,6 +5,7 @@ config.toml
 *.db-wal
 badwords.txt
 outputs/
+backups/
 tts_audio/
 voices/
 *.log

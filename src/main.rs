@@ -204,6 +204,11 @@ async fn main() -> Result<()> {
                 tts::run_bark_worker_loop(tts_state, tts_rx).await;
             });
 
+            let backup_state = state.clone();
+            tokio::spawn(async move {
+                run_daily_backup_loop(backup_state).await;
+            });
+
             if !offline {
                 let twitch_state = state.clone();
                 tokio::spawn(async move {
@@ -392,4 +397,37 @@ fn run_cli_generate(
         }
     }
 }
+
+async fn run_daily_backup_loop(state: Arc<AppState>) {
+    let backup_dir = Path::new("/home/matt/ansv2/backups");
+    let _ = std::fs::create_dir_all(backup_dir);
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(12 * 3600));
+    loop {
+        interval.tick().await;
+        let date_str = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let dest = backup_dir.join(format!("ansv2-{}.db", date_str));
+        if !dest.exists() {
+            if state.db.backup_db_snapshot(&dest).is_ok() {
+                state.log_system(
+                    "INFO",
+                    format!("Saved daily SQLite backup to {:?}", dest),
+                );
+            }
+        }
+        // Keep newest 7 daily backups
+        if let Ok(rd) = std::fs::read_dir(backup_dir) {
+            let mut files: Vec<PathBuf> = rd
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().and_then(|s| s.to_str()) == Some("db"))
+                .collect();
+            files.sort();
+            while files.len() > 7 {
+                let oldest = files.remove(0);
+                let _ = std::fs::remove_file(oldest);
+            }
+        }
+    }
+}
+
 

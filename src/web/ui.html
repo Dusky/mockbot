@@ -762,12 +762,13 @@
       <select id="admin-view-as-select" class="hidden" style="width:auto;padding:4px 8px;font-size:12px;" onchange="setViewAsChannel(this.value)" data-tip="Preview and manage the dashboard exactly as a specific streamer sees it"></select>
       <button class="sm primary hidden" id="btn-exit-view-as" onclick="setViewAsChannel('')">Exit streamer view</button>
       <button class="sm hidden" id="rail-backup-btn" onclick="downloadDbBackup()" data-tip="Download a consistent SQLite .db backup snapshot">Backup DB</button>
+      <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="color:#d1d5db;text-decoration:none;font-size:12px;padding:4px 8px;border:1px solid #475569;border-radius:3px;">GitHub &nearr;</a>
       <button class="sm" onclick="toggleTheme()">Theme</button>
       <button class="sm hidden" id="rail-logout-btn" onclick="doLogout()">Log out</button>
     </div>
   </header>
 
-  <!-- PUBLIC PAGE (MOCKUP 4: CLASSIC OPEN-SOURCE UTILITY LAYOUT + SEPARATE CHANNELS TAB) -->
+  <!-- PUBLIC PAGE (MOCKUP 4: CLASSIC OPEN-SOURCE UTILITY LAYOUT + SEPARATE CHANNELS & HELP TABS) -->
   <div id="auth-screen" class="hidden">
     <header class="m4-header">
       <div class="m4-header-inner">
@@ -778,6 +779,7 @@
         <nav class="m4-nav">
           <a href="/" id="pnav-overview" class="active-tab" onclick="switchPubPage('overview');return false;">Overview</a>
           <a href="/channels" id="pnav-channels" onclick="switchPubPage('channels');return false;">Channels</a>
+          <a href="/help" id="pnav-help" onclick="switchPubPage('help');return false;">Help &amp; Guide</a>
           <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener">GitHub &nearr;</a>
         </nav>
       </div>
@@ -971,6 +973,63 @@
         </div>
       </main>
     </div>
+
+    <!-- PAGE 3: PUBLIC HELP & SETUP GUIDE PAGE -->
+    <div id="pub-page-help" class="hidden" style="max-width:1100px;margin:24px auto 0;padding:0 20px;">
+      <main class="m4-main">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:12px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:14px;">
+          <h2 style="margin:0;border:none;padding:0;">Mockbot Help &amp; Setup Guide</h2>
+          <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="font-size:13px;color:#6441a5;text-decoration:none;font-weight:600;">Source code on GitHub (Dusky/mockbot) &nearr;</a>
+        </div>
+
+        <h2>1. Getting Started (Adding the Bot to Your Channel)</h2>
+        <ul>
+          <li><strong>Step 1 — Sign in with Twitch:</strong> Click <em>Sign in with Twitch</em> on the homepage. Mockbot will automatically create your isolated channel brain (<code>channel:yourname</code>) and join your Twitch chat.</li>
+          <li><strong>Step 2 — VIP or Mod the Bot in Twitch Chat:</strong> Type <code>/vip mockbot</code> or <code>/mod mockbot</code> in your Twitch chat. Twitch restricts un-modded/non-VIP accounts in Slow Mode and Follower-Only Mode, and caps un-modded bots at 20 messages per 30 seconds across all channels. Modding or VIPing the bot ensures your responses are never dropped by Twitch.</li>
+          <li><strong>Step 3 — Adjust Your Frequency:</strong> In <em>Settings</em>, choose a preset (<em>Quiet</em>, <em>Normal</em>, <em>Active</em>, or <em>Chatty</em>). Mockbot uses an <strong>AND gate</strong>: <em>both</em> the minimum number of chat lines (e.g. 100 lines) and the minimum cooldown minutes (e.g. 15m) must pass before it speaks automatically, and it pauses whenever your stream is offline.</li>
+        </ul>
+
+        <h2>2. Setting Up Bark TTS &amp; OBS Display</h2>
+        <p>You can play TTS audio on stream in two ways from the <strong>Bark TTS</strong> tab:</p>
+        <ul>
+          <li><strong>Option A — OBS Browser Source (Recommended):</strong> Copy your <em>OBS Browser Source URL</em> (<code>https://mockbot.xyz/obs/yourname?...</code>) and add a new <strong>Browser Source</strong> in OBS Studio (width <code>800</code>, height <code>300</code>). Use the display customizer in the <em>Bark TTS</em> tab to choose between <em>Text Banner + Avatar</em>, <em>Text Banner Only</em>, <em>Avatar Only</em>, or <em>Audio Only (Invisible)</em>, and customize colors, font size, and screen position.</li>
+          <li><strong>Option B — Pop-Out TTS Player Window:</strong> Click <strong>Pop out TTS player &nearr;</strong> in the <em>Bark TTS</em> tab. Keep that small window open on your PC to play incoming TTS audio through Desktop Audio (or click <em>Chroma Green</em> inside the pop-up to capture it with OBS Window Capture).</li>
+          <li><strong>Voice Cloning &amp; Vocal Tags:</strong> Upload any 5–12 second clean spoken <code>.wav</code> or <code>.mp3</code> clip via <strong>Clone .wav/.mp3</strong> to create a custom <code>.npz</code> voice preset. Bark also supports vocal inflections in text: <code>[laughs]</code>, <code>[sighs]</code>, <code>[gasps]</code>, <code>[clears throat]</code>, and <code>&sung; singing &sung;</code>.</li>
+        </ul>
+
+        <h2>3. Importing Old Chat Logs &amp; Managing Your Corpus</h2>
+        <ul>
+          <li><strong>Importing Logs:</strong> Open the <strong>Corpus</strong> tab and upload or paste existing chat logs. Mockbot supports <code>TwitchDownloaderCLI</code> JSON files, <code>[timestamp] user: message</code> chat logs, plain text lines, and prose paragraphs.</li>
+          <li><strong>Searching &amp; Deleting Lines:</strong> Use the search box in <strong>Corpus</strong> to find specific words or phrases learned by your brain. Click <strong>Delete</strong> on a single row, or click <strong>Delete matching</strong> to remove all lines containing that word/phrase at once and rebuild your brain in memory.</li>
+        </ul>
+
+        <h2>4. Complete Chat Commands Reference</h2>
+        <table class="m4-table">
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Permission</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><code>!speak [topic]</code></td><td>Everyone (cooldown)</td><td>Generate a Markov response, optionally seeded around a word or phrase.</td></tr>
+            <tr><td><code>!mock @user [topic]</code></td><td>Everyone (cooldown)</td><td>Generate a line strictly from one specific chatter's message history in your channel (or another public brain).</td></tr>
+            <tr><td><code>!tts &lt;text&gt;</code></td><td>Streamer / Mods / Trusted</td><td>Synthesize text with your channel's Bark TTS voice and play it on your OBS overlay / pop-up player.</td></tr>
+            <tr><td><code>!skip</code></td><td>Streamer / Mods / Trusted</td><td>Clear all queued TTS clips and immediately stop any audio playing in OBS.</td></tr>
+            <tr><td><code>!mockbot status</code></td><td>Streamer / Mods / Trusted</td><td>Show current line counter, cadence settings, order, and active brain mix in chat.</td></tr>
+            <tr><td><code>!mockbot lines &lt;n&gt;</code></td><td>Streamer / Mods / Trusted</td><td>Set minimum chat lines required between automatic messages.</td></tr>
+            <tr><td><code>!mockbot time &lt;minutes&gt;</code></td><td>Streamer / Mods / Trusted</td><td>Set minimum cooldown minutes between automatic messages.</td></tr>
+            <tr><td><code>!mockbot voice &lt;preset&gt;</code></td><td>Streamer / Mods / Trusted</td><td>Switch your channel's active Bark TTS voice preset from chat.</td></tr>
+            <tr><td><code>!mockbot brain &lt;blend|channel|global&gt;</code></td><td>Streamer / Mods / Trusted</td><td>Switch between 70/30 blend, 100% channel-only, or 100% global brain mix.</td></tr>
+            <tr><td><code>!mockbot trust add/remove &lt;user&gt;</code></td><td>Streamer / Mods</td><td>Grant or revoke permission for a regular viewer to use management &amp; <code>!tts</code> commands.</td></tr>
+            <tr><td><code>!mockbot ignore add/remove &lt;user&gt;</code></td><td>Streamer / Mods</td><td>Prevent the bot from learning messages from a specific user or bot account.</td></tr>
+            <tr><td><code>!mockbot start / stop</code></td><td>Streamer / Mods / Trusted</td><td>Unmute or mute automatic Markov responses in chat.</td></tr>
+            <tr><td><code>!mockbot part</code></td><td>Streamer / Mods</td><td>Have the bot leave your Twitch channel immediately.</td></tr>
+          </tbody>
+        </table>
+      </main>
+    </div>
   </div>
 
   <!-- APP -->
@@ -987,6 +1046,11 @@
       <button class="nav-btn" data-view="brains" onclick="switchView('brains')">Corpus</button>
       <button class="nav-btn" data-view="telemetry" onclick="switchView('telemetry')">Chat Log</button>
       <button class="nav-btn hidden" id="nav-users-btn" data-view="users" onclick="switchView('users')">Users</button>
+      <button class="nav-btn" data-view="help" onclick="switchView('help')">Help &amp; Guide</button>
+
+      <div style="margin-top:auto;padding:12px 10px 4px;border-top:1px solid var(--line);font-size:11.5px;">
+        <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:none;display:block;">GitHub (Dusky/mockbot) &nearr;</a>
+      </div>
     </aside>
 
     <main class="content">
@@ -1663,6 +1727,70 @@
         </div>
       </section>
 
+      <!-- HELP & SETUP GUIDE (LOGGED-IN TAB) -->
+      <section id="view-help" class="hidden">
+        <div class="page-head">
+          <h1 style="font-size:22px;font-weight:700;">Help &amp; Setup Guide</h1>
+          <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="color:var(--ink);text-decoration:none;border:1px solid var(--line-strong);padding:6px 12px;border-radius:3px;font-size:12.5px;background:var(--surface);">Source Code on GitHub &nearr;</a>
+        </div>
+
+        <div class="grid-2">
+          <div class="card" style="line-height:1.6;">
+            <h2>1. Twitch Chat Setup &amp; Cadence</h2>
+            <ul style="margin-left:18px;color:var(--ink-2);display:flex;flex-direction:column;gap:8px;">
+              <li><strong>VIP or Mod the bot:</strong> Run <code>/vip mockbot</code> or <code>/mod mockbot</code> (or <code>@anormalskipviewer</code> for ANSV group channels) in your Twitch chat so Follower-Only Mode, Slow Mode, and Twitch's un-modded message rate limits don't block responses.</li>
+              <li><strong>How auto-speaking works (AND gate):</strong> Both <em>Min chat lines</em> (default 100) AND <em>Min cooldown (minutes)</em> (default 15m) must pass before the bot speaks on its own. If <em>Only when live</em> is checked, automatic messages pause whenever your stream is offline.</li>
+              <li><strong>Custom commands:</strong> In <em>Settings &rarr; Advanced settings</em>, you can add custom chat commands in <code>!cmd=brain:seed</code> format (e.g. <code>!wisdom=channel:yourname:advice</code>).</li>
+            </ul>
+
+            <h2 style="margin-top:20px;">2. Bark TTS, Voice Cloning &amp; OBS</h2>
+            <ul style="margin-left:18px;color:var(--ink-2);display:flex;flex-direction:column;gap:8px;">
+              <li><strong>OBS Browser Source:</strong> In the <em>Bark TTS</em> tab, customize your on-stream display (<em>Text Banner + Avatar</em>, <em>Banner Only</em>, <em>Avatar Only</em>, or <em>Audio Only</em>), copy the <strong>OBS Browser Source URL</strong>, and paste it into an OBS Browser Source (width <code>800</code>, height <code>300</code>).</li>
+              <li><strong>Pop-Out TTS Player:</strong> Prefer not to use an OBS Browser Source? Click <strong>Pop out TTS player &nearr;</strong> in the <em>Bark TTS</em> tab to open a standalone player window that plays incoming TTS clips through Desktop Audio (or toggle <em>Chroma Green</em> for OBS Window Capture).</li>
+              <li><strong>Cloning a Voice:</strong> Click <strong>Clone .wav/.mp3</strong> in <em>Bark TTS</em> and upload a clean 5–12 second solo voice recording (no background music) to create a reusable <code>.npz</code> voice preset.</li>
+              <li><strong>Vocal Tags:</strong> You can include <code>[laughs]</code>, <code>[sighs]</code>, <code>[gasps]</code>, <code>[clears throat]</code>, or <code>&sung; lyrics &sung;</code> in TTS text.</li>
+            </ul>
+
+            <h2 style="margin-top:20px;">3. Corpus Import &amp; Moderation</h2>
+            <ul style="margin-left:18px;color:var(--ink-2);display:flex;flex-direction:column;gap:8px;">
+              <li><strong>Importing Past Logs:</strong> In the <em>Corpus</em> tab, upload or paste <code>TwitchDownloaderCLI</code> JSON logs, <code>[time] user: message</code> logs, or plain text lines to train your channel's brain.</li>
+              <li><strong>Bulk Cleanup:</strong> Type a word or phrase in <em>Corpus &rarr; Search lines</em> and click <strong>Delete matching</strong> to remove all matching lines at once.</li>
+              <li><strong>Auto-Purge on Ban/Timeout:</strong> Whenever a moderator bans or times out a user in your Twitch chat, or deletes a message, Mockbot automatically deletes their lines from SQLite and rebuilds your brain in memory.</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h2>Chat Commands Reference</h2>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Command</th>
+                    <th>Who</th>
+                    <th>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td><code>!speak [topic]</code></td><td>Everyone</td><td>Generate a Markov response (optionally seeded with a word).</td></tr>
+                  <tr><td><code>!mock @user [topic]</code></td><td>Everyone</td><td>Imitate a specific chatter from their message history in your channel.</td></tr>
+                  <tr><td><code>!tts &lt;text&gt;</code></td><td>Mods / Streamer</td><td>Synthesize text with Bark TTS and play it in OBS / Pop-up player.</td></tr>
+                  <tr><td><code>!skip</code></td><td>Mods / Streamer</td><td>Clear the TTS queue and immediately stop OBS audio playback.</td></tr>
+                  <tr><td><code class="cmd-pfx">!mockbot</code> <code>status</code></td><td>Mods / Streamer</td><td>Display current line counter, cooldown, order, and brain mix in chat.</td></tr>
+                  <tr><td><code class="cmd-pfx">!mockbot</code> <code>lines &lt;n&gt;</code></td><td>Mods / Streamer</td><td>Set minimum chat lines required between automatic messages.</td></tr>
+                  <tr><td><code class="cmd-pfx">!mockbot</code> <code>time &lt;m&gt;</code></td><td>Mods / Streamer</td><td>Set minimum cooldown minutes between automatic messages.</td></tr>
+                  <tr><td><code class="cmd-pfx">!mockbot</code> <code>voice &lt;name&gt;</code></td><td>Mods / Streamer</td><td>Switch active Bark TTS voice preset from chat.</td></tr>
+                  <tr><td><code class="cmd-pfx">!mockbot</code> <code>brain &lt;mode&gt;</code></td><td>Mods / Streamer</td><td>Switch brain mode (<code>blend</code>, <code>channel</code>, or <code>global</code>).</td></tr>
+                  <tr><td><code class="cmd-pfx">!mockbot</code> <code>trust add/remove &lt;u&gt;</code></td><td>Mods / Streamer</td><td>Allow or remove a trusted user for bot commands &amp; <code>!tts</code>.</td></tr>
+                  <tr><td><code class="cmd-pfx">!mockbot</code> <code>ignore add/remove &lt;u&gt;</code></td><td>Mods / Streamer</td><td>Ignore a user or bot so their messages are never learned.</td></tr>
+                  <tr><td><code class="cmd-pfx">!mockbot</code> <code>start / stop</code></td><td>Mods / Streamer</td><td>Unmute or mute automatic responses in chat.</td></tr>
+                  <tr><td><code class="cmd-pfx">!mockbot</code> <code>part</code></td><td>Mods / Streamer</td><td>Have the bot leave your Twitch channel immediately.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -1752,6 +1880,8 @@
     showAuthScreen();
     if (location.pathname === '/channels' || location.hash === '#channels') {
       switchPubPage('channels', false);
+    } else if (location.pathname === '/help' || location.hash === '#help') {
+      switchPubPage('help', false);
     }
     loadPublicChannels();
 
@@ -1781,15 +1911,17 @@
   }
 
   function switchPubPage(tab, pushHistory = true) {
-    const isChans = tab === 'channels';
-    document.getElementById('pub-page-overview').classList.toggle('hidden', isChans);
-    document.getElementById('pub-page-channels').classList.toggle('hidden', !isChans);
-    document.getElementById('pnav-overview').classList.toggle('active-tab', !isChans);
-    document.getElementById('pnav-channels').classList.toggle('active-tab', isChans);
+    document.getElementById('pub-page-overview').classList.toggle('hidden', tab !== 'overview');
+    document.getElementById('pub-page-channels').classList.toggle('hidden', tab !== 'channels');
+    document.getElementById('pub-page-help').classList.toggle('hidden', tab !== 'help');
+    document.getElementById('pnav-overview').classList.toggle('active-tab', tab === 'overview');
+    document.getElementById('pnav-channels').classList.toggle('active-tab', tab === 'channels');
+    document.getElementById('pnav-help').classList.toggle('active-tab', tab === 'help');
     if (pushHistory) {
-      history.pushState(null, '', isChans ? '/channels' : '/');
+      const nextUrl = tab === 'channels' ? '/channels' : (tab === 'help' ? '/help' : '/');
+      history.pushState(null, '', nextUrl);
     }
-    if (isChans) {
+    if (tab === 'channels') {
       renderPublicChannelsTable(chanDirPage);
     }
   }
@@ -1797,6 +1929,8 @@
   window.addEventListener('popstate', () => {
     if (location.pathname === '/channels' || location.hash === '#channels') {
       switchPubPage('channels', false);
+    } else if (location.pathname === '/help' || location.hash === '#help') {
+      switchPubPage('help', false);
     } else {
       switchPubPage('overview', false);
     }
@@ -2143,7 +2277,7 @@
   }
 
   function switchView(viewName) {
-    for (const v of ['instance', 'tts', 'sandbox', 'brains', 'telemetry', 'users']) {
+    for (const v of ['instance', 'tts', 'sandbox', 'brains', 'telemetry', 'users', 'help']) {
       const el = document.getElementById(`view-${v}`);
       if (el) el.classList.toggle('hidden', v !== viewName);
     }

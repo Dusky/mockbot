@@ -2508,6 +2508,7 @@ async fn admin_set_brain_voice_handler(
 struct SpeakReq {
     channel: String,
     seed: Option<String>,
+    text: Option<String>,
 }
 
 async fn speak_handler(
@@ -2533,6 +2534,44 @@ async fn speak_handler(
             Json(ApiResponse {
                 ok: false,
                 message: "You can only trigger speech in your own channel.".to_string(),
+                result: None,
+            }),
+        );
+    }
+
+    if let Some(raw_text) = req.text.filter(|t| !t.trim().is_empty()) {
+        let safe_text = crate::markov::MessageFilter::sanitize_outbound(&raw_text);
+        let is_ok = {
+            let eng = state.engine.read().unwrap();
+            eng.filter.is_safe(&safe_text)
+        };
+        if safe_text.is_empty() || !is_ok {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(ApiResponse {
+                    ok: false,
+                    message: "Message blocked by safety filter.".to_string(),
+                    result: None,
+                }),
+            );
+        }
+        let _ = state.irc_cmd_tx.send(IrcControlCmd::SendPrivmsg {
+            channel: clean.clone(),
+            text: safe_text.clone(),
+        });
+        state.emit_event(crate::state::LiveEvent::BotResponse {
+            timestamp: chrono::Utc::now().timestamp(),
+            channel: clean.clone(),
+            trigger: "web_sample".to_string(),
+            text: safe_text.clone(),
+            brains_used: vec![format!("channel:{}", clean)],
+            attempts: 1,
+        });
+        return (
+            StatusCode::OK,
+            Json(ApiResponse {
+                ok: true,
+                message: format!("Sent to #{}: {}", clean, safe_text),
                 result: None,
             }),
         );

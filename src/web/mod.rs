@@ -38,6 +38,7 @@ pub async fn run_web_server(state: Arc<AppState>) -> anyhow::Result<()> {
         .route("/api/auth/login", post(auth_login_handler))
         .route("/api/auth/register", post(auth_register_handler))
         .route("/api/auth/me", get(auth_me_handler))
+        .route("/api/auth/password", post(auth_change_password_handler))
         // Authenticated Streamer + Admin endpoints (scoped by role!)
         .route("/api/status", get(status_handler))
         .route("/api/events", get(events_handler))
@@ -1189,6 +1190,64 @@ async fn auth_me_handler(
             Json(ApiResponse::<UserAccount> {
                 ok: false,
                 message: "Not authenticated".to_string(),
+                result: None,
+            }),
+        ),
+    }
+}
+
+#[derive(Deserialize)]
+struct ChangePasswordReq {
+    new_password: String,
+}
+
+async fn auth_change_password_handler(
+    headers: HeaderMap,
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<ChangePasswordReq>,
+) -> impl IntoResponse {
+    let Some(user) = resolve_auth_user(&headers, &state) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(ApiResponse::<UserAccount> {
+                ok: false,
+                message: "Sign in required.".to_string(),
+                result: None,
+            }),
+        );
+    };
+    if req.new_password.trim().len() < 4 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(ApiResponse {
+                ok: false,
+                message: "Password must be at least 4 characters.".to_string(),
+                result: None,
+            }),
+        );
+    }
+    match state.db.create_or_update_user_full(
+        &user.username,
+        req.new_password.trim(),
+        &user.role,
+        &user.tier,
+        &user.channel_name,
+        user.verified,
+        &user.claim_code,
+    ) {
+        Ok(acct) => (
+            StatusCode::OK,
+            Json(ApiResponse {
+                ok: true,
+                message: "Updated account password.".to_string(),
+                result: Some(acct),
+            }),
+        ),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ApiResponse {
+                ok: false,
+                message: e.to_string(),
                 result: None,
             }),
         ),

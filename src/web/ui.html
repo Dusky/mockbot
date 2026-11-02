@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>mockbot</title>
+  <title>mockbot — Twitch Markov Chain &amp; Bark TTS Bot</title>
+  <meta name="description" content="Multi-brain Markov chain and Suno Bark TTS bot for Twitch chat, written in Rust." />
+  <meta property="og:title" content="mockbot — Twitch Markov Chain &amp; Bark TTS Bot" />
+  <meta property="og:description" content="Learns word transitions from your Twitch chat to build an isolated Markov brain, with automatic ban/timeout purges and optional Bark TTS for OBS." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%236441a5'/%3E%3Ctext x='16' y='22' text-anchor='middle' font-family='monospace' font-weight='bold' font-size='18' fill='%23fff'%3Em%3C/text%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1048,7 +1053,15 @@
       <button class="nav-btn hidden" id="nav-users-btn" data-view="users" onclick="switchView('users')">Users</button>
       <button class="nav-btn" data-view="help" onclick="switchView('help')">Help &amp; Guide</button>
 
-      <div style="margin-top:auto;padding:12px 10px 4px;border-top:1px solid var(--line);font-size:11.5px;">
+      <div style="margin-top:auto;padding:12px 10px 4px;border-top:1px solid var(--line);font-size:11.5px;display:flex;flex-direction:column;gap:8px;">
+        <details>
+          <summary style="cursor:pointer;color:var(--muted);user-select:none;">Change password</summary>
+          <div style="margin-top:6px;display:flex;flex-direction:column;gap:5px;">
+            <input type="password" id="self-new-pass" placeholder="New password" style="padding:5px 7px;font-size:11.5px;" onkeydown="if(event.key==='Enter') changeOwnPassword()" />
+            <button class="sm" onclick="changeOwnPassword()">Update password</button>
+            <div id="self-pass-msg" style="font-size:11px;color:var(--ok);"></div>
+          </div>
+        </details>
         <a href="https://github.com/Dusky/mockbot" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:none;display:block;">GitHub (Dusky/mockbot) &nearr;</a>
       </div>
     </aside>
@@ -1210,12 +1223,22 @@
 
               <div class="row">
                 <div class="field" style="margin:0;">
-                  <label data-tip="Twitch Channel Point reward UUID (or * for any text reward) that triggers Bark TTS."><span>Reward ID → TTS <span class="tip-q">?</span></span></label>
-                  <input type="text" id="adm-reward-tts" placeholder="* or reward UUID" />
+                  <label data-tip="Trigger Bark TTS when a viewer redeems a Twitch Channel Point reward that includes text."><span>Channel Points → TTS <span class="tip-q">?</span></span></label>
+                  <select id="adm-reward-tts-mode" onchange="onRewardModeChange('tts')">
+                    <option value="">Disabled</option>
+                    <option value="*">Any text-input reward (*)</option>
+                    <option value="custom">Specific reward ID...</option>
+                  </select>
+                  <input type="text" id="adm-reward-tts" class="hidden" style="margin-top:5px;" placeholder="Reward UUID (from Chat Log)" />
                 </div>
                 <div class="field" style="margin:0;">
-                  <label data-tip="Twitch Channel Point reward UUID (or * for any text reward) that triggers a Markov message."><span>Reward ID → Markov <span class="tip-q">?</span></span></label>
-                  <input type="text" id="adm-reward-markov" placeholder="* or reward UUID" />
+                  <label data-tip="Trigger a Markov chat response when a viewer redeems a Twitch Channel Point reward that includes text."><span>Channel Points → Markov <span class="tip-q">?</span></span></label>
+                  <select id="adm-reward-markov-mode" onchange="onRewardModeChange('markov')">
+                    <option value="">Disabled</option>
+                    <option value="*">Any text-input reward (*)</option>
+                    <option value="custom">Specific reward ID...</option>
+                  </select>
+                  <input type="text" id="adm-reward-markov" class="hidden" style="margin-top:5px;" placeholder="Reward UUID (from Chat Log)" />
                 </div>
                 <div class="field" style="margin:0;max-width:125px;">
                   <label data-tip="Minimum cheer bits required to trigger Bark TTS (0 = disabled)."><span>Bits → TTS <span class="tip-q">?</span></span></label>
@@ -2555,11 +2578,14 @@
     document.getElementById('adm-trigger-chance').value = r.trigger_chance !== undefined ? r.trigger_chance : 50;
     document.getElementById('adm-reward-tts').value = r.reward_tts_id || '';
     document.getElementById('adm-reward-markov').value = r.reward_markov_id || '';
+    syncRewardSelectFromValue('tts', r.reward_tts_id || '');
+    syncRewardSelectFromValue('markov', r.reward_markov_id || '');
     document.getElementById('adm-bits-tts').value = r.min_bits_tts || 0;
     document.getElementById('adm-bits-markov').value = r.min_bits_markov || 0;
     document.getElementById('adm-obs-idle').value = r.obs_idle_img || '';
     document.getElementById('adm-obs-talk').value = r.obs_talk_img || '';
     document.getElementById('adm-obs-key').value = r.obs_key || '';
+    loadSavedObsStyle(r.channel_name);
     if (r.voice_preset) {
       document.getElementById('adm-voice-preset').value = r.voice_preset;
       document.getElementById('tts-gen-voice').value = r.voice_preset;
@@ -3206,6 +3232,99 @@
     box.textContent = data.message;
   }
 
+  function syncRewardSelectFromValue(kind, val) {
+    const sel = document.getElementById(`adm-reward-${kind}-mode`);
+    const inp = document.getElementById(`adm-reward-${kind}`);
+    if (!sel || !inp) return;
+    const v = (val || '').trim();
+    if (!v) {
+      sel.value = '';
+      inp.classList.add('hidden');
+    } else if (v === '*') {
+      sel.value = '*';
+      inp.classList.add('hidden');
+    } else {
+      sel.value = 'custom';
+      inp.classList.remove('hidden');
+    }
+  }
+
+  function onRewardModeChange(kind) {
+    const sel = document.getElementById(`adm-reward-${kind}-mode`);
+    const inp = document.getElementById(`adm-reward-${kind}`);
+    if (!sel || !inp) return;
+    if (sel.value === '') {
+      inp.value = '';
+      inp.classList.add('hidden');
+    } else if (sel.value === '*') {
+      inp.value = '*';
+      inp.classList.add('hidden');
+    } else {
+      if (inp.value === '*') inp.value = '';
+      inp.classList.remove('hidden');
+    }
+  }
+
+  async function changeOwnPassword() {
+    const new_password = (document.getElementById('self-new-pass')?.value || '').trim();
+    const msgEl = document.getElementById('self-pass-msg');
+    if (!new_password) return;
+    const res = await fetch('/api/auth/password', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Auth-Token': authToken
+      },
+      body: JSON.stringify({ new_password })
+    });
+    const data = await res.json();
+    if (msgEl) {
+      msgEl.style.color = data.ok ? 'var(--ok)' : 'var(--danger)';
+      msgEl.textContent = data.message;
+    }
+    if (data.ok && data.result) {
+      authToken = data.result.api_token;
+      localStorage.setItem('ansv2_auth_token', authToken);
+      document.getElementById('self-new-pass').value = '';
+    }
+  }
+
+  function loadSavedObsStyle(chan) {
+    if (!chan) return;
+    try {
+      const raw = localStorage.getItem(`mockbot_obs_style_${chan}`);
+      if (!raw) return;
+      const st = JSON.parse(raw);
+      if (st.mode) document.getElementById('obs-cfg-mode').value = st.mode;
+      if (st.pos) document.getElementById('obs-cfg-pos').value = st.pos;
+      if (st.anim) document.getElementById('obs-cfg-anim').value = st.anim;
+      if (st.size) document.getElementById('obs-cfg-size').value = st.size;
+      if (st.avsize) document.getElementById('obs-cfg-avsize').value = st.avsize;
+      if (st.opacity !== undefined) document.getElementById('obs-cfg-opacity').value = st.opacity;
+      if (st.accent) document.getElementById('obs-cfg-accent').value = st.accent;
+      if (st.color) document.getElementById('obs-cfg-color').value = st.color;
+      if (st.alwaysAv !== undefined) document.getElementById('obs-cfg-always-av').checked = !!st.alwaysAv;
+    } catch (_) {}
+  }
+
+  function saveObsStyleToStorage(chan) {
+    if (!chan) return;
+    try {
+      const st = {
+        mode: document.getElementById('obs-cfg-mode')?.value || 'full',
+        pos: document.getElementById('obs-cfg-pos')?.value || 'bottom-left',
+        anim: document.getElementById('obs-cfg-anim')?.value || 'bounce',
+        size: document.getElementById('obs-cfg-size')?.value || '20',
+        avsize: document.getElementById('obs-cfg-avsize')?.value || '140',
+        opacity: document.getElementById('obs-cfg-opacity')?.value || '0.92',
+        accent: document.getElementById('obs-cfg-accent')?.value || '#6441a5',
+        color: document.getElementById('obs-cfg-color')?.value || '#ffffff',
+        alwaysAv: document.getElementById('obs-cfg-always-av')?.checked ?? false,
+      };
+      localStorage.setItem(`mockbot_obs_style_${chan}`, JSON.stringify(st));
+    } catch (_) {}
+  }
+
   function buildObsUrl(forPopup = false, chanOverride = '') {
     const ch = chanOverride || effectiveChannelName() || 'channel';
     const params = new URLSearchParams();
@@ -3239,6 +3358,8 @@
   }
 
   function updateObsPreviewAndUrl(chanOverride = '') {
+    const ch = chanOverride || effectiveChannelName();
+    if (!chanOverride && ch) saveObsStyleToStorage(ch);
     const box = document.getElementById('obs-url-box');
     if (box) box.value = buildObsUrl(false, chanOverride);
 

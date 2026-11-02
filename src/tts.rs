@@ -67,13 +67,9 @@ struct WorkerMsg {
 }
 
 pub fn list_available_voices() -> Vec<VoicePresetInfo> {
-    let mut voices = vec![VoicePresetInfo {
-        code: "random".to_string(),
-        label: "Unhinged Random Bark Hallucination".to_string(),
-        kind: "random".to_string(),
-    }];
+    let mut voices = Vec::new();
 
-    // Discover custom .npz voices in ./voices
+    // 1. Discover custom .npz voices in ./voices first
     let voices_dir = Path::new("/home/matt/ansv2/voices");
     if voices_dir.is_dir() {
         let mut custom_names: Vec<String> = Vec::new();
@@ -87,7 +83,17 @@ pub fn list_available_voices() -> Vec<VoicePresetInfo> {
                 }
             }
         }
-        custom_names.sort();
+        custom_names.sort_by(|a, b| {
+            let prio = |s: &str| match s {
+                "streamer" => 0,
+                "plankton" => 1,
+                "Alice" => 2,
+                _ => 10,
+            };
+            prio(a)
+                .cmp(&prio(b))
+                .then_with(|| a.to_lowercase().cmp(&b.to_lowercase()))
+        });
         for stem in custom_names {
             let friendly = stem
                 .split("-24-")
@@ -96,20 +102,39 @@ pub fn list_available_voices() -> Vec<VoicePresetInfo> {
                 .replace('_', " ");
             voices.push(VoicePresetInfo {
                 code: stem.clone(),
-                label: format!("Custom: {}", friendly),
+                label: format!("Custom (.npz): {}", friendly),
                 kind: "custom_npz".to_string(),
             });
         }
     }
 
-    // Built-in Bark speaker presets
-    for i in 0..=9 {
+    // 2. Built-in Bark v2 speaker presets with descriptive voice notes
+    let builtin_descriptions = [
+        ("v2/en_speaker_9", "Bark v2 #9 (Female, expressive)"),
+        ("v2/en_speaker_6", "Bark v2 #6 (Male, warm & conversational)"),
+        ("v2/en_speaker_5", "Bark v2 #5 (Male, clear narrator)"),
+        ("v2/en_speaker_2", "Bark v2 #2 (Male, deep)"),
+        ("v2/en_speaker_3", "Bark v2 #3 (Male, energetic)"),
+        ("v2/en_speaker_0", "Bark v2 #0 (Male, casual)"),
+        ("v2/en_speaker_1", "Bark v2 #1 (Male, steady)"),
+        ("v2/en_speaker_4", "Bark v2 #4 (Male, measured)"),
+        ("v2/en_speaker_7", "Bark v2 #7 (Male, calm)"),
+        ("v2/en_speaker_8", "Bark v2 #8 (Male, upbeat)"),
+    ];
+    for (code, label) in builtin_descriptions {
         voices.push(VoicePresetInfo {
-            code: format!("v2/en_speaker_{}", i),
-            label: format!("Bark v2 Speaker #{}", i),
+            code: code.to_string(),
+            label: label.to_string(),
             kind: "builtin".to_string(),
         });
     }
+
+    // 3. Unhinged random Bark hallucination mode
+    voices.push(VoicePresetInfo {
+        code: "random".to_string(),
+        label: "Unhinged Random Bark Hallucination".to_string(),
+        kind: "random".to_string(),
+    });
 
     voices
 }

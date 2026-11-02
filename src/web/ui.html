@@ -1228,8 +1228,16 @@
               </div>
 
               <div class="field">
-                <label data-tip="Custom chat commands in !cmd=brain:seed format (e.g. !wisdom=channel:egancaerwyn:advice, !pat=channel:patstaresat)."><span>Custom commands (!cmd=brain:seed) <span class="tip-q">?</span></span></label>
-                <input type="text" id="adm-custom-cmds" placeholder="!wisdom=channel:egancaerwyn:advice, !pat=channel:patstaresat" />
+                <label data-tip="Create custom !commands in your chat that make the bot generate a message about a specific topic or from a specific brain."><span>Custom chat commands <span class="tip-q">?</span></span></label>
+                <div id="adm-custom-cmds-list" class="mix-list"></div>
+                <div style="display:grid;grid-template-columns:120px 1fr 160px auto;gap:6px;align-items:center;">
+                  <input type="text" id="new-cc-cmd" placeholder="!command" />
+                  <input type="text" id="new-cc-seed" placeholder="optional topic/seed word (e.g. taco bell)" />
+                  <select id="new-cc-brain">
+                    <option value="default">Default brain mix</option>
+                  </select>
+                  <button class="sm" type="button" onclick="addCustomCommandRow()">+ Add</button>
+                </div>
               </div>
 
               <div class="field hidden" id="adm-custom-learn-wrap">
@@ -1740,7 +1748,7 @@
             <ul style="margin-left:18px;color:var(--ink-2);display:flex;flex-direction:column;gap:8px;">
               <li><strong>VIP or Mod the bot:</strong> Run <code>/vip mockbot</code> or <code>/mod mockbot</code> (or <code>@anormalskipviewer</code> for ANSV group channels) in your Twitch chat so Follower-Only Mode, Slow Mode, and Twitch's un-modded message rate limits don't block responses.</li>
               <li><strong>How auto-speaking works (AND gate):</strong> Both <em>Min chat lines</em> (default 100) AND <em>Min cooldown (minutes)</em> (default 15m) must pass before the bot speaks on its own. If <em>Only when live</em> is checked, automatic messages pause whenever your stream is offline.</li>
-              <li><strong>Custom commands:</strong> In <em>Settings &rarr; Advanced settings</em>, you can add custom chat commands in <code>!cmd=brain:seed</code> format (e.g. <code>!wisdom=channel:yourname:advice</code>).</li>
+              <li><strong>Custom chat commands:</strong> In <em>Settings &rarr; Advanced settings</em>, you can add your own chat triggers (for example, making <code>!food</code> generate a message seeded with <code>taco bell</code>).</li>
             </ul>
 
             <h2 style="margin-top:20px;">2. Bark TTS, Voice Cloning &amp; OBS</h2>
@@ -1802,6 +1810,7 @@
   let latestStatus = null;
   let availableVoices = [];
   let currentChannelMix = [];
+  let currentCustomCommands = [];
   let allEvents = [];
 
   const savedTheme = localStorage.getItem('ansv2_theme') || 'chassis';
@@ -2429,6 +2438,13 @@
   }
 
   function populateBrainDropdowns(brains) {
+    const ccBrainEl = document.getElementById('new-cc-brain');
+    if (ccBrainEl) {
+      const prevCc = ccBrainEl.value;
+      ccBrainEl.innerHTML = '<option value="default">Default brain mix</option>' +
+        brains.map(b => `<option value="${escapeHtml(b.name)}">${escapeHtml(b.name)}</option>`).join('');
+      if (prevCc && [...ccBrainEl.options].some(o => o.value === prevCc)) ccBrainEl.value = prevCc;
+    }
     const ids = ['sb-brain', 'sb-brain-2', 'adm-add-brain-select', 'insp-brain', 'train-brain-select'];
     for (const id of ids) {
       const el = document.getElementById(id);
@@ -2549,9 +2565,12 @@
       document.getElementById('tts-gen-voice').value = r.voice_preset;
     }
     document.getElementById('adm-custom-learn').value = (r.custom_learn_brains || []).join(', ');
-    document.getElementById('adm-custom-cmds').value = (r.custom_commands || []).map(c => {
-      return c.seed ? `!${c.cmd}=${c.brain}:${c.seed}` : `!${c.cmd}=${c.brain}`;
-    }).join(', ');
+    currentCustomCommands = (r.custom_commands || []).map(c => ({
+      cmd: c.cmd,
+      brain: c.brain || 'default',
+      seed: c.seed || ''
+    }));
+    renderCustomCommandsList();
     document.getElementById('adm-trusted').value = r.trusted_users.join(', ');
     document.getElementById('adm-ignored').value = r.ignored_users.join(', ');
     document.getElementById('adm-blocked').value = (r.blocked_words || []).join(', ');
@@ -2637,22 +2656,51 @@
     }));
   }
 
+  function renderCustomCommandsList() {
+    const el = document.getElementById('adm-custom-cmds-list');
+    if (!el) return;
+    if (currentCustomCommands.length === 0) {
+      el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = currentCustomCommands.map((c, idx) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 10px;background:var(--bg-2);border:1px solid var(--line);border-radius:3px;font-size:12px;">
+        <div>
+          <strong>!${escapeHtml(c.cmd)}</strong>
+          <span style="color:var(--muted);margin-left:8px;">
+            ${c.seed ? `Topic: "${escapeHtml(c.seed)}"` : 'Random topic'}
+            &middot;
+            ${c.brain && c.brain !== 'default' ? escapeHtml(c.brain) : 'Default mix'}
+          </span>
+        </div>
+        <button class="sm danger" type="button" onclick="removeCustomCommandRow(${idx})">&times;</button>
+      </div>
+    `).join('');
+  }
+
+  function addCustomCommandRow() {
+    const rawCmd = (document.getElementById('new-cc-cmd')?.value || '').trim().replace(/^!+/, '').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const seed = (document.getElementById('new-cc-seed')?.value || '').trim();
+    const brain = document.getElementById('new-cc-brain')?.value || 'default';
+    if (!rawCmd) return;
+    currentCustomCommands = currentCustomCommands.filter(x => x.cmd !== rawCmd);
+    currentCustomCommands.push({ cmd: rawCmd, brain, seed });
+    document.getElementById('new-cc-cmd').value = '';
+    document.getElementById('new-cc-seed').value = '';
+    renderCustomCommandsList();
+  }
+
+  function removeCustomCommandRow(idx) {
+    currentCustomCommands.splice(idx, 1);
+    renderCustomCommandsList();
+  }
+
   async function saveChannelConfig() {
     const channel = document.getElementById('adm-chan-select').value;
     const msgEl = document.getElementById('adm-save-msg');
     const mix = getNormalizedChannelMix();
 
-    const rawCmds = document.getElementById('adm-custom-cmds').value.split(',').map(s => s.trim()).filter(Boolean);
-    const custom_commands = rawCmds.map(entry => {
-      const [left, right] = entry.split('=');
-      const cmd = (left || '').trim().replace(/^!/, '').toLowerCase();
-      if (!right) return { cmd, brain: 'default', seed: '' };
-      const idx = right.lastIndexOf(':');
-      if (idx > 0 && !right.endsWith(':') && right.slice(0, idx).includes(':')) {
-        return { cmd, brain: right.slice(0, idx).trim(), seed: right.slice(idx + 1).trim() };
-      }
-      return { cmd, brain: right.trim(), seed: '' };
-    }).filter(c => c.cmd);
+    const custom_commands = currentCustomCommands.slice();
 
     const payload = {
       channel_name: channel,
